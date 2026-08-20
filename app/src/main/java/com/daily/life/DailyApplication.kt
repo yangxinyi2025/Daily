@@ -1,17 +1,11 @@
 package com.daily.life
 
 import android.app.Application
+import com.daily.life.core.AppContainer
+import com.daily.life.core.DefaultAppContainer
 
 class DailyApplication : Application() {
-    override fun onCreate() {
-        super.onCreate()
-        AppContainer.install(this)
-    }
-}
-
-internal object AppContainer {
-    fun install(application: Application) {
-        @Suppress("UNUSED_VARIABLE")
-        val unused = application
+    val container: AppContainer by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        DefaultAppContainer(this)
     }
 }
