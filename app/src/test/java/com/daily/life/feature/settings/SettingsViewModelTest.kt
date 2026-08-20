@@ -36,6 +36,44 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun savingSemesterStartDateUpdatesPreferences() = runTest {
+        val preferences = createTestPreferences()
+        val viewModel = SettingsViewModel(
+            semesterRepository = EmptySemesterSettingsRepository,
+            preferences = preferences,
+            secretStore = InMemorySecretStore(),
+            coroutineScope = backgroundScope
+        )
+
+        viewModel.updateSemesterStartDate(LocalDate.of(2026, 9, 1))
+
+        assertEquals(LocalDate.of(2026, 9, 1), preferences.semesterStartDate.first())
+        assertEquals(
+            LocalDate.of(2026, 9, 1),
+            viewModel.state.first { it.semesterStartDate == LocalDate.of(2026, 9, 1) }.semesterStartDate
+        )
+    }
+
+    @Test
+    fun savingMonthlyBudgetUpdatesPreferences() = runTest {
+        val preferences = createTestPreferences()
+        val viewModel = SettingsViewModel(
+            semesterRepository = EmptySemesterSettingsRepository,
+            preferences = preferences,
+            secretStore = InMemorySecretStore(),
+            coroutineScope = backgroundScope
+        )
+
+        viewModel.updateMonthlyBudgetCents(250_000L)
+
+        assertEquals(250_000L, preferences.defaultBudgetCents.first())
+        assertEquals(
+            250_000L,
+            viewModel.state.first { it.monthlyBudgetCents == 250_000L }.monthlyBudgetCents
+        )
+    }
+
+    @Test
     fun savingWebDavConfigStoresSecretsAndMasksState() = runTest {
         val preferences = createTestPreferences()
         val secretStore: SecretStore = InMemorySecretStore()

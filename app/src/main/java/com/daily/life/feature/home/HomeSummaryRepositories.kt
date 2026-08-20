@@ -13,6 +13,7 @@ import com.daily.life.core.datastore.DailyPreferences
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -28,7 +29,8 @@ class DaoTimetableSummaryRepository(
     semesterDao: SemesterDao,
     private val courseDao: CourseDao,
     preferences: DailyPreferences,
-    private val clock: Clock = Clock.systemDefaultZone()
+    private val clock: Clock = Clock.systemDefaultZone(),
+    private val currentPeriodProvider: (LocalTime) -> Int? = ::defaultUpcomingPeriod
 ) : TimetableSummaryRepository {
     override val summary: Flow<TimetableHomeSummary> =
         combine(
@@ -58,14 +60,13 @@ class DaoTimetableSummaryRepository(
                         week = week,
                         dayOfWeek = today.dayOfWeek.value
                     ).map { courses ->
+                        val nextCourse = selectNextCourse(courses)
                         TimetableHomeSummary(
                             todayCourseCount = courses.size,
-                            nextCourseLabel = courses.firstOrNull()?.let { course ->
-                                buildString {
-                                    append(course.courseName)
-                                    append(" 第 ${course.startPeriod}-${course.endPeriod} 节")
-                                    course.location?.takeIf(String::isNotBlank)?.let { append(" · $it") }
-                                }
+                            nextCourseLabel = if (courses.isEmpty()) {
+                                null
+                            } else {
+                                nextCourse?.toCourseLabel() ?: "今日课程已结束"
                             },
                             isEmpty = courses.isEmpty()
                         )
@@ -74,11 +75,51 @@ class DaoTimetableSummaryRepository(
             }
         }
 
+    private fun selectNextCourse(courses: List<CourseEntity>): CourseEntity? {
+        val currentPeriod = currentPeriodProvider(LocalTime.now(clock))
+        return if (currentPeriod == null) {
+            null
+        } else {
+            courses.firstOrNull { it.startPeriod >= currentPeriod }
+        }
+    }
+
+    private fun CourseEntity.toCourseLabel(): String =
+        buildString {
+            append(courseName)
+            append(" 第 $startPeriod-$endPeriod 节")
+            location?.takeIf(String::isNotBlank)?.let { append(" · $it") }
+        }
+
     private data class TimetableQuery(
         val semesterId: Long,
         val semesterStartDate: LocalDate
     )
 }
+
+private data class PeriodSlot(
+    val period: Int,
+    val startInclusive: LocalTime,
+    val endInclusive: LocalTime
+)
+
+private val DAILY_PERIOD_SLOTS = listOf(
+    PeriodSlot(1, LocalTime.of(8, 0), LocalTime.of(8, 45)),
+    PeriodSlot(2, LocalTime.of(8, 55), LocalTime.of(9, 40)),
+    PeriodSlot(3, LocalTime.of(10, 10), LocalTime.of(10, 55)),
+    PeriodSlot(4, LocalTime.of(11, 5), LocalTime.of(11, 50)),
+    PeriodSlot(5, LocalTime.of(14, 0), LocalTime.of(14, 45)),
+    PeriodSlot(6, LocalTime.of(14, 55), LocalTime.of(15, 40)),
+    PeriodSlot(7, LocalTime.of(16, 10), LocalTime.of(16, 55)),
+    PeriodSlot(8, LocalTime.of(17, 5), LocalTime.of(17, 50)),
+    PeriodSlot(9, LocalTime.of(19, 0), LocalTime.of(19, 45)),
+    PeriodSlot(10, LocalTime.of(19, 55), LocalTime.of(20, 40))
+)
+
+private fun defaultUpcomingPeriod(now: LocalTime): Int? =
+    DAILY_PERIOD_SLOTS.firstOrNull { slot ->
+        now <= slot.endInclusive
+    }?.period
 
 class DaoScheduleSummaryRepository(
     scheduleEventDao: ScheduleEventDao,
