@@ -2,6 +2,7 @@
 .superpowers/sdd/
 app/build/
 .gradle/
+.gradle-user-home/
 local.properties
 *.iml
 .idea/

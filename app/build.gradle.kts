@@ -5,6 +5,10 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+layout.buildDirectory.set(
+    file("${System.getProperty("java.io.tmpdir")}/daily-gradle-build/${project.name}")
+)
+
 android {
     namespace = "com.daily.life"
     compileSdk = 36
@@ -62,6 +66,7 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation.compose)

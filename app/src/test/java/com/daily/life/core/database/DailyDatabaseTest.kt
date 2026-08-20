@@ -129,7 +129,7 @@ class DailyDatabaseTest {
         healthDao.updateWeight(
             WeightRecordEntity(id = 1L, recordedAt = 2L, weightJin = 119.5, source = "TEST")
         )
-        assertEquals(119.5, healthDao.findWeightById(1L)?.weightJin, 0.0)
+        assertEquals(119.5, healthDao.findWeightById(1L)?.weightJin ?: Double.NaN, 0.0)
         healthDao.deleteWeightById(1L)
         assertNull(healthDao.findWeightById(1L))
 
