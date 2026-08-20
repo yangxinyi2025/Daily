@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 import java.time.YearMonth
@@ -37,11 +38,43 @@ interface CourseDao {
     @Update
     suspend fun update(entity: CourseEntity)
 
+    @Query("SELECT * FROM courses WHERE id = :id")
+    suspend fun findById(id: Long): CourseEntity?
+
     @Query("DELETE FROM courses WHERE id = :id")
     suspend fun deleteById(id: Long)
 
     @Query("SELECT * FROM courses WHERE semesterId = :semesterId ORDER BY dayOfWeek, startPeriod")
     fun observeBySemester(semesterId: Long): Flow<List<CourseEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertWeek(entity: CourseWeekEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertWeeks(entities: List<CourseWeekEntity>)
+
+    @Query("DELETE FROM course_weeks WHERE courseId = :courseId")
+    suspend fun deleteWeeksByCourseId(courseId: Long)
+
+    @Transaction
+    @Query("SELECT * FROM courses WHERE id = :id")
+    suspend fun findWithWeeksById(id: Long): CourseWithWeeks?
+
+    @Query(
+        """
+        SELECT c.* FROM courses c
+        INNER JOIN course_weeks cw ON cw.courseId = c.id
+        WHERE c.semesterId = :semesterId
+          AND cw.week = :week
+          AND c.dayOfWeek = :dayOfWeek
+        ORDER BY c.startPeriod
+        """
+    )
+    fun observeBySemesterWeekAndDay(
+        semesterId: Long,
+        week: Int,
+        dayOfWeek: Int
+    ): Flow<List<CourseEntity>>
 }
 
 @Dao
@@ -71,7 +104,34 @@ interface HealthDao {
     suspend fun insertActivity(entity: ActivityRecordEntity): Long
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsertMonthlyReport(entity: MonthlyReportEntity): Long
+    suspend fun insertMonthlyReport(entity: MonthlyReportEntity): Long
+
+    @Update
+    suspend fun updateWeight(entity: WeightRecordEntity)
+
+    @Update
+    suspend fun updateActivity(entity: ActivityRecordEntity)
+
+    @Update
+    suspend fun updateMonthlyReport(entity: MonthlyReportEntity)
+
+    @Query("DELETE FROM weight_records WHERE id = :id")
+    suspend fun deleteWeightById(id: Long)
+
+    @Query("DELETE FROM activity_records WHERE id = :id")
+    suspend fun deleteActivityById(id: Long)
+
+    @Query("DELETE FROM monthly_reports WHERE id = :id")
+    suspend fun deleteMonthlyReportById(id: Long)
+
+    @Query("SELECT * FROM weight_records WHERE id = :id")
+    suspend fun findWeightById(id: Long): WeightRecordEntity?
+
+    @Query("SELECT * FROM activity_records WHERE id = :id")
+    suspend fun findActivityById(id: Long): ActivityRecordEntity?
+
+    @Query("SELECT * FROM monthly_reports WHERE id = :id")
+    suspend fun findMonthlyReportById(id: Long): MonthlyReportEntity?
 
     @Query("SELECT * FROM weight_records ORDER BY recordedAt DESC")
     fun observeWeights(): Flow<List<WeightRecordEntity>>
@@ -81,6 +141,9 @@ interface HealthDao {
 
     @Query("SELECT * FROM monthly_reports WHERE month = :month LIMIT 1")
     suspend fun findMonthlyReport(month: YearMonth): MonthlyReportEntity?
+
+    @Query("SELECT * FROM monthly_reports ORDER BY month DESC")
+    fun observeMonthlyReports(): Flow<List<MonthlyReportEntity>>
 }
 
 @Dao
@@ -107,7 +170,16 @@ interface TransactionDao {
 @Dao
 interface BudgetDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(entity: BudgetEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: BudgetEntity)
+
+    @Update
+    suspend fun update(entity: BudgetEntity)
+
+    @Query("DELETE FROM budgets WHERE month = :month")
+    suspend fun deleteByMonth(month: String)
 
     @Query("SELECT * FROM budgets WHERE month = :month LIMIT 1")
     suspend fun findByMonth(month: String): BudgetEntity?
@@ -120,6 +192,12 @@ interface BudgetDao {
 interface ImportLogDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entity: ImportLogEntity)
+
+    @Update
+    suspend fun update(entity: ImportLogEntity)
+
+    @Query("DELETE FROM import_logs WHERE batchId = :batchId")
+    suspend fun deleteByBatchId(batchId: String)
 
     @Query("SELECT * FROM import_logs WHERE batchId = :batchId LIMIT 1")
     suspend fun findByBatchId(batchId: String): ImportLogEntity?

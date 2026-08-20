@@ -1,9 +1,11 @@
 package com.daily.life.core.database
 
 import androidx.room.Entity
+import androidx.room.Embedded
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import androidx.room.Relation
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -47,6 +49,30 @@ data class CourseEntity(
     val courseCode: String? = null,
     val credits: Double? = null,
     val notes: String? = null
+)
+
+@Entity(
+    tableName = "course_weeks",
+    primaryKeys = ["courseId", "week"],
+    foreignKeys = [
+        ForeignKey(
+            entity = CourseEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["courseId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["week", "courseId"])]
+)
+data class CourseWeekEntity(
+    val courseId: Long,
+    val week: Int
+)
+
+data class CourseWithWeeks(
+    @Embedded val course: CourseEntity,
+    @Relation(parentColumn = "id", entityColumn = "courseId")
+    val weeks: List<CourseWeekEntity>
 )
 
 enum class ReminderMode {

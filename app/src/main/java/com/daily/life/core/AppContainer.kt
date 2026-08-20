@@ -32,20 +32,34 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 }
 
 data class RepositoryFactories(
-    val timetableRepositoryFactory: DeferredFactory = DeferredFactory("TimetableRepository"),
-    val scheduleRepositoryFactory: DeferredFactory = DeferredFactory("ScheduleRepository"),
-    val healthRepositoryFactory: DeferredFactory = DeferredFactory("HealthRepository"),
-    val billRepositoryFactory: DeferredFactory = DeferredFactory("BillRepository")
+    val timetableRepositoryFactory: ComponentFactory<TimetableRepository> = DeferredFactory(),
+    val scheduleRepositoryFactory: ComponentFactory<ScheduleRepository> = DeferredFactory(),
+    val healthRepositoryFactory: ComponentFactory<HealthRepository> = DeferredFactory(),
+    val billRepositoryFactory: ComponentFactory<BillRepository> = DeferredFactory()
 )
 
 data class AdapterFactories(
-    val reminderSchedulerFactory: DeferredFactory = DeferredFactory("ReminderScheduler"),
-    val healthConnectAdapterFactory: DeferredFactory = DeferredFactory("HealthConnectAdapter"),
-    val sensorActivityAdapterFactory: DeferredFactory = DeferredFactory("SensorActivityAdapter"),
-    val webDavClientFactory: DeferredFactory = DeferredFactory("WebDavClient"),
-    val deepSeekAdviceClientFactory: DeferredFactory = DeferredFactory("DeepSeekAdviceClient")
+    val reminderSchedulerFactory: ComponentFactory<ReminderScheduler> = DeferredFactory(),
+    val healthConnectAdapterFactory: ComponentFactory<HealthConnectAdapter> = DeferredFactory(),
+    val sensorActivityAdapterFactory: ComponentFactory<SensorActivityAdapter> = DeferredFactory(),
+    val webDavClientFactory: ComponentFactory<WebDavClient> = DeferredFactory(),
+    val deepSeekAdviceClientFactory: ComponentFactory<DeepSeekAdviceClient> = DeferredFactory()
 )
 
-data class DeferredFactory(val componentName: String) {
-    fun create(): Nothing = error("$componentName is implemented in a later rebuild task.")
+interface TimetableRepository
+interface ScheduleRepository
+interface HealthRepository
+interface BillRepository
+interface ReminderScheduler
+interface HealthConnectAdapter
+interface SensorActivityAdapter
+interface WebDavClient
+interface DeepSeekAdviceClient
+
+interface ComponentFactory<T : Any> {
+    fun create(): T?
+}
+
+class DeferredFactory<T : Any>(private val provider: () -> T? = { null }) : ComponentFactory<T> {
+    override fun create(): T? = provider()
 }

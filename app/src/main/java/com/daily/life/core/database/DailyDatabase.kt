@@ -10,6 +10,7 @@ import androidx.room.TypeConverters
     entities = [
         SemesterEntity::class,
         CourseEntity::class,
+        CourseWeekEntity::class,
         ScheduleEventEntity::class,
         WeightRecordEntity::class,
         ActivityRecordEntity::class,
