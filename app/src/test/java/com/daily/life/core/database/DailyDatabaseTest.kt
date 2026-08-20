@@ -1,11 +1,16 @@
 package com.daily.life.core.database
 
+import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -178,4 +183,130 @@ class DailyDatabaseTest {
         importLogDao.deleteByBatchId("batch-2")
         assertNull(importLogDao.findByBatchId("batch-2"))
     }
+
+    @Test
+    fun migrationFrom1To2CreatesCourseWeeksTableWithoutDroppingCourses() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val databaseName = "daily-migration-test.db"
+        deleteDatabaseFiles(context, databaseName)
+
+        createVersion1Database(context, databaseName).use { version1Database ->
+            version1Database.execSQL(
+                """
+                INSERT INTO semesters (id, name, startDate, endDate, isCurrent, createdAt)
+                VALUES (1, '2026 秋季', '2026-09-01', NULL, 0, 1700000000000)
+                """.trimIndent()
+            )
+            version1Database.execSQL(
+                """
+                INSERT INTO courses (
+                    id, semesterId, courseName, dayOfWeek, startPeriod, endPeriod,
+                    weekRuleText, parsedWeeks, campus, location, teacher, courseCode, credits, notes
+                ) VALUES (
+                    10, 1, '数据库', 2, 3, 4, '第 3 周', '3',
+                    NULL, NULL, NULL, NULL, NULL, NULL
+                )
+                """.trimIndent()
+            )
+
+            DailyDatabase.MIGRATION_1_2.migrate(version1Database)
+
+            assertTrue(version1Database.hasTable("course_weeks"))
+            assertTrue(version1Database.hasIndex("index_course_weeks_week_courseId"))
+            assertEquals(1, version1Database.longForQuery("SELECT COUNT(*) FROM courses"))
+            assertEquals(0, version1Database.longForQuery("SELECT COUNT(*) FROM course_weeks"))
+        }
+
+        deleteDatabaseFiles(context, databaseName)
+    }
+
+    private fun createVersion1Database(context: Context, databaseName: String): SupportSQLiteDatabase {
+        val configuration = androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
+            .name(databaseName)
+            .callback(
+                object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(1) {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        db.execSQL(
+                            """
+                            CREATE TABLE IF NOT EXISTS `semesters` (
+                                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                                `name` TEXT NOT NULL,
+                                `startDate` TEXT NOT NULL,
+                                `endDate` TEXT,
+                                `isCurrent` INTEGER NOT NULL,
+                                `createdAt` INTEGER NOT NULL
+                            )
+                            """.trimIndent()
+                        )
+                        db.execSQL(
+                            """
+                            CREATE TABLE IF NOT EXISTS `courses` (
+                                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                                `semesterId` INTEGER NOT NULL,
+                                `courseName` TEXT NOT NULL,
+                                `dayOfWeek` INTEGER NOT NULL,
+                                `startPeriod` INTEGER NOT NULL,
+                                `endPeriod` INTEGER NOT NULL,
+                                `weekRuleText` TEXT NOT NULL,
+                                `parsedWeeks` TEXT NOT NULL,
+                                `campus` TEXT,
+                                `location` TEXT,
+                                `teacher` TEXT,
+                                `courseCode` TEXT,
+                                `credits` REAL,
+                                `notes` TEXT,
+                                FOREIGN KEY(`semesterId`) REFERENCES `semesters`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                            )
+                            """.trimIndent()
+                        )
+                        db.execSQL(
+                            "CREATE INDEX IF NOT EXISTS `index_courses_semesterId_parsedWeeks_dayOfWeek` ON `courses` (`semesterId`, `parsedWeeks`, `dayOfWeek`)"
+                        )
+                        db.execSQL(
+                            "CREATE INDEX IF NOT EXISTS `index_courses_semesterId` ON `courses` (`semesterId`)"
+                        )
+                    }
+
+                    override fun onUpgrade(
+                        db: SupportSQLiteDatabase,
+                        oldVersion: Int,
+                        newVersion: Int
+                    ) = Unit
+                }
+            )
+            .build()
+
+        return FrameworkSQLiteOpenHelperFactory()
+            .create(configuration)
+            .writableDatabase
+    }
+
+    private fun deleteDatabaseFiles(context: Context, databaseName: String) {
+        context.deleteDatabase(databaseName)
+        context.getDatabasePath("$databaseName-wal").delete()
+        context.getDatabasePath("$databaseName-shm").delete()
+        context.getDatabasePath("$databaseName-journal").delete()
+    }
+
+    private fun SupportSQLiteDatabase.hasTable(tableName: String): Boolean =
+        query(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+            arrayOf(tableName)
+        ).use { cursor ->
+            cursor.moveToFirst()
+        }
+
+    private fun SupportSQLiteDatabase.hasIndex(indexName: String): Boolean =
+        query(
+            "SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?",
+            arrayOf(indexName)
+        ).use { cursor ->
+            cursor.moveToFirst()
+        }
+
+    private fun SupportSQLiteDatabase.longForQuery(sql: String): Long =
+        query(sql).use { cursor ->
+            cursor.moveToFirst()
+            cursor.getLong(0)
+        }
 }
