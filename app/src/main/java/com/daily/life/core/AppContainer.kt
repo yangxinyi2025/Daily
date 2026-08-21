@@ -3,6 +3,7 @@ package com.daily.life.core
 import android.content.Context
 import com.daily.life.core.database.DailyDatabase
 import com.daily.life.core.datastore.DailyPreferences
+import com.daily.life.core.notification.AndroidReminderScheduler
 import com.daily.life.core.security.AndroidSecretStore
 import com.daily.life.core.security.SecretStore
 
@@ -28,7 +29,14 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     override val repositories: RepositoryFactories = RepositoryFactories()
-    override val adapters: AdapterFactories = AdapterFactories()
+    override val adapters: AdapterFactories = AdapterFactories(
+        reminderSchedulerFactory = DeferredFactory {
+            AndroidReminderScheduler(
+                context = context,
+                database = database
+            )
+        }
+    )
 }
 
 data class RepositoryFactories(
@@ -50,13 +58,9 @@ interface TimetableRepository
 interface ScheduleRepository
 interface HealthRepository
 interface BillRepository
-interface ReminderScheduler {
-    suspend fun scheduleCourseReminders(semesterId: Long)
-}
+typealias ReminderScheduler = com.daily.life.core.notification.ReminderScheduler
 
-data object NoOpReminderScheduler : ReminderScheduler {
-    override suspend fun scheduleCourseReminders(semesterId: Long) = Unit
-}
+object NoOpReminderScheduler : ReminderScheduler
 interface HealthConnectAdapter
 interface SensorActivityAdapter
 interface WebDavClient

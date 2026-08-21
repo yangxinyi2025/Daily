@@ -26,6 +26,9 @@ import com.daily.life.feature.home.HomeViewModel
 import com.daily.life.feature.settings.DaoSemesterSettingsRepository
 import com.daily.life.feature.settings.SettingsScreen
 import com.daily.life.feature.settings.SettingsViewModel
+import com.daily.life.feature.schedule.RoomScheduleRepository
+import com.daily.life.feature.schedule.ScheduleScreen
+import com.daily.life.feature.schedule.ScheduleViewModel
 import com.daily.life.feature.timetable.PdfTimetableParser
 import com.daily.life.feature.timetable.RoomTimetableRepository
 import com.daily.life.feature.timetable.TimetableScreen
@@ -111,10 +114,28 @@ fun DailyNavHost(
                 )
             }
             composable(DailyDestination.Schedule.route) {
-                DailyPlaceholderPage(
-                    title = DailyDestination.Schedule.label,
-                    pageLabel = "日程页面",
-                    message = "日程提醒、生日和闹钟功能将在后续任务实现。"
+                val container = application.container
+                val scheduleViewModel: ScheduleViewModel = viewModel {
+                    ScheduleViewModel(
+                        repository = RoomScheduleRepository(
+                            database = container.database,
+                            reminderScheduler = container.adapters.reminderSchedulerFactory.create()
+                                ?: NoOpReminderScheduler
+                        )
+                    )
+                }
+                val scheduleState by scheduleViewModel.state.collectAsState()
+                ScheduleScreen(
+                    state = scheduleState,
+                    onViewModeChange = scheduleViewModel::setViewMode,
+                    onDateSelected = scheduleViewModel::selectDate,
+                    onCreate = { scheduleViewModel.startCreate() },
+                    onQuickCreate = { action -> scheduleViewModel.startCreate(action) },
+                    onEdit = scheduleViewModel::startEdit,
+                    onDelete = scheduleViewModel::deleteEvent,
+                    onSaveEditor = scheduleViewModel::saveEditor,
+                    onDismissEditor = scheduleViewModel::dismissEditor,
+                    onEditorChange = scheduleViewModel::replaceEditor
                 )
             }
             composable(DailyDestination.Health.route) {

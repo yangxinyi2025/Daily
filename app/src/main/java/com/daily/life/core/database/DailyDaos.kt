@@ -111,6 +111,12 @@ interface ScheduleEventDao {
     @Query("SELECT * FROM schedule_events WHERE id = :id")
     suspend fun findById(id: Long): ScheduleEventEntity?
 
+    @Query("SELECT * FROM schedule_events ORDER BY eventAt")
+    suspend fun findAll(): List<ScheduleEventEntity>
+
+    @Query("SELECT * FROM schedule_events ORDER BY eventAt")
+    fun observeAll(): Flow<List<ScheduleEventEntity>>
+
     @Query("SELECT * FROM schedule_events WHERE eventAt BETWEEN :startInclusive AND :endInclusive ORDER BY eventAt")
     fun observeBetween(startInclusive: Long, endInclusive: Long): Flow<List<ScheduleEventEntity>>
 }
