@@ -11,13 +11,13 @@ val DailyTypography = Typography(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 28.sp,
-        lineHeight = 34.sp
+        lineHeight = 36.sp
     ),
     headlineMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 24.sp,
-        lineHeight = 30.sp
+        lineHeight = 32.sp
     ),
     titleLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
@@ -28,7 +28,7 @@ val DailyTypography = Typography(
     titleMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Medium,
-        fontSize = 18.sp,
+        fontSize = 17.sp,
         lineHeight = 24.sp
     ),
     bodyLarge = TextStyle(
@@ -41,12 +41,12 @@ val DailyTypography = Typography(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
-        lineHeight = 22.sp
+        lineHeight = 20.sp
     ),
     labelLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Medium,
-        fontSize = 16.sp,
+        fontSize = 15.sp,
         lineHeight = 22.sp
     ),
     labelMedium = TextStyle(
