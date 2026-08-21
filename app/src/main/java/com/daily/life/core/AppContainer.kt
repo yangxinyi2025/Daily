@@ -6,6 +6,7 @@ import com.daily.life.core.datastore.DailyPreferences
 import com.daily.life.core.notification.AndroidReminderScheduler
 import com.daily.life.core.security.AndroidSecretStore
 import com.daily.life.core.security.SecretStore
+import com.daily.life.feature.bill.BillRepository
 
 interface AppContainer {
     val database: DailyDatabase
@@ -39,6 +40,12 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
                         adapters.sensorActivityAdapterFactory.create()
                     )
                 }
+            )
+        },
+        billRepositoryFactory = DeferredFactory {
+            BillRepository(
+                database = database,
+                preferences = preferences
             )
         }
     )
@@ -75,7 +82,6 @@ data class AdapterFactories(
 
 interface TimetableRepository
 interface ScheduleRepository
-interface BillRepository
 typealias ReminderScheduler = com.daily.life.core.notification.ReminderScheduler
 
 object NoOpReminderScheduler : ReminderScheduler

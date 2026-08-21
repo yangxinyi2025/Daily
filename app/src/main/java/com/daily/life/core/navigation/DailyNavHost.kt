@@ -26,6 +26,9 @@ import com.daily.life.feature.home.HomeViewModel
 import com.daily.life.feature.health.HealthRepository
 import com.daily.life.feature.health.HealthScreen
 import com.daily.life.feature.health.HealthViewModel
+import com.daily.life.feature.bill.BillRepository
+import com.daily.life.feature.bill.BillScreen
+import com.daily.life.feature.bill.BillViewModel
 import com.daily.life.feature.settings.DaoSemesterSettingsRepository
 import com.daily.life.feature.settings.SettingsScreen
 import com.daily.life.feature.settings.SettingsViewModel
@@ -168,10 +171,33 @@ fun DailyNavHost(
                 )
             }
             composable(DailyDestination.Bill.route) {
-                DailyPlaceholderPage(
-                    title = DailyDestination.Bill.label,
-                    pageLabel = "账单页面",
-                    message = "账单导入、分类与预算统计将在后续任务实现。"
+                val container = application.container
+                val billRepository = container.repositories.billRepositoryFactory.create()
+                    ?: BillRepository(
+                        database = container.database,
+                        preferences = container.preferences
+                    )
+                val billViewModel: BillViewModel = viewModel {
+                    BillViewModel(repository = billRepository)
+                }
+                val billState by billViewModel.state.collectAsState()
+                BillScreen(
+                    state = billState,
+                    onPreviousPeriod = billViewModel::selectPreviousPeriod,
+                    onNextPeriod = billViewModel::selectNextPeriod,
+                    onCurrentPeriod = billViewModel::selectCurrentPeriod,
+                    onPeriodChange = billViewModel::setPeriod,
+                    onDirectionChange = billViewModel::setDirectionFilter,
+                    onSearchChange = billViewModel::setSearchText,
+                    onOpenImport = billViewModel::openImport,
+                    onFileSelected = billViewModel::selectFile,
+                    onTogglePreviewRow = billViewModel::togglePreviewRow,
+                    onCancelImport = billViewModel::cancelImport,
+                    onConfirmImport = billViewModel::confirmImport,
+                    onOpenEditor = billViewModel::openEditor,
+                    onEditorChange = billViewModel::updateEditor,
+                    onCancelEditor = billViewModel::dismissEditor,
+                    onSaveEditor = billViewModel::saveEditor
                 )
             }
             composable(DailyDestination.Settings.route) {
