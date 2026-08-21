@@ -105,6 +105,43 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun summaryRowsPropagateToHomeState() = runTest {
+        val courseRows = listOf(
+            HomeCourseRow(
+                startPeriod = 3,
+                courseName = "数据库",
+                detail = "信息楼 201"
+            )
+        )
+        val scheduleRows = listOf(
+            HomeScheduleRow(
+                id = 42L,
+                title = "晚上体测",
+                timeLabel = "19:00"
+            )
+        )
+        val viewModel = HomeViewModel(
+            timetableRepository = FakeTimetableSummaryRepository(
+                MutableStateFlow(TimetableHomeSummary(todayCourses = courseRows))
+            ),
+            scheduleRepository = FakeScheduleSummaryRepository(
+                MutableStateFlow(ScheduleHomeSummary(todaySchedules = scheduleRows))
+            ),
+            healthRepository = FakeHealthSummaryRepository(),
+            billRepository = FakeBillSummaryRepository(),
+            clock = fixedClock(),
+            coroutineScope = backgroundScope
+        )
+
+        val state = viewModel.state.first {
+            it.todayCourses == courseRows && it.todaySchedules == scheduleRows
+        }
+
+        assertEquals(courseRows, state.todayCourses)
+        assertEquals(scheduleRows, state.todaySchedules)
+    }
+
+    @Test
     fun summaryFlowChangesRefreshHomeCards() = runTest {
         val timetable = MutableStateFlow(TimetableHomeSummary())
         val viewModel = HomeViewModel(

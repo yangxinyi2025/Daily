@@ -10,8 +10,10 @@ data class HomeState(
     val todayCourseCount: Int = 0,
     val nextCourseLabel: String? = null,
     val hasTimetableData: Boolean = false,
+    val todayCourses: List<HomeCourseRow> = emptyList(),
     val upcomingEventCount: Int = 0,
     val nextEventLabel: String? = null,
+    val todaySchedules: List<HomeScheduleRow> = emptyList(),
     val latestWeightJin: Double? = null,
     val latestActivityLabel: String? = null,
     val monthlySpendingCents: Long = 0L,
@@ -74,15 +76,29 @@ data class HomeCardState(
     val destination: DailyDestination?
 )
 
+data class HomeCourseRow(
+    val startPeriod: Int,
+    val courseName: String,
+    val detail: String
+)
+
+data class HomeScheduleRow(
+    val id: Long,
+    val title: String,
+    val timeLabel: String
+)
+
 data class TimetableHomeSummary(
     val todayCourseCount: Int = 0,
     val nextCourseLabel: String? = null,
+    val todayCourses: List<HomeCourseRow> = emptyList(),
     val isEmpty: Boolean = true
 )
 
 data class ScheduleHomeSummary(
     val nextEventLabel: String? = null,
     val upcomingCount: Int = 0,
+    val todaySchedules: List<HomeScheduleRow> = emptyList(),
     val isEmpty: Boolean = true
 )
 

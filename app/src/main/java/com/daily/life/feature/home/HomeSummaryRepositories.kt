@@ -74,6 +74,13 @@ class DaoTimetableSummaryRepository(
                         } else {
                             nextCourse?.toCourseLabel() ?: "今日课程已结束"
                         },
+                        todayCourses = courses.map { course ->
+                            HomeCourseRow(
+                                startPeriod = course.startPeriod,
+                                courseName = course.courseName,
+                                detail = course.location?.takeIf(String::isNotBlank).orEmpty()
+                            )
+                        },
                         isEmpty = courses.isEmpty()
                     )
                 }
@@ -152,12 +159,27 @@ class DaoScheduleSummaryRepository(
             .atStartOfDay(zone)
             .toInstant()
             .toEpochMilli() - 1L
-        summary = scheduleEventDao.observeBetween(now, end).map { events ->
+        val today = LocalDate.now(clock)
+        val todayStart = today.atStartOfDay(zone).toInstant().toEpochMilli()
+        val todayEnd = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1L
+        summary = combine(
+            scheduleEventDao.observeBetween(now, end),
+            scheduleEventDao.observeBetween(todayStart, todayEnd)
+        ) { events, todayEvents ->
             ScheduleHomeSummary(
                 nextEventLabel = events.firstOrNull()?.let { event ->
                     "${event.title} ${EVENT_TIME_FORMATTER.format(Instant.ofEpochMilli(event.eventAt).atZone(zone))}"
                 },
                 upcomingCount = events.size,
+                todaySchedules = todayEvents.map { event ->
+                    HomeScheduleRow(
+                        id = event.id,
+                        title = event.title,
+                        timeLabel = TODAY_EVENT_TIME_FORMATTER.format(
+                            Instant.ofEpochMilli(event.eventAt).atZone(zone)
+                        )
+                    )
+                },
                 isEmpty = events.isEmpty()
             )
         }
@@ -166,6 +188,8 @@ class DaoScheduleSummaryRepository(
     private companion object {
         val EVENT_TIME_FORMATTER: DateTimeFormatter =
             DateTimeFormatter.ofPattern("M月d日 HH:mm", Locale.SIMPLIFIED_CHINESE)
+        val TODAY_EVENT_TIME_FORMATTER: DateTimeFormatter =
+            DateTimeFormatter.ofPattern("HH:mm", Locale.SIMPLIFIED_CHINESE)
     }
 }
 
