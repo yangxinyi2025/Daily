@@ -60,6 +60,6 @@ class OkHttpWebDavClient(
         val authenticated = if (username.isNullOrBlank()) request else request.newBuilder()
             .header("Authorization", Credentials.basic(username, password.orEmpty()))
             .build()
-        client.newCall(authenticated).execute().use(block)
+        return client.newCall(authenticated).execute().use(block)
     }
 }

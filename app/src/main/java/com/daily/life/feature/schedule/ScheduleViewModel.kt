@@ -93,7 +93,7 @@ class ScheduleViewModel(
         val editor = state.value.editor ?: return
         val now = clock.instant()
         scope.launch {
-            val existing = editor.id?.let(repository::findById)
+            val existing = editor.id?.let { repository.findById(it) }
             val event = runCatching {
                 editor.toEvent(now, clock.zone).copy(createdAt = existing?.createdAt ?: now)
             }.getOrElse { error ->

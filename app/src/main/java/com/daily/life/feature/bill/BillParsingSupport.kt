@@ -118,7 +118,8 @@ internal object BillParsingSupport {
     }
 
     fun decode(bytes: ByteArray): String {
-        val utf8 = if (bytes.startsWith(byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()))) {
+        val hasUtf8Bom = bytes.size >= 3 && bytes[0] == 0xEF.toByte() && bytes[1] == 0xBB.toByte() && bytes[2] == 0xBF.toByte()
+        val utf8 = if (hasUtf8Bom) {
             String(bytes.copyOfRange(3, bytes.size), StandardCharsets.UTF_8)
         } else {
             String(bytes, StandardCharsets.UTF_8)

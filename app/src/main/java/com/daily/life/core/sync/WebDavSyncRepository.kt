@@ -10,7 +10,9 @@ class WebDavSyncRepository(
     private val canonicalUrl: String,
     private val clock: Clock = Clock.systemUTC()
 ) {
-    suspend fun inspectRemote(local: DailySnapshot = localStore.read()): SyncResult {
+    suspend fun inspectRemote(): SyncResult = inspectRemote(localStore.read())
+
+    suspend fun inspectRemote(local: DailySnapshot): SyncResult {
         val bytes = client.download(canonicalUrl) ?: return SyncResult(SyncStatus.NoRemote)
         val remote = serializer.decode(bytes)
         return when {
@@ -21,7 +23,9 @@ class WebDavSyncRepository(
         }
     }
 
-    suspend fun upload(local: DailySnapshot = localStore.read(), force: Boolean = false): SyncResult {
+    suspend fun upload(): SyncResult = upload(localStore.read())
+
+    suspend fun upload(local: DailySnapshot, force: Boolean = false): SyncResult {
         val remote = inspectRemote(local)
         if (!force && remote.status == SyncStatus.RemoteNewer) return remote
         if (!force && remote.status == SyncStatus.Conflict) return remote

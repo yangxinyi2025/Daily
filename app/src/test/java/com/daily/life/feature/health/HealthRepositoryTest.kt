@@ -60,11 +60,11 @@ class HealthRepositoryTest {
             weightJin = 136.0
         )
 
-        assertEquals(130.0, preferences.targetWeightJin.first(), 0.0)
+        assertEquals(130.0, requireNotNull(preferences.targetWeightJin.first()), 0.0)
         assertEquals(136.0, repository.observeWeightRecords().first().single().weightJin, 0.0)
 
         val report = repository.generateMonthlyReport(YearMonth.of(2026, 8))
-        assertEquals(136.0, report.monthAverageJin, 0.0)
+        assertEquals(136.0, requireNotNull(report.monthAverageJin), 0.0)
         assertEquals(ReportDataState.INSUFFICIENT, report.dataState)
         assertTrue(database.healthDao().findMonthlyReport(YearMonth.of(2026, 8)) != null)
     }

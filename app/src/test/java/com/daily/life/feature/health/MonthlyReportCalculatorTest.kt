@@ -26,10 +26,10 @@ class MonthlyReportCalculatorTest {
             targetWeightJin = 130.0
         )
 
-        assertEquals(137.0, report.monthAverageJin, 0.01)
-        assertEquals(-4.0, report.monthOverMonthJin, 0.01)
+        assertEquals(137.0, requireNotNull(report.monthAverageJin), 0.01)
+        assertEquals(-4.0, requireNotNull(report.monthOverMonthJin), 0.01)
         assertEquals(8_000L, report.totalSteps)
-        assertEquals(7.0, report.targetDifferenceJin, 0.01)
+        assertEquals(7.0, requireNotNull(report.targetDifferenceJin), 0.01)
         assertTrue(report.weeklyAveragesJin.isNotEmpty())
     }
 

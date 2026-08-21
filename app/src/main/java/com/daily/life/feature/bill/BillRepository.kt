@@ -121,12 +121,14 @@ class BillRepository(
             return null
         }
         val existing = database.budgetDao().findByMonth(month.toString())
-        return BudgetEntity(
+        val budget = BudgetEntity(
             month = month.toString(),
             budgetCents = budgetCents,
             triggeredPercentages = existing?.triggeredPercentages.orEmpty(),
             updatedAt = clock.millis()
-        ).also(database.budgetDao()::upsert)
+        )
+        database.budgetDao().upsert(budget)
+        return budget
     }
 
     suspend fun evaluateBudgetThreshold(month: YearMonth): BudgetThresholdResult {
