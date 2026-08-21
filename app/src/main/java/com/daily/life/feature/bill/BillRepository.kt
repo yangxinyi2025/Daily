@@ -13,14 +13,18 @@ import java.time.YearMonth
 import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
 import java.util.UUID
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 
 class BillRepository(
     private val database: DailyDatabase,
     private val preferences: DailyPreferences,
-    private val clock: Clock = Clock.systemDefaultZone()
+    private val clock: Clock = Clock.systemDefaultZone(),
+    private val queryDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     fun observeTransactions(): Flow<List<BillPreviewRow>> =
         database.transactionDao().observeAll().map { rows -> rows.map(::toPreviewRow) }
@@ -152,12 +156,12 @@ class BillRepository(
         return result
     }
 
-    suspend fun statistics(filter: BillFilter): BillStatistics {
+    suspend fun statistics(filter: BillFilter): BillStatistics = withContext(queryDispatcher) {
         val zone = clock.zone
         val (startDate, endDate) = filter.dateRange()
         val start = startDate.atStartOfDay(zone).toInstant().toEpochMilli()
         val end = endDate.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        val rows = database.transactionDao().observeAll().first()
+        val rows = database.transactionDao().findAll()
             .filter { it.occurredAt >= start && it.occurredAt < end }
             .map(::toPreviewRow)
             .filter { row -> filter.direction == null || row.direction == filter.direction }
@@ -176,7 +180,7 @@ class BillRepository(
         val income = rows.filter { it.direction == Direction.INCOME }.sumOf(BillPreviewRow::amountCents)
         val budget = database.budgetDao().findByMonth(filter.month.toString())?.budgetCents
             ?: preferences.defaultBudgetCents.first()
-        return BillStatistics(
+        BillStatistics(
             transactions = rows,
             count = rows.size,
             expenseCents = expense,

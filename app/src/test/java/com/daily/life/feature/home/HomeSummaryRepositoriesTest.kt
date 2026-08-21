@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -111,19 +112,18 @@ class HomeSummaryRepositoriesTest {
         }
         advanceUntilIdle()
 
-        assertEquals(listOf("数据库 第 3-4 节"), labels)
+        awaitLabels(labels, listOf("数据库 第 3-4 节"), testScheduler)
 
         currentPeriod = 5
         refreshTicks.emit(Unit)
-        advanceUntilIdle()
-        assertEquals(listOf("数据库 第 3-4 节", "体育 第 7-8 节"), labels)
+        awaitLabels(labels, listOf("数据库 第 3-4 节", "体育 第 7-8 节"), testScheduler)
 
         currentPeriod = 9
         refreshTicks.emit(Unit)
-        advanceUntilIdle()
-        assertEquals(
+        awaitLabels(
+            labels,
             listOf("数据库 第 3-4 节", "体育 第 7-8 节", "今日课程已结束"),
-            labels
+            testScheduler
         )
     }
 
@@ -186,4 +186,17 @@ class HomeSummaryRepositoriesTest {
         Instant.parse("2026-08-20T01:00:00Z"),
         ZoneId.of("Asia/Shanghai")
     )
+
+    private suspend fun awaitLabels(
+        labels: List<String?>,
+        expected: List<String?>,
+        scheduler: TestCoroutineScheduler
+    ) {
+        repeat(100) {
+            scheduler.advanceUntilIdle()
+            if (labels == expected) return
+            Thread.sleep(20L)
+        }
+        assertEquals(expected, labels)
+    }
 }

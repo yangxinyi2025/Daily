@@ -7,6 +7,7 @@ import com.daily.life.core.security.SecretId
 import com.daily.life.core.security.SecretStore
 import java.time.LocalDate
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -70,34 +71,34 @@ class SettingsViewModel(
         )
 
     init {
-        scope.launch {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
             refreshSecretSummaries()
         }
     }
 
     fun updateSemesterStartDate(date: LocalDate) {
-        scope.launch {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
             preferences.setSemesterStartDate(date)
             saveStatus.value = "学期开始日期已保存"
         }
     }
 
     fun updateTargetWeightJin(value: Double?) {
-        scope.launch {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
             preferences.setTargetWeightJin(value)
             saveStatus.value = if (value == null) "已清除目标体重" else "目标体重已保存"
         }
     }
 
     fun updateMonthlyBudgetCents(value: Long?) {
-        scope.launch {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
             preferences.setDefaultBudgetCents(value)
             saveStatus.value = if (value == null) "已清除月预算" else "月预算已保存"
         }
     }
 
     fun saveDeepSeekKey(value: String) {
-        scope.launch {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
             if (value.isBlank()) {
                 secretStore.remove(SecretId.DeepSeekApiKey)
             } else {
@@ -109,7 +110,7 @@ class SettingsViewModel(
     }
 
     fun saveWebDavConfig(config: WebDavConfigInput) {
-        scope.launch {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
             preferences.setWebDavEndpoint(config.endpoint.ifBlank { null })
             if (config.username.isBlank()) {
                 secretStore.remove(SecretId.WebDavUsername)

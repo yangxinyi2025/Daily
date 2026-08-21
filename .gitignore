@@ -1,6 +1,7 @@
 .worktrees/
 .superpowers/sdd/
 app/build/
+build/
 .gradle/
 .gradle-user-home/
 local.properties

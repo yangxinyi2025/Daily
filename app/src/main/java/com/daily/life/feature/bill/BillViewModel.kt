@@ -9,6 +9,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -77,7 +78,7 @@ class BillViewModel(
     val state = _state.asStateFlow()
 
     init {
-        scope.launch {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
             repository.observeTransactions().collectLatest {
                 refreshStatistics()
             }
@@ -279,19 +280,21 @@ class BillViewModel(
 
     private fun refresh() {
         _state.update { it.copy(selectedMonth = selectedMonth.value) }
-        scope.launch { refreshStatistics() }
+        scope.launch(start = CoroutineStart.UNDISPATCHED) { refreshStatistics() }
     }
 
     private suspend fun refreshStatistics() {
         val current = _state.value
+        val selectedMonthAtRequest = selectedMonth.value
+        val selectedWeekAnchorAtRequest = selectedWeekAnchor.value
         _state.update { it.copy(isLoading = true) }
         runCatching {
             repository.statistics(
                 BillFilter(
                     period = current.selectedPeriod,
-                    month = selectedMonth.value,
+                    month = selectedMonthAtRequest,
                     weekAnchor = if (current.selectedPeriod == BillPeriod.WEEK) {
-                        selectedWeekAnchor.value
+                        selectedWeekAnchorAtRequest
                     } else {
                         null
                     },
@@ -302,9 +305,20 @@ class BillViewModel(
             )
         }.onSuccess { statistics ->
             _state.update {
+                if (it.selectedPeriod != current.selectedPeriod ||
+                    selectedMonth.value != selectedMonthAtRequest ||
+                    (current.selectedPeriod == BillPeriod.WEEK &&
+                        selectedWeekAnchor.value != selectedWeekAnchorAtRequest)
+                ) {
+                    return@update it
+                }
                 it.copy(
-                    selectedMonth = selectedMonth.value,
-                    selectedWeekAnchor = if (it.selectedPeriod == BillPeriod.WEEK) selectedWeekAnchor.value else null,
+                    selectedMonth = selectedMonthAtRequest,
+                    selectedWeekAnchor = if (it.selectedPeriod == BillPeriod.WEEK) {
+                        selectedWeekAnchorAtRequest
+                    } else {
+                        null
+                    },
                     statistics = statistics,
                     isLoading = false
                 )

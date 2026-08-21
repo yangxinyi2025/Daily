@@ -9,6 +9,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,7 +35,7 @@ class ScheduleViewModel(
     val state = _state.asStateFlow()
 
     init {
-        scope.launch {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
             combine(viewMode, selectedDate, ::ScheduleQuery)
                 .flatMapLatest { query -> repository.observeBetween(query.start(clock.zone), query.end(clock.zone)) }
                 .collect { events -> _state.update { it.copy(events = events) } }
@@ -92,7 +93,7 @@ class ScheduleViewModel(
     fun saveEditor() {
         val editor = state.value.editor ?: return
         val now = clock.instant()
-        scope.launch {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
             val existing = editor.id?.let { repository.findById(it) }
             val event = runCatching {
                 editor.toEvent(now, clock.zone).copy(createdAt = existing?.createdAt ?: now)
@@ -117,7 +118,7 @@ class ScheduleViewModel(
     }
 
     fun deleteEvent(eventId: Long) {
-        scope.launch {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
             repository.delete(eventId)
             _state.update { it.copy(statusMessage = "日程已删除") }
         }

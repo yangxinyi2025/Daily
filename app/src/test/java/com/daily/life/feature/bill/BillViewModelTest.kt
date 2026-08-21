@@ -13,7 +13,11 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
 import java.time.ZoneId
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -43,7 +47,8 @@ class BillViewModelTest {
         repository = BillRepository(
             database = database,
             preferences = preferences,
-            clock = clock
+            clock = clock,
+            queryDispatcher = Dispatchers.Unconfined
         )
     }
 
@@ -63,11 +68,12 @@ class BillViewModelTest {
         val viewModel = BillViewModel(
             repository = repository,
             clock = clock,
-            coroutineScope = backgroundScope
+            coroutineScope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
         )
 
         viewModel.setPeriod(BillPeriod.WEEK)
         advanceUntilIdle()
+        awaitRange(viewModel, LocalDate.of(2026, 8, 17), testScheduler)
 
         assertEquals("2026年8月17日 - 2026年8月23日", viewModel.state.value.periodLabel)
         assertEquals("上周", viewModel.state.value.previousPeriodLabel)
@@ -80,6 +86,7 @@ class BillViewModelTest {
 
         viewModel.selectPreviousPeriod()
         advanceUntilIdle()
+        awaitRange(viewModel, LocalDate.of(2026, 8, 10), testScheduler)
 
         assertEquals("2026年8月10日 - 2026年8月16日", viewModel.state.value.periodLabel)
         assertEquals(YearMonth.of(2026, 8), viewModel.state.value.selectedMonth)
@@ -90,8 +97,10 @@ class BillViewModelTest {
 
         viewModel.selectNextPeriod()
         advanceUntilIdle()
+        awaitRange(viewModel, LocalDate.of(2026, 8, 17), testScheduler)
         viewModel.selectNextPeriod()
         advanceUntilIdle()
+        awaitRange(viewModel, LocalDate.of(2026, 8, 24), testScheduler)
 
         assertEquals("2026年8月24日 - 2026年8月30日", viewModel.state.value.periodLabel)
         assertEquals(LocalDate.of(2026, 8, 24), viewModel.state.value.statistics.rangeStart)
@@ -137,6 +146,19 @@ class BillViewModelTest {
 
     private suspend fun seedTransactions(vararg entities: TransactionEntity) {
         database.transactionDao().insertAll(entities.toList())
+    }
+
+    private suspend fun awaitRange(
+        viewModel: BillViewModel,
+        start: LocalDate,
+        scheduler: TestCoroutineScheduler
+    ) {
+        repeat(100) {
+            scheduler.advanceUntilIdle()
+            if (viewModel.state.value.statistics.rangeStart == start) return
+            Thread.sleep(20L)
+        }
+        error("账单统计未在测试等待窗口内完成: ${viewModel.state.value}")
     }
 
     private fun transaction(
