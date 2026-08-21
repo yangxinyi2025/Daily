@@ -15,6 +15,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.daily.life.core.designsystem.DailyBottomBar
 import com.daily.life.core.designsystem.DailyPlaceholderPage
+import com.daily.life.core.NoOpReminderScheduler
 import com.daily.life.DailyApplication
 import com.daily.life.feature.home.DaoBillSummaryRepository
 import com.daily.life.feature.home.DaoHealthSummaryRepository
@@ -25,6 +26,10 @@ import com.daily.life.feature.home.HomeViewModel
 import com.daily.life.feature.settings.DaoSemesterSettingsRepository
 import com.daily.life.feature.settings.SettingsScreen
 import com.daily.life.feature.settings.SettingsViewModel
+import com.daily.life.feature.timetable.PdfTimetableParser
+import com.daily.life.feature.timetable.RoomTimetableRepository
+import com.daily.life.feature.timetable.TimetableScreen
+import com.daily.life.feature.timetable.TimetableViewModel
 
 @Composable
 fun DailyNavHost(
@@ -78,10 +83,31 @@ fun DailyNavHost(
                 )
             }
             composable(DailyDestination.Timetable.route) {
-                DailyPlaceholderPage(
-                    title = DailyDestination.Timetable.label,
-                    pageLabel = "课表页面",
-                    message = "课表导入、周次计算与预览确认流程将在后续任务实现。"
+                val container = application.container
+                val timetableViewModel: TimetableViewModel = viewModel {
+                    TimetableViewModel(
+                        repository = RoomTimetableRepository(
+                            database = container.database,
+                            preferences = container.preferences,
+                            reminderScheduler = container.adapters.reminderSchedulerFactory.create()
+                                ?: NoOpReminderScheduler
+                        ),
+                        parser = PdfTimetableParser()
+                    )
+                }
+                val timetableState by timetableViewModel.state.collectAsState()
+                TimetableScreen(
+                    state = timetableState,
+                    onPreviousWeek = timetableViewModel::selectPreviousWeek,
+                    onNextWeek = timetableViewModel::selectNextWeek,
+                    onCurrentWeek = timetableViewModel::selectCurrentWeek,
+                    onOpenImport = timetableViewModel::openImport,
+                    onPdfSelected = timetableViewModel::selectPdf,
+                    onSemesterInputChange = timetableViewModel::updateSemesterInput,
+                    onImportRowChange = timetableViewModel::updateImportRow,
+                    onReplaceExistingChange = timetableViewModel::updateReplaceExisting,
+                    onCancelImport = timetableViewModel::cancelImport,
+                    onConfirmImport = timetableViewModel::confirmImport
                 )
             }
             composable(DailyDestination.Schedule.route) {

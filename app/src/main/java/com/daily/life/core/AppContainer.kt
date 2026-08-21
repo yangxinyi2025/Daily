@@ -50,7 +50,13 @@ interface TimetableRepository
 interface ScheduleRepository
 interface HealthRepository
 interface BillRepository
-interface ReminderScheduler
+interface ReminderScheduler {
+    suspend fun scheduleCourseReminders(semesterId: Long)
+}
+
+data object NoOpReminderScheduler : ReminderScheduler {
+    override suspend fun scheduleCourseReminders(semesterId: Long) = Unit
+}
 interface HealthConnectAdapter
 interface SensorActivityAdapter
 interface WebDavClient

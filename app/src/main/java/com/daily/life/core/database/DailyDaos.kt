@@ -23,6 +23,12 @@ interface SemesterDao {
     @Query("SELECT * FROM semesters WHERE id = :id")
     suspend fun findById(id: Long): SemesterEntity?
 
+    @Query("SELECT * FROM semesters WHERE name = :name ORDER BY startDate DESC LIMIT 1")
+    suspend fun findByName(name: String): SemesterEntity?
+
+    @Query("UPDATE semesters SET isCurrent = 0 WHERE isCurrent = 1")
+    suspend fun clearCurrent()
+
     @Query("SELECT * FROM semesters ORDER BY startDate DESC")
     fun observeAll(): Flow<List<SemesterEntity>>
 }
@@ -43,6 +49,9 @@ interface CourseDao {
 
     @Query("DELETE FROM courses WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM courses WHERE semesterId = :semesterId")
+    suspend fun deleteBySemester(semesterId: Long)
 
     @Query("SELECT * FROM courses WHERE semesterId = :semesterId ORDER BY dayOfWeek, startPeriod")
     fun observeBySemester(semesterId: Long): Flow<List<CourseEntity>>
@@ -75,6 +84,17 @@ interface CourseDao {
         week: Int,
         dayOfWeek: Int
     ): Flow<List<CourseEntity>>
+
+    @Query(
+        """
+        SELECT c.* FROM courses c
+        INNER JOIN course_weeks cw ON cw.courseId = c.id
+        WHERE c.semesterId = :semesterId
+          AND cw.week = :week
+        ORDER BY c.dayOfWeek, c.startPeriod
+        """
+    )
+    fun observeBySemesterWeek(semesterId: Long, week: Int): Flow<List<CourseEntity>>
 }
 
 @Dao
