@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.daily.life.core.database.DailyDatabase
 import com.daily.life.core.datastore.DailyPreferences
+import java.io.ByteArrayInputStream
 import java.io.File
+import java.nio.charset.StandardCharsets
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -79,8 +81,40 @@ class BillRepositoryTest {
         assertEquals(24_690L, statistics.categoryTotals[Category.FOOD])
     }
 
+    @Test
+    fun signedExpenseImportsContributePositiveSpendingAndBudgetProgress() = runTest {
+        repository.setBudget(YearMonth.of(2026, 8), 10_000L)
+        repository.confirmImport(
+            repository.preview(
+                parseCsv(
+                    """
+                    交易时间,交易对方,收/支,金额(元)
+                    2026-08-05 08:00:00,早餐店,支出,-12.34
+                    """.trimIndent()
+                )
+            )
+        )
+
+        val statistics = repository.statistics(
+            BillFilter(
+                period = BillPeriod.MONTH,
+                month = YearMonth.of(2026, 8)
+            )
+        )
+
+        assertEquals(1, statistics.count)
+        assertEquals(1_234L, statistics.expenseCents)
+        assertEquals(12, statistics.budgetProgressPercent)
+        assertEquals(1_234L, statistics.transactions.single().amountCents)
+    }
+
     private fun parseFixture(): BillParseResult =
         javaClass.classLoader!!.getResourceAsStream("fixtures/wechat-synthetic.csv")!!.use { input ->
+            CsvBillParser().parse(input, BillSource.WECHAT)
+        }
+
+    private fun parseCsv(text: String): BillParseResult =
+        ByteArrayInputStream(text.toByteArray(StandardCharsets.UTF_8)).use { input ->
             CsvBillParser().parse(input, BillSource.WECHAT)
         }
 }

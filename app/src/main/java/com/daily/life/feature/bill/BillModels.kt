@@ -88,6 +88,7 @@ enum class BillPeriod(val label: String) {
 data class BillFilter(
     val period: BillPeriod = BillPeriod.MONTH,
     val month: YearMonth = YearMonth.now(),
+    val weekAnchor: LocalDate? = null,
     val startDate: LocalDate? = null,
     val endDate: LocalDate? = null,
     val direction: Direction? = null,

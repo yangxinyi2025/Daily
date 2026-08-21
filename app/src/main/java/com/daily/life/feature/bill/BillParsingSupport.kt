@@ -190,7 +190,7 @@ internal object BillParsingSupport {
             .replace("(", "-")
             .replace(")", "")
         return try {
-            BigDecimal(cleaned).movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValueExact()
+            BigDecimal(cleaned).abs().movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValueExact()
         } catch (_: NumberFormatException) {
             null
         } catch (_: ArithmeticException) {

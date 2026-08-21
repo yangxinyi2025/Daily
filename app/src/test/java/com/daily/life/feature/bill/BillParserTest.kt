@@ -24,6 +24,23 @@ class BillParserTest {
     }
 
     @Test
+    fun normalizesNegativeSignedExpenseAmountToPositiveCents() {
+        val result = parseText(
+            """
+            交易时间,交易对方,收/支,金额(元)
+            2026-08-02 08:00:00,便利店,支出,-12.34
+            """.trimIndent(),
+            BillSource.WECHAT
+        )
+
+        val row = result.rows.single()
+
+        assertEquals(1_234L, row.amountCents)
+        assertEquals(Direction.EXPENSE, row.direction)
+        assertEquals(Category.FOOD, row.category)
+    }
+
+    @Test
     fun recognizesAlipayHeadersAndIncomeDirection() {
         val result = parseFixture("fixtures/alipay-synthetic.csv", BillSource.ALIPAY)
         val row = result.rows[1]
@@ -59,6 +76,11 @@ class BillParserTest {
 
     private fun parseFixture(path: String, source: BillSource): BillParseResult =
         javaClass.classLoader!!.getResourceAsStream(path)!!.use { input ->
+            CsvBillParser().parse(input, source)
+        }
+
+    private fun parseText(text: String, source: BillSource): BillParseResult =
+        ByteArrayInputStream(text.toByteArray(StandardCharsets.UTF_8)).use { input ->
             CsvBillParser().parse(input, source)
         }
 

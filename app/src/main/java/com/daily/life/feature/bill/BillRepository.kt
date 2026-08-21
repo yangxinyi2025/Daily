@@ -193,7 +193,7 @@ class BillRepository(
             BillPeriod.MONTH -> month.atDay(1) to month.atEndOfMonth()
             BillPeriod.YEAR -> month.atDay(1).withDayOfYear(1) to month.atDay(1).with(TemporalAdjusters.lastDayOfYear())
             BillPeriod.WEEK -> {
-                val date = month.atDay(1)
+                val date = weekAnchor ?: month.atDay(1)
                 val start = date.minusDays((date.dayOfWeek.value - 1).toLong())
                 start to start.plusDays(6)
             }

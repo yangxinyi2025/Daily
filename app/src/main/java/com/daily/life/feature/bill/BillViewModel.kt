@@ -3,9 +3,11 @@ package com.daily.life.feature.bill
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import java.time.Clock
+import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.temporal.TemporalAdjusters
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,6 +18,7 @@ import kotlinx.coroutines.launch
 data class BillState(
     val selectedMonth: YearMonth,
     val selectedPeriod: BillPeriod = BillPeriod.MONTH,
+    val selectedWeekAnchor: LocalDate? = null,
     val directionFilter: Direction? = null,
     val categoryFilter: Category? = null,
     val searchText: String = "",
@@ -25,7 +28,40 @@ data class BillState(
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val statusMessage: String? = null
-)
+) {
+    val periodLabel: String
+        get() = when (selectedPeriod) {
+            BillPeriod.MONTH -> "${selectedMonth.year}年${selectedMonth.monthValue}月"
+            BillPeriod.YEAR -> "${selectedMonth.year}年"
+            BillPeriod.WEEK -> {
+                val start = (selectedWeekAnchor ?: selectedMonth.atDay(1))
+                    .with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+                "${start.year}年${start.monthValue}月${start.dayOfMonth}日 - " +
+                    "${start.plusDays(6).year}年${start.plusDays(6).monthValue}月${start.plusDays(6).dayOfMonth}日"
+            }
+        }
+
+    val previousPeriodLabel: String
+        get() = when (selectedPeriod) {
+            BillPeriod.MONTH -> "上个月"
+            BillPeriod.YEAR -> "上一年"
+            BillPeriod.WEEK -> "上周"
+        }
+
+    val currentPeriodLabel: String
+        get() = when (selectedPeriod) {
+            BillPeriod.MONTH -> "本月"
+            BillPeriod.YEAR -> "今年"
+            BillPeriod.WEEK -> "本周"
+        }
+
+    val nextPeriodLabel: String
+        get() = when (selectedPeriod) {
+            BillPeriod.MONTH -> "下个月"
+            BillPeriod.YEAR -> "下一年"
+            BillPeriod.WEEK -> "下周"
+        }
+}
 
 class BillViewModel(
     private val repository: BillRepository,
@@ -34,7 +70,10 @@ class BillViewModel(
 ) : ViewModel() {
     private val scope = coroutineScope ?: viewModelScope
     private val selectedMonth = MutableStateFlow(YearMonth.now(clock))
-    private val _state = MutableStateFlow(BillState(selectedMonth = selectedMonth.value))
+    private val selectedWeekAnchor = MutableStateFlow(todayWeekStart())
+    private val _state = MutableStateFlow(
+        BillState(selectedMonth = selectedMonth.value, selectedWeekAnchor = selectedWeekAnchor.value)
+    )
     val state = _state.asStateFlow()
 
     init {
@@ -46,34 +85,50 @@ class BillViewModel(
     }
 
     fun selectPreviousPeriod() {
-        selectedMonth.update { current ->
-            when (_state.value.selectedPeriod) {
-                BillPeriod.YEAR -> current.minusYears(1)
-                else -> current.minusMonths(1)
+        when (_state.value.selectedPeriod) {
+            BillPeriod.WEEK -> {
+                selectedWeekAnchor.update { it.minusWeeks(1) }
+                selectedMonth.value = YearMonth.from(selectedWeekAnchor.value)
             }
+            BillPeriod.YEAR -> selectedMonth.update { it.minusYears(1) }
+            BillPeriod.MONTH -> selectedMonth.update { it.minusMonths(1) }
         }
         refresh()
     }
 
     fun selectNextPeriod() {
-        selectedMonth.update { current ->
-            when (_state.value.selectedPeriod) {
-                BillPeriod.YEAR -> current.plusYears(1)
-                else -> current.plusMonths(1)
+        when (_state.value.selectedPeriod) {
+            BillPeriod.WEEK -> {
+                selectedWeekAnchor.update { it.plusWeeks(1) }
+                selectedMonth.value = YearMonth.from(selectedWeekAnchor.value)
             }
+            BillPeriod.YEAR -> selectedMonth.update { it.plusYears(1) }
+            BillPeriod.MONTH -> selectedMonth.update { it.plusMonths(1) }
         }
         refresh()
     }
 
     fun selectCurrentPeriod() {
         selectedMonth.value = YearMonth.now(clock)
+        selectedWeekAnchor.value = todayWeekStart()
         refresh()
     }
 
     fun setPeriod(period: BillPeriod) {
-        _state.update { it.copy(selectedPeriod = period) }
+        if (period == BillPeriod.WEEK) {
+            selectedWeekAnchor.value = todayWeekStart()
+        }
+        _state.update {
+            it.copy(
+                selectedPeriod = period,
+                selectedWeekAnchor = if (period == BillPeriod.WEEK) selectedWeekAnchor.value else null
+            )
+        }
         refresh()
     }
+
+    private fun todayWeekStart(): LocalDate = LocalDate.now(clock)
+        .with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
 
     fun setDirectionFilter(direction: Direction?) {
         _state.update { it.copy(directionFilter = direction) }
@@ -235,6 +290,11 @@ class BillViewModel(
                 BillFilter(
                     period = current.selectedPeriod,
                     month = selectedMonth.value,
+                    weekAnchor = if (current.selectedPeriod == BillPeriod.WEEK) {
+                        selectedWeekAnchor.value
+                    } else {
+                        null
+                    },
                     direction = current.directionFilter,
                     category = current.categoryFilter,
                     searchText = current.searchText
@@ -242,7 +302,12 @@ class BillViewModel(
             )
         }.onSuccess { statistics ->
             _state.update {
-                it.copy(selectedMonth = selectedMonth.value, statistics = statistics, isLoading = false)
+                it.copy(
+                    selectedMonth = selectedMonth.value,
+                    selectedWeekAnchor = if (it.selectedPeriod == BillPeriod.WEEK) selectedWeekAnchor.value else null,
+                    statistics = statistics,
+                    isLoading = false
+                )
             }
         }.onFailure { error ->
             _state.update { it.copy(isLoading = false, errorMessage = error.message ?: "账单统计失败") }
