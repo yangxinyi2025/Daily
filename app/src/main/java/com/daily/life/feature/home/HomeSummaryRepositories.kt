@@ -4,6 +4,7 @@ import com.daily.life.core.database.ActivityRecordEntity
 import com.daily.life.core.database.ActivityType
 import com.daily.life.core.database.BudgetDao
 import com.daily.life.core.database.CourseDao
+import com.daily.life.core.database.CourseEntity
 import com.daily.life.core.database.HealthDao
 import com.daily.life.core.database.ScheduleEventDao
 import com.daily.life.core.database.SemesterDao
