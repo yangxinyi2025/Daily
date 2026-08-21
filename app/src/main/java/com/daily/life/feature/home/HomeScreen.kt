@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import java.math.BigInteger
 import com.daily.life.core.designsystem.QuietSkyListRow
 import com.daily.life.core.designsystem.QuietSkyPageHeader
 import com.daily.life.core.designsystem.QuietSkySectionCard
@@ -251,5 +252,8 @@ private fun ScheduleSection(
 
 private fun HomeState.budgetUsageLabel(): String {
     val budget = monthlyBudgetCents?.takeIf { it > 0L } ?: return "未设置"
-    return "${monthlySpendingCents * 100 / budget}%"
+    val percentage = BigInteger.valueOf(monthlySpendingCents)
+        .multiply(BigInteger.valueOf(100L))
+        .divide(BigInteger.valueOf(budget))
+    return "$percentage%"
 }
