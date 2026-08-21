@@ -2,8 +2,11 @@ package com.daily.life.core.sync
 
 import com.daily.life.core.database.ActivityType
 import com.daily.life.core.database.AdviceSource
+import com.daily.life.core.database.CourseWeekEntity
+import com.daily.life.core.database.SemesterEntity
 import com.daily.life.core.database.ReportGenerationStatus
 import com.daily.life.core.database.TransactionDirection
+import com.daily.life.core.database.TransactionEntity
 import java.io.File
 import java.time.Instant
 import java.time.LocalDate
@@ -25,6 +28,22 @@ class SnapshotSerializerTest {
         assertEquals(sampleSnapshot().schemaVersion, decoded.schemaVersion)
         assertEquals(12_345L, decoded.transactions.single().amountCents)
         assertEquals(sampleSnapshot().settings.webDavEndpoint, decoded.settings.webDavEndpoint)
+    }
+
+    @Test
+    fun encodingIsDeterministicWhenRecordListsHaveDifferentInputOrder() {
+        val first = SemesterEntity(
+            id = 1L,
+            name = "一",
+            startDate = LocalDate.of(2026, 9, 1),
+            createdAt = 1_700_000_000_000L
+        )
+        val second = first.copy(id = 2L, name = "二")
+
+        val left = sampleSnapshot().copy(semesters = listOf(second, first))
+        val right = sampleSnapshot().copy(semesters = listOf(first, second))
+
+        assertEquals(serializer.encode(left).toList(), serializer.encode(right).toList())
     }
 
     @Test
@@ -50,6 +69,45 @@ class SnapshotSerializerTest {
     }
 
     @Test
+    fun invalidRecordTimestampsAreRejected() {
+        val malformed = sampleSnapshot().copy(
+            transactions = listOf(
+                TransactionEntity(
+                    id = 1L,
+                    occurredAt = 1_700_000_000_000L,
+                    amountCents = 12_345L,
+                    direction = TransactionDirection.EXPENSE,
+                    category = "餐饮",
+                    counterparty = "测试商户",
+                    source = "TEST",
+                    createdAt = 2_000L,
+                    updatedAt = 1_000L
+                )
+            )
+        )
+
+        assertMalformed(malformed)
+    }
+
+    @Test
+    fun danglingCourseWeekReferencesAreRejected() {
+        val malformed = sampleSnapshot().copy(
+            courseWeeks = listOf(CourseWeekEntity(courseId = 99L, week = 1))
+        )
+
+        assertMalformed(malformed)
+    }
+
+    @Test
+    fun invalidSnapshotSettingsAreRejected() {
+        val malformed = sampleSnapshot().copy(
+            settings = sampleSnapshot().settings.copy(defaultBudgetCents = -1L)
+        )
+
+        assertMalformed(malformed)
+    }
+
+    @Test
     fun restoreRequiresExplicitConfirmationBeforeReplacingLocalData() = runTest {
         val directory = createTempDir(prefix = "daily-snapshot-restore")
         val store = FakeSnapshotStore(sampleSnapshot())
@@ -69,6 +127,37 @@ class SnapshotSerializerTest {
             throw AssertionError("Expected confirmation error")
         } catch (_: RestoreConfirmationRequired) {
             assertFalse(store.replaced)
+        }
+    }
+
+    @Test
+    fun restoreRejectsSnapshotFromAnotherDevice() = runTest {
+        val directory = createTempDir(prefix = "daily-snapshot-device")
+        val store = FakeSnapshotStore(sampleSnapshot())
+        val repository = LocalBackupRepository(
+            store = store,
+            serializer = serializer,
+            snapshotDirectory = directory,
+            deviceId = "test-device"
+        )
+        val file = File(directory, "incoming.snapshot").apply {
+            writeBytes(serializer.encode(sampleSnapshot().copy(deviceId = "other-device")))
+        }
+
+        try {
+            repository.restoreSnapshot(file, replaceExisting = true)
+            throw AssertionError("Expected device validation error")
+        } catch (_: SnapshotValidationException) {
+            assertFalse(store.replaced)
+        }
+    }
+
+    private fun assertMalformed(snapshot: DailySnapshot) {
+        try {
+            serializer.decode(serializer.encode(snapshot))
+            throw AssertionError("Expected malformed snapshot error")
+        } catch (_: SnapshotValidationException.MalformedSnapshot) {
+            // Expected.
         }
     }
 

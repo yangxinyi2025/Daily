@@ -23,255 +23,99 @@ import org.json.JSONObject
 
 class SnapshotSerializer {
     fun encode(snapshot: DailySnapshot): ByteArray {
-        require(snapshot.schemaVersion == CURRENT_SCHEMA_VERSION) {
-            "只能写入当前备份版本"
-        }
+        require(snapshot.schemaVersion == CURRENT_SCHEMA_VERSION) { "只能写入当前备份版本" }
         val root = JSONObject()
             .put("schemaVersion", snapshot.schemaVersion)
             .put("deviceId", snapshot.deviceId)
             .put("createdAt", snapshot.createdAt.toString())
             .put("updatedAt", snapshot.updatedAt.toString())
             .put("settings", encodeSettings(snapshot.settings))
-            .put("semesters", JSONArray(snapshot.semesters.map(::encodeSemester)))
-            .put("courses", JSONArray(snapshot.courses.map(::encodeCourse)))
-            .put("courseWeeks", JSONArray(snapshot.courseWeeks.map(::encodeCourseWeek)))
-            .put("scheduleEvents", JSONArray(snapshot.scheduleEvents.map(::encodeScheduleEvent)))
-            .put("weights", JSONArray(snapshot.weights.map(::encodeWeight)))
-            .put("activities", JSONArray(snapshot.activities.map(::encodeActivity)))
-            .put("monthlyReports", JSONArray(snapshot.monthlyReports.map(::encodeMonthlyReport)))
-            .put("transactions", JSONArray(snapshot.transactions.map(::encodeTransaction)))
-            .put("budgets", JSONArray(snapshot.budgets.map(::encodeBudget)))
-            .put("importLogs", JSONArray(snapshot.importLogs.map(::encodeImportLog)))
+            .put("semesters", JSONArray(snapshot.semesters.sortedBy { it.id }.map(::encodeSemester)))
+            .put("courses", JSONArray(snapshot.courses.sortedBy { it.id }.map(::encodeCourse)))
+            .put("courseWeeks", JSONArray(snapshot.courseWeeks.sortedWith(compareBy({ it.courseId }, { it.week })).map(::encodeCourseWeek)))
+            .put("scheduleEvents", JSONArray(snapshot.scheduleEvents.sortedBy { it.id }.map(::encodeScheduleEvent)))
+            .put("weights", JSONArray(snapshot.weights.sortedBy { it.id }.map(::encodeWeight)))
+            .put("activities", JSONArray(snapshot.activities.sortedBy { it.id }.map(::encodeActivity)))
+            .put("monthlyReports", JSONArray(snapshot.monthlyReports.sortedBy { it.id }.map(::encodeMonthlyReport)))
+            .put("transactions", JSONArray(snapshot.transactions.sortedBy { it.id }.map(::encodeTransaction)))
+            .put("budgets", JSONArray(snapshot.budgets.sortedBy { it.month }.map(::encodeBudget)))
+            .put("importLogs", JSONArray(snapshot.importLogs.sortedBy { it.batchId }.map(::encodeImportLog)))
         return root.toString().toByteArray(Charsets.UTF_8)
     }
 
     fun decode(bytes: ByteArray): DailySnapshot = try {
         val root = JSONObject(bytes.toString(Charsets.UTF_8))
         val version = root.requiredInt("schemaVersion")
-        if (version != CURRENT_SCHEMA_VERSION) {
-            throw SnapshotValidationException.UnsupportedSchemaVersion(version)
-        }
+        if (version != CURRENT_SCHEMA_VERSION) throw SnapshotValidationException.UnsupportedSchemaVersion(version)
         val snapshot = DailySnapshot(
-            schemaVersion = version,
-            deviceId = root.requiredString("deviceId").also { requireNonBlank("deviceId", it) },
-            createdAt = root.requiredInstant("createdAt"),
-            updatedAt = root.requiredInstant("updatedAt"),
-            settings = decodeSettings(root.requiredObject("settings")),
-            semesters = root.requiredArray("semesters").objects(::decodeSemester),
-            courses = root.requiredArray("courses").objects(::decodeCourse),
-            courseWeeks = root.requiredArray("courseWeeks").objects(::decodeCourseWeek),
-            scheduleEvents = root.requiredArray("scheduleEvents").objects(::decodeScheduleEvent),
-            weights = root.requiredArray("weights").objects(::decodeWeight),
-            activities = root.requiredArray("activities").objects(::decodeActivity),
-            monthlyReports = root.requiredArray("monthlyReports").objects(::decodeMonthlyReport),
-            transactions = root.requiredArray("transactions").objects(::decodeTransaction),
-            budgets = root.requiredArray("budgets").objects(::decodeBudget),
-            importLogs = root.requiredArray("importLogs").objects(::decodeImportLog)
+            version,
+            root.requiredString("deviceId").also { requireNonBlank("deviceId", it) },
+            root.requiredInstant("createdAt"),
+            root.requiredInstant("updatedAt"),
+            decodeSettings(root.requiredObject("settings")),
+            root.requiredArray("semesters").objects(::decodeSemester),
+            root.requiredArray("courses").objects(::decodeCourse),
+            root.requiredArray("courseWeeks").objects(::decodeCourseWeek),
+            root.requiredArray("scheduleEvents").objects(::decodeScheduleEvent),
+            root.requiredArray("weights").objects(::decodeWeight),
+            root.requiredArray("activities").objects(::decodeActivity),
+            root.requiredArray("monthlyReports").objects(::decodeMonthlyReport),
+            root.requiredArray("transactions").objects(::decodeTransaction),
+            root.requiredArray("budgets").objects(::decodeBudget),
+            root.requiredArray("importLogs").objects(::decodeImportLog)
         )
         validate(snapshot)
         snapshot
-    } catch (error: SnapshotValidationException) {
-        throw error
-    } catch (error: Exception) {
-        throw SnapshotValidationException.MalformedSnapshot(error.message ?: "格式错误", error)
-    }
+    } catch (error: SnapshotValidationException) { throw error }
+      catch (error: Exception) { throw SnapshotValidationException.MalformedSnapshot(error.message ?: "格式错误", error) }
 
     private fun validate(snapshot: DailySnapshot) {
-        if (snapshot.updatedAt.isBefore(snapshot.createdAt)) {
-            throw SnapshotValidationException.MalformedSnapshot("更新时间早于创建时间")
-        }
-        if (snapshot.deviceId.isBlank()) {
-            throw SnapshotValidationException.MalformedSnapshot("缺少设备标识")
-        }
-        snapshot.courses.forEach { course ->
-            if (course.dayOfWeek !in 1..7 || course.startPeriod <= 0 || course.endPeriod < course.startPeriod) {
-                throw SnapshotValidationException.MalformedSnapshot("课程时间字段无效")
-            }
-        }
-        snapshot.transactions.forEach { transaction ->
-            if (transaction.amountCents < 0L) {
-                throw SnapshotValidationException.MalformedSnapshot("账单金额不能为负数")
-            }
-        }
+        if (snapshot.updatedAt.isBefore(snapshot.createdAt)) throw SnapshotValidationException.MalformedSnapshot("更新时间早于创建时间")
+        if (snapshot.deviceId.isBlank()) throw SnapshotValidationException.MalformedSnapshot("缺少设备标识")
+        if (snapshot.settings.defaultBudgetCents != null && snapshot.settings.defaultBudgetCents < 0) throw SnapshotValidationException.MalformedSnapshot("预算不能为负数")
+        snapshot.courses.forEach { if (it.dayOfWeek !in 1..7 || it.startPeriod <= 0 || it.endPeriod < it.startPeriod) throw SnapshotValidationException.MalformedSnapshot("课程时间字段无效") }
+        if (snapshot.courseWeeks.any { week -> snapshot.courses.none { it.id == week.courseId } }) throw SnapshotValidationException.MalformedSnapshot("课表周次引用无效")
+        snapshot.transactions.forEach { if (it.amountCents < 0) throw SnapshotValidationException.MalformedSnapshot("账单金额不能为负数"); if (it.updatedAt < it.createdAt) throw SnapshotValidationException.MalformedSnapshot("账单时间字段无效") }
     }
 
-    private fun encodeSettings(settings: SnapshotSettings): JSONObject = JSONObject()
-        .putNullable("semesterStartDate", settings.semesterStartDate?.toString())
-        .putNullable("currentSemesterId", settings.currentSemesterId)
-        .putNullable("targetWeightJin", settings.targetWeightJin)
-        .putNullable("defaultBudgetCents", settings.defaultBudgetCents)
-        .putNullable("webDavEndpoint", settings.webDavEndpoint)
-        .put("autoSyncEnabled", settings.autoSyncEnabled)
-
-    private fun decodeSettings(json: JSONObject): SnapshotSettings = SnapshotSettings(
-        semesterStartDate = json.optionalString("semesterStartDate")?.let(LocalDate::parse),
-        currentSemesterId = json.optionalLong("currentSemesterId"),
-        targetWeightJin = json.optionalDouble("targetWeightJin"),
-        defaultBudgetCents = json.optionalLong("defaultBudgetCents"),
-        webDavEndpoint = json.optionalString("webDavEndpoint"),
-        autoSyncEnabled = json.requiredBoolean("autoSyncEnabled")
-    )
-
-    private fun encodeSemester(value: SemesterEntity): JSONObject = JSONObject()
-        .put("id", value.id).put("name", value.name).put("startDate", value.startDate.toString())
-        .putNullable("endDate", value.endDate?.toString()).put("isCurrent", value.isCurrent)
-        .put("createdAt", value.createdAt)
-
-    private fun decodeSemester(json: JSONObject): SemesterEntity = SemesterEntity(
-        id = json.requiredLong("id"), name = json.requiredString("name"),
-        startDate = LocalDate.parse(json.requiredString("startDate")),
-        endDate = json.optionalString("endDate")?.let(LocalDate::parse),
-        isCurrent = json.requiredBoolean("isCurrent"), createdAt = json.requiredLong("createdAt")
-    )
-
-    private fun encodeCourse(value: CourseEntity): JSONObject = JSONObject()
-        .put("id", value.id).put("semesterId", value.semesterId).put("courseName", value.courseName)
-        .put("dayOfWeek", value.dayOfWeek).put("startPeriod", value.startPeriod).put("endPeriod", value.endPeriod)
-        .put("weekRuleText", value.weekRuleText).put("parsedWeeks", JSONArray(value.parsedWeeks.sorted()))
-        .putNullable("campus", value.campus).putNullable("location", value.location)
-        .putNullable("teacher", value.teacher).putNullable("courseCode", value.courseCode)
-        .putNullable("credits", value.credits).putNullable("notes", value.notes)
-
-    private fun decodeCourse(json: JSONObject): CourseEntity = CourseEntity(
-        id = json.requiredLong("id"), semesterId = json.requiredLong("semesterId"),
-        courseName = json.requiredString("courseName"), dayOfWeek = json.requiredInt("dayOfWeek"),
-        startPeriod = json.requiredInt("startPeriod"), endPeriod = json.requiredInt("endPeriod"),
-        weekRuleText = json.requiredString("weekRuleText"), parsedWeeks = json.requiredArray("parsedWeeks").ints().toSet(),
-        campus = json.optionalString("campus"), location = json.optionalString("location"),
-        teacher = json.optionalString("teacher"), courseCode = json.optionalString("courseCode"),
-        credits = json.optionalDouble("credits"), notes = json.optionalString("notes")
-    )
-
-    private fun encodeCourseWeek(value: CourseWeekEntity): JSONObject = JSONObject()
-        .put("courseId", value.courseId).put("week", value.week)
-
-    private fun decodeCourseWeek(json: JSONObject): CourseWeekEntity = CourseWeekEntity(
-        courseId = json.requiredLong("courseId"), week = json.requiredInt("week")
-    )
-
-    private fun encodeScheduleEvent(value: ScheduleEventEntity): JSONObject = JSONObject()
-        .put("id", value.id).put("title", value.title).put("eventAt", value.eventAt)
-        .put("reminderOffsetMinutes", value.reminderOffsetMinutes).put("reminderMode", value.reminderMode.name)
-        .put("repeatYearly", value.repeatYearly).putNullable("notes", value.notes)
-        .put("isDismissed", value.isDismissed).put("createdAt", value.createdAt).put("updatedAt", value.updatedAt)
-
-    private fun decodeScheduleEvent(json: JSONObject): ScheduleEventEntity = ScheduleEventEntity(
-        id = json.requiredLong("id"), title = json.requiredString("title"), eventAt = json.requiredLong("eventAt"),
-        reminderOffsetMinutes = json.requiredInt("reminderOffsetMinutes"),
-        reminderMode = enumValue(json.requiredString("reminderMode")), repeatYearly = json.requiredBoolean("repeatYearly"),
-        notes = json.optionalString("notes"), isDismissed = json.requiredBoolean("isDismissed"),
-        createdAt = json.requiredLong("createdAt"), updatedAt = json.requiredLong("updatedAt")
-    )
-
-    private fun encodeWeight(value: WeightRecordEntity): JSONObject = JSONObject()
-        .put("id", value.id).put("recordedAt", value.recordedAt).put("weightJin", value.weightJin)
-        .put("source", value.source).putNullable("notes", value.notes)
-
-    private fun decodeWeight(json: JSONObject): WeightRecordEntity = WeightRecordEntity(
-        id = json.requiredLong("id"), recordedAt = json.requiredLong("recordedAt"),
-        weightJin = json.requiredDouble("weightJin"), source = json.requiredString("source"), notes = json.optionalString("notes")
-    )
-
-    private fun encodeActivity(value: ActivityRecordEntity): JSONObject = JSONObject()
-        .put("id", value.id).put("recordedAt", value.recordedAt).put("activityType", value.activityType.name)
-        .putNullable("steps", value.steps).putNullable("distanceMeters", value.distanceMeters)
-        .putNullable("durationMinutes", value.durationMinutes).put("source", value.source)
-        .putNullable("rawRecordId", value.rawRecordId)
-
-    private fun decodeActivity(json: JSONObject): ActivityRecordEntity = ActivityRecordEntity(
-        id = json.requiredLong("id"), recordedAt = json.requiredLong("recordedAt"),
-        activityType = enumValue(json.requiredString("activityType")), steps = json.optionalLong("steps"),
-        distanceMeters = json.optionalDouble("distanceMeters"), durationMinutes = json.optionalInt("durationMinutes"),
-        source = json.requiredString("source"), rawRecordId = json.optionalString("rawRecordId")
-    )
-
-    private fun encodeMonthlyReport(value: MonthlyReportEntity): JSONObject = JSONObject()
-        .put("id", value.id).put("month", value.month.toString()).put("weightTrendSummary", value.weightTrendSummary)
-        .put("activitySummary", value.activitySummary).putNullable("aiAdviceText", value.aiAdviceText)
-        .put("generatedAt", value.generatedAt).put("adviceSource", value.adviceSource.name)
-        .put("generationStatus", value.generationStatus.name)
-
-    private fun decodeMonthlyReport(json: JSONObject): MonthlyReportEntity = MonthlyReportEntity(
-        id = json.requiredLong("id"), month = YearMonth.parse(json.requiredString("month")),
-        weightTrendSummary = json.requiredString("weightTrendSummary"), activitySummary = json.requiredString("activitySummary"),
-        aiAdviceText = json.optionalString("aiAdviceText"), generatedAt = json.requiredLong("generatedAt"),
-        adviceSource = enumValue(json.requiredString("adviceSource")),
-        generationStatus = enumValue(json.requiredString("generationStatus"))
-    )
-
-    private fun encodeTransaction(value: TransactionEntity): JSONObject = JSONObject()
-        .put("id", value.id).put("occurredAt", value.occurredAt).put("amountCents", value.amountCents)
-        .put("direction", value.direction.name).put("category", value.category).put("counterparty", value.counterparty)
-        .put("source", value.source).putNullable("paymentMethod", value.paymentMethod)
-        .putNullable("transactionType", value.transactionType).putNullable("status", value.status)
-        .putNullable("merchantOrderId", value.merchantOrderId).putNullable("orderId", value.orderId)
-        .putNullable("rawText", value.rawText).putNullable("notes", value.notes)
-        .putNullable("importBatchId", value.importBatchId).put("createdAt", value.createdAt).put("updatedAt", value.updatedAt)
-
-    private fun decodeTransaction(json: JSONObject): TransactionEntity = TransactionEntity(
-        id = json.requiredLong("id"), occurredAt = json.requiredLong("occurredAt"), amountCents = json.requiredLong("amountCents"),
-        direction = enumValue(json.requiredString("direction")), category = json.requiredString("category"),
-        counterparty = json.requiredString("counterparty"), source = json.requiredString("source"),
-        paymentMethod = json.optionalString("paymentMethod"), transactionType = json.optionalString("transactionType"),
-        status = json.optionalString("status"), merchantOrderId = json.optionalString("merchantOrderId"),
-        orderId = json.optionalString("orderId"), rawText = json.optionalString("rawText"), notes = json.optionalString("notes"),
-        importBatchId = json.optionalString("importBatchId"), createdAt = json.requiredLong("createdAt"), updatedAt = json.requiredLong("updatedAt")
-    )
-
-    private fun encodeBudget(value: BudgetEntity): JSONObject = JSONObject()
-        .put("month", value.month).put("budgetCents", value.budgetCents)
-        .put("triggeredPercentages", JSONArray(value.triggeredPercentages.sorted())).put("updatedAt", value.updatedAt)
-
-    private fun decodeBudget(json: JSONObject): BudgetEntity = BudgetEntity(
-        month = json.requiredString("month"), budgetCents = json.requiredLong("budgetCents"),
-        triggeredPercentages = json.requiredArray("triggeredPercentages").ints().toSet(), updatedAt = json.requiredLong("updatedAt")
-    )
-
-    private fun encodeImportLog(value: ImportLogEntity): JSONObject = JSONObject()
-        .put("batchId", value.batchId).put("fileName", value.fileName).put("sourceType", value.sourceType)
-        .put("importedAt", value.importedAt).put("totalRows", value.totalRows).put("successRows", value.successRows)
-        .put("skippedRows", value.skippedRows).putNullable("errorSummary", value.errorSummary)
-
-    private fun decodeImportLog(json: JSONObject): ImportLogEntity = ImportLogEntity(
-        batchId = json.requiredString("batchId"), fileName = json.requiredString("fileName"), sourceType = json.requiredString("sourceType"),
-        importedAt = json.requiredLong("importedAt"), totalRows = json.requiredInt("totalRows"),
-        successRows = json.requiredInt("successRows"), skippedRows = json.requiredInt("skippedRows"), errorSummary = json.optionalString("errorSummary")
-    )
-
-    private inline fun <reified T : Enum<T>> enumValue(value: String): T = try {
-        enumValueOf(value)
-    } catch (error: IllegalArgumentException) {
-        throw SnapshotValidationException.MalformedSnapshot("枚举值无效：$value", error)
-    }
-
-    private fun requireNonBlank(name: String, value: String) {
-        if (value.isBlank()) throw SnapshotValidationException.MalformedSnapshot("$name 不能为空")
-    }
-
-    private fun JSONObject.requiredString(key: String): String = getString(key)
-    private fun JSONObject.requiredInt(key: String): Int = getInt(key)
-    private fun JSONObject.requiredLong(key: String): Long = getLong(key)
-    private fun JSONObject.requiredDouble(key: String): Double = getDouble(key)
-    private fun JSONObject.requiredBoolean(key: String): Boolean = getBoolean(key)
-    private fun JSONObject.requiredObject(key: String): JSONObject = getJSONObject(key)
-    private fun JSONObject.requiredArray(key: String): JSONArray = getJSONArray(key)
-    private fun JSONObject.requiredInstant(key: String): Instant = Instant.parse(requiredString(key))
-
+    private fun encodeSettings(s: SnapshotSettings) = JSONObject().putNullable("semesterStartDate", s.semesterStartDate?.toString()).putNullable("currentSemesterId", s.currentSemesterId).putNullable("targetWeightJin", s.targetWeightJin).putNullable("defaultBudgetCents", s.defaultBudgetCents).putNullable("webDavEndpoint", s.webDavEndpoint).put("autoSyncEnabled", s.autoSyncEnabled)
+    private fun decodeSettings(j: JSONObject) = SnapshotSettings(j.optionalString("semesterStartDate")?.let(LocalDate::parse), j.optionalLong("currentSemesterId"), j.optionalDouble("targetWeightJin"), j.optionalLong("defaultBudgetCents"), j.optionalString("webDavEndpoint"), j.requiredBoolean("autoSyncEnabled"))
+    private fun encodeSemester(v: SemesterEntity) = JSONObject().put("id", v.id).put("name", v.name).put("startDate", v.startDate.toString()).putNullable("endDate", v.endDate?.toString()).put("isCurrent", v.isCurrent).put("createdAt", v.createdAt)
+    private fun decodeSemester(j: JSONObject) = SemesterEntity(j.requiredLong("id"), j.requiredString("name"), LocalDate.parse(j.requiredString("startDate")), j.optionalString("endDate")?.let(LocalDate::parse), j.requiredBoolean("isCurrent"), j.requiredLong("createdAt"))
+    private fun encodeCourse(v: CourseEntity) = JSONObject().put("id", v.id).put("semesterId", v.semesterId).put("courseName", v.courseName).put("dayOfWeek", v.dayOfWeek).put("startPeriod", v.startPeriod).put("endPeriod", v.endPeriod).put("weekRuleText", v.weekRuleText).put("parsedWeeks", JSONArray(v.parsedWeeks.sorted())).putNullable("campus", v.campus).putNullable("location", v.location).putNullable("teacher", v.teacher).putNullable("courseCode", v.courseCode).putNullable("credits", v.credits).putNullable("notes", v.notes)
+    private fun decodeCourse(j: JSONObject) = CourseEntity(j.requiredLong("id"), j.requiredLong("semesterId"), j.requiredString("courseName"), j.requiredInt("dayOfWeek"), j.requiredInt("startPeriod"), j.requiredInt("endPeriod"), j.requiredString("weekRuleText"), j.requiredArray("parsedWeeks").ints().toSet(), j.optionalString("campus"), j.optionalString("location"), j.optionalString("teacher"), j.optionalString("courseCode"), j.optionalDouble("credits"), j.optionalString("notes"))
+    private fun encodeCourseWeek(v: CourseWeekEntity) = JSONObject().put("courseId", v.courseId).put("week", v.week)
+    private fun decodeCourseWeek(j: JSONObject) = CourseWeekEntity(j.requiredLong("courseId"), j.requiredInt("week"))
+    private fun encodeScheduleEvent(v: ScheduleEventEntity) = JSONObject().put("id", v.id).put("title", v.title).put("eventAt", v.eventAt).put("reminderOffsetMinutes", v.reminderOffsetMinutes).put("reminderMode", v.reminderMode.name).put("repeatYearly", v.repeatYearly).putNullable("notes", v.notes).put("isDismissed", v.isDismissed).put("createdAt", v.createdAt).put("updatedAt", v.updatedAt)
+    private fun decodeScheduleEvent(j: JSONObject) = ScheduleEventEntity(j.requiredLong("id"), j.requiredString("title"), j.requiredLong("eventAt"), j.requiredInt("reminderOffsetMinutes"), enumValue(j.requiredString("reminderMode")), j.requiredBoolean("repeatYearly"), j.optionalString("notes"), j.requiredBoolean("isDismissed"), j.requiredLong("createdAt"), j.requiredLong("updatedAt"))
+    private fun encodeWeight(v: WeightRecordEntity) = JSONObject().put("id", v.id).put("recordedAt", v.recordedAt).put("weightJin", v.weightJin).put("source", v.source).putNullable("notes", v.notes)
+    private fun decodeWeight(j: JSONObject) = WeightRecordEntity(j.requiredLong("id"), j.requiredLong("recordedAt"), j.requiredDouble("weightJin"), j.requiredString("source"), j.optionalString("notes"))
+    private fun encodeActivity(v: ActivityRecordEntity) = JSONObject().put("id", v.id).put("recordedAt", v.recordedAt).put("activityType", v.activityType.name).putNullable("steps", v.steps).putNullable("distanceMeters", v.distanceMeters).putNullable("durationMinutes", v.durationMinutes).put("source", v.source).putNullable("rawRecordId", v.rawRecordId)
+    private fun decodeActivity(j: JSONObject) = ActivityRecordEntity(j.requiredLong("id"), j.requiredLong("recordedAt"), enumValue(j.requiredString("activityType")), j.optionalLong("steps"), j.optionalDouble("distanceMeters"), j.optionalInt("durationMinutes"), j.requiredString("source"), j.optionalString("rawRecordId"))
+    private fun encodeMonthlyReport(v: MonthlyReportEntity) = JSONObject().put("id", v.id).put("month", v.month.toString()).put("weightTrendSummary", v.weightTrendSummary).put("activitySummary", v.activitySummary).putNullable("aiAdviceText", v.aiAdviceText).put("generatedAt", v.generatedAt).put("adviceSource", v.adviceSource.name).put("generationStatus", v.generationStatus.name)
+    private fun decodeMonthlyReport(j: JSONObject) = MonthlyReportEntity(j.requiredLong("id"), YearMonth.parse(j.requiredString("month")), j.requiredString("weightTrendSummary"), j.requiredString("activitySummary"), j.optionalString("aiAdviceText"), j.requiredLong("generatedAt"), enumValue(j.requiredString("adviceSource")), enumValue(j.requiredString("generationStatus")))
+    private fun encodeTransaction(v: TransactionEntity) = JSONObject().put("id", v.id).put("occurredAt", v.occurredAt).put("amountCents", v.amountCents).put("direction", v.direction.name).put("category", v.category).put("counterparty", v.counterparty).put("source", v.source).putNullable("paymentMethod", v.paymentMethod).putNullable("transactionType", v.transactionType).putNullable("status", v.status).putNullable("merchantOrderId", v.merchantOrderId).putNullable("orderId", v.orderId).putNullable("rawText", v.rawText).putNullable("notes", v.notes).putNullable("importBatchId", v.importBatchId).put("createdAt", v.createdAt).put("updatedAt", v.updatedAt)
+    private fun decodeTransaction(j: JSONObject) = TransactionEntity(j.requiredLong("id"), j.requiredLong("occurredAt"), j.requiredLong("amountCents"), enumValue(j.requiredString("direction")), j.requiredString("category"), j.requiredString("counterparty"), j.requiredString("source"), j.optionalString("paymentMethod"), j.optionalString("transactionType"), j.optionalString("status"), j.optionalString("merchantOrderId"), j.optionalString("orderId"), j.optionalString("rawText"), j.optionalString("notes"), j.optionalString("importBatchId"), j.requiredLong("createdAt"), j.requiredLong("updatedAt"))
+    private fun encodeBudget(v: BudgetEntity) = JSONObject().put("month", v.month).put("budgetCents", v.budgetCents).put("triggeredPercentages", JSONArray(v.triggeredPercentages.sorted())).put("updatedAt", v.updatedAt)
+    private fun decodeBudget(j: JSONObject) = BudgetEntity(j.requiredString("month"), j.requiredLong("budgetCents"), j.requiredArray("triggeredPercentages").ints().toSet(), j.requiredLong("updatedAt"))
+    private fun encodeImportLog(v: ImportLogEntity) = JSONObject().put("batchId", v.batchId).put("fileName", v.fileName).put("sourceType", v.sourceType).put("importedAt", v.importedAt).put("totalRows", v.totalRows).put("successRows", v.successRows).put("skippedRows", v.skippedRows).putNullable("errorSummary", v.errorSummary)
+    private fun decodeImportLog(j: JSONObject) = ImportLogEntity(j.requiredString("batchId"), j.requiredString("fileName"), j.requiredString("sourceType"), j.requiredLong("importedAt"), j.requiredInt("totalRows"), j.requiredInt("successRows"), j.requiredInt("skippedRows"), j.optionalString("errorSummary"))
+    private inline fun <reified T : Enum<T>> enumValue(value: String): T = try { enumValueOf(value) } catch (e: IllegalArgumentException) { throw SnapshotValidationException.MalformedSnapshot("枚举值无效：$value", e) }
+    private fun requireNonBlank(name: String, value: String) { if (value.isBlank()) throw SnapshotValidationException.MalformedSnapshot("$name 不能为空") }
+    private fun JSONObject.requiredString(key: String) = getString(key)
+    private fun JSONObject.requiredInt(key: String) = getInt(key)
+    private fun JSONObject.requiredLong(key: String) = getLong(key)
+    private fun JSONObject.requiredDouble(key: String) = getDouble(key)
+    private fun JSONObject.requiredBoolean(key: String) = getBoolean(key)
+    private fun JSONObject.requiredObject(key: String) = getJSONObject(key)
+    private fun JSONObject.requiredArray(key: String) = getJSONArray(key)
+    private fun JSONObject.requiredInstant(key: String) = Instant.parse(requiredString(key))
     private fun JSONObject.optionalString(key: String): String? = if (!has(key) || isNull(key)) null else getString(key)
     private fun JSONObject.optionalInt(key: String): Int? = if (!has(key) || isNull(key)) null else getInt(key)
     private fun JSONObject.optionalLong(key: String): Long? = if (!has(key) || isNull(key)) null else getLong(key)
     private fun JSONObject.optionalDouble(key: String): Double? = if (!has(key) || isNull(key)) null else getDouble(key)
     private fun JSONObject.putNullable(key: String, value: Any?): JSONObject = put(key, value ?: JSONObject.NULL)
-
-    private inline fun <T> JSONArray.objects(mapper: (JSONObject) -> T): List<T> = buildList {
-        for (index in 0 until length()) add(mapper(getJSONObject(index)))
-    }
-
-    private fun JSONArray.ints(): List<Int> = buildList {
-        for (index in 0 until length()) add(getInt(index))
-    }
-
-    companion object {
-        const val CURRENT_SCHEMA_VERSION = 1
-    }
+    private inline fun <T> JSONArray.objects(mapper: (JSONObject) -> T): List<T> = buildList { for (index in 0 until length()) add(mapper(getJSONObject(index))) }
+    private fun JSONArray.ints(): List<Int> = buildList { for (index in 0 until length()) add(getInt(index)) }
+    companion object { const val CURRENT_SCHEMA_VERSION = 1 }
 }

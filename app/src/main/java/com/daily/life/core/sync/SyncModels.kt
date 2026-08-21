@@ -65,6 +65,9 @@ sealed class SnapshotValidationException(message: String) : IllegalArgumentExcep
     class UnsupportedSchemaVersion(val actual: Int) :
         SnapshotValidationException("不支持的备份版本：$actual")
 
+    class DeviceMismatch(val expected: String, val actual: String) :
+        SnapshotValidationException("备份设备不匹配：需要 $expected，实际为 $actual")
+
     class MalformedSnapshot(detail: String, cause: Throwable? = null) :
         SnapshotValidationException("备份文件无效：$detail") {
         init {

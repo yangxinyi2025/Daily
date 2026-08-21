@@ -42,6 +42,9 @@ class LocalBackupRepository(
     override suspend fun restoreSnapshot(file: File, replaceExisting: Boolean): RestoreResult {
         if (!replaceExisting) throw RestoreConfirmationRequired()
         val staged = serializer.decode(file.readBytes())
+        if (staged.deviceId != deviceId) {
+            throw SnapshotValidationException.DeviceMismatch(deviceId, staged.deviceId)
+        }
         val safetyCopy = createSnapshot()
         store.replace(staged)
         return RestoreResult(file = file, safetyCopy = safetyCopy)
