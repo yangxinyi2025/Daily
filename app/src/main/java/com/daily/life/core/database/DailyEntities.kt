@@ -97,7 +97,10 @@ data class ScheduleEventEntity(
     val updatedAt: Long
 )
 
-@Entity(tableName = "weight_records")
+@Entity(
+    tableName = "weight_records",
+    indices = [Index(value = ["recordedAt"])]
+)
 data class WeightRecordEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,
     val recordedAt: Long,
@@ -111,7 +114,10 @@ enum class ActivityType {
     RUN
 }
 
-@Entity(tableName = "activity_records")
+@Entity(
+    tableName = "activity_records",
+    indices = [Index(value = ["recordedAt"]), Index(value = ["rawRecordId"])]
+)
 data class ActivityRecordEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,
     val recordedAt: Long,

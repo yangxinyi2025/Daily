@@ -23,6 +23,9 @@ import com.daily.life.feature.home.DaoScheduleSummaryRepository
 import com.daily.life.feature.home.DaoTimetableSummaryRepository
 import com.daily.life.feature.home.HomeScreen
 import com.daily.life.feature.home.HomeViewModel
+import com.daily.life.feature.health.HealthRepository
+import com.daily.life.feature.health.HealthScreen
+import com.daily.life.feature.health.HealthViewModel
 import com.daily.life.feature.settings.DaoSemesterSettingsRepository
 import com.daily.life.feature.settings.SettingsScreen
 import com.daily.life.feature.settings.SettingsViewModel
@@ -139,10 +142,28 @@ fun DailyNavHost(
                 )
             }
             composable(DailyDestination.Health.route) {
-                DailyPlaceholderPage(
-                    title = DailyDestination.Health.label,
-                    pageLabel = "健康页面",
-                    message = "体重、活动与月报模块将在后续任务接入。"
+                val container = application.container
+                val healthRepository = container.repositories.healthRepositoryFactory.create()
+                    ?: HealthRepository(
+                        healthDao = container.database.healthDao(),
+                        preferences = container.preferences
+                    )
+                val healthViewModel: HealthViewModel = viewModel {
+                    HealthViewModel(
+                        repository = healthRepository,
+                        preferences = container.preferences
+                    )
+                }
+                val healthState by healthViewModel.state.collectAsState()
+                HealthScreen(
+                    state = healthState,
+                    onPreviousMonth = healthViewModel::selectPreviousMonth,
+                    onNextMonth = healthViewModel::selectNextMonth,
+                    onCurrentMonth = healthViewModel::selectCurrentMonth,
+                    onRecordWeight = healthViewModel::recordWeight,
+                    onSetTargetWeight = healthViewModel::setTargetWeight,
+                    onReadActivity = healthViewModel::readActivity,
+                    onRegenerateReport = healthViewModel::regenerateReport
                 )
             }
             composable(DailyDestination.Bill.route) {

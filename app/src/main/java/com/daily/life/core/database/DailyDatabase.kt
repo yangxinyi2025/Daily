@@ -21,7 +21,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         BudgetEntity::class,
         ImportLogEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(DailyConverters::class)
@@ -54,12 +54,26 @@ abstract class DailyDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_weight_records_recordedAt` ON `weight_records` (`recordedAt`)"
+                )
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_activity_records_recordedAt` ON `activity_records` (`recordedAt`)"
+                )
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_activity_records_rawRecordId` ON `activity_records` (`rawRecordId`)"
+                )
+            }
+        }
+
         fun build(context: Context): DailyDatabase =
             Room.databaseBuilder(
                 context.applicationContext,
                 DailyDatabase::class.java,
                 DATABASE_NAME
-            ).addMigrations(MIGRATION_1_2).build()
+            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
 
         fun buildInMemory(context: Context): DailyDatabase =
             Room.inMemoryDatabaseBuilder(

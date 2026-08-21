@@ -165,6 +165,9 @@ interface HealthDao {
     @Query("SELECT * FROM activity_records WHERE recordedAt BETWEEN :startInclusive AND :endInclusive ORDER BY recordedAt DESC")
     fun observeActivitiesBetween(startInclusive: Long, endInclusive: Long): Flow<List<ActivityRecordEntity>>
 
+    @Query("SELECT * FROM activity_records ORDER BY recordedAt DESC")
+    fun observeActivities(): Flow<List<ActivityRecordEntity>>
+
     @Query("SELECT * FROM monthly_reports WHERE month = :month LIMIT 1")
     suspend fun findMonthlyReport(month: YearMonth): MonthlyReportEntity?
 
