@@ -31,6 +31,12 @@ interface SemesterDao {
 
     @Query("SELECT * FROM semesters ORDER BY startDate DESC")
     fun observeAll(): Flow<List<SemesterEntity>>
+
+    @Query("SELECT * FROM semesters ORDER BY id")
+    suspend fun findAll(): List<SemesterEntity>
+
+    @Query("DELETE FROM semesters")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -95,6 +101,18 @@ interface CourseDao {
         """
     )
     fun observeBySemesterWeek(semesterId: Long, week: Int): Flow<List<CourseEntity>>
+
+    @Query("SELECT * FROM courses ORDER BY id")
+    suspend fun findAll(): List<CourseEntity>
+
+    @Query("SELECT * FROM course_weeks ORDER BY courseId, week")
+    suspend fun findAllWeeks(): List<CourseWeekEntity>
+
+    @Query("DELETE FROM course_weeks")
+    suspend fun deleteAllWeeks()
+
+    @Query("DELETE FROM courses")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -113,6 +131,9 @@ interface ScheduleEventDao {
 
     @Query("SELECT * FROM schedule_events ORDER BY eventAt")
     suspend fun findAll(): List<ScheduleEventEntity>
+
+    @Query("DELETE FROM schedule_events")
+    suspend fun deleteAll()
 
     @Query("SELECT * FROM schedule_events ORDER BY eventAt")
     fun observeAll(): Flow<List<ScheduleEventEntity>>
@@ -207,6 +228,24 @@ interface HealthDao {
 
     @Query("SELECT * FROM monthly_reports ORDER BY month DESC")
     fun observeMonthlyReports(): Flow<List<MonthlyReportEntity>>
+
+    @Query("SELECT * FROM weight_records ORDER BY id")
+    suspend fun findAllWeights(): List<WeightRecordEntity>
+
+    @Query("SELECT * FROM activity_records ORDER BY id")
+    suspend fun findAllActivities(): List<ActivityRecordEntity>
+
+    @Query("SELECT * FROM monthly_reports ORDER BY id")
+    suspend fun findAllMonthlyReports(): List<MonthlyReportEntity>
+
+    @Query("DELETE FROM monthly_reports")
+    suspend fun deleteAllMonthlyReports()
+
+    @Query("DELETE FROM activity_records")
+    suspend fun deleteAllActivities()
+
+    @Query("DELETE FROM weight_records")
+    suspend fun deleteAllWeights()
 }
 
 @Dao
@@ -228,6 +267,12 @@ interface TransactionDao {
 
     @Query("SELECT * FROM transactions ORDER BY occurredAt DESC")
     fun observeAll(): Flow<List<TransactionEntity>>
+
+    @Query("SELECT * FROM transactions ORDER BY id")
+    suspend fun findAll(): List<TransactionEntity>
+
+    @Query("DELETE FROM transactions")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -249,6 +294,12 @@ interface BudgetDao {
 
     @Query("SELECT * FROM budgets ORDER BY month DESC")
     fun observeAll(): Flow<List<BudgetEntity>>
+
+    @Query("SELECT * FROM budgets ORDER BY month")
+    suspend fun findAll(): List<BudgetEntity>
+
+    @Query("DELETE FROM budgets")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -267,4 +318,10 @@ interface ImportLogDao {
 
     @Query("SELECT * FROM import_logs ORDER BY importedAt DESC")
     fun observeAll(): Flow<List<ImportLogEntity>>
+
+    @Query("SELECT * FROM import_logs ORDER BY batchId")
+    suspend fun findAll(): List<ImportLogEntity>
+
+    @Query("DELETE FROM import_logs")
+    suspend fun deleteAll()
 }
