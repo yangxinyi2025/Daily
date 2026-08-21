@@ -13,7 +13,14 @@ import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -75,6 +82,49 @@ class HomeSummaryRepositoriesTest {
         val summary = repository.summary.first { it.todayCourseCount == 3 }
 
         assertEquals("今日课程已结束", summary.nextCourseLabel)
+    }
+
+    @Test
+    fun timetableSummaryRefreshesAsTimeAdvancesWithoutDatabaseWrites() = runTest {
+        seedSemesterCourses()
+        val preferences = createTestPreferences()
+        preferences.setCurrentSemesterId(1L)
+        preferences.setSemesterStartDate(LocalDate.of(2026, 8, 20))
+        val refreshTicks = MutableSharedFlow<Unit>()
+        var currentPeriod = 3
+        val repository = DaoTimetableSummaryRepository(
+            semesterDao = database.semesterDao(),
+            courseDao = database.courseDao(),
+            preferences = preferences,
+            clock = fixedClock(),
+            currentPeriodProvider = { currentPeriod },
+            refreshTicks = refreshTicks
+        )
+        val labels = mutableListOf<String?>()
+
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repository.summary
+                .filter { it.todayCourseCount == 3 }
+                .map { it.nextCourseLabel }
+                .distinctUntilChanged()
+                .collect(labels::add)
+        }
+        advanceUntilIdle()
+
+        assertEquals(listOf("数据库 第 3-4 节"), labels)
+
+        currentPeriod = 5
+        refreshTicks.emit(Unit)
+        advanceUntilIdle()
+        assertEquals(listOf("数据库 第 3-4 节", "体育 第 7-8 节"), labels)
+
+        currentPeriod = 9
+        refreshTicks.emit(Unit)
+        advanceUntilIdle()
+        assertEquals(
+            listOf("数据库 第 3-4 节", "体育 第 7-8 节", "今日课程已结束"),
+            labels
+        )
     }
 
     private suspend fun seedSemesterCourses() {

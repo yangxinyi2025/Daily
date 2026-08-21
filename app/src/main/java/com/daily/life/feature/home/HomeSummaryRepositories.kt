@@ -20,64 +20,70 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 
 class DaoTimetableSummaryRepository(
     semesterDao: SemesterDao,
     private val courseDao: CourseDao,
     preferences: DailyPreferences,
     private val clock: Clock = Clock.systemDefaultZone(),
-    private val currentPeriodProvider: (LocalTime) -> Int? = ::defaultUpcomingPeriod
+    private val currentPeriodProvider: (LocalTime) -> Int? = ::defaultUpcomingPeriod,
+    refreshTicks: Flow<Unit> = minuteTicker()
 ) : TimetableSummaryRepository {
     override val summary: Flow<TimetableHomeSummary> =
         combine(
             semesterDao.observeAll(),
             preferences.currentSemesterId,
-            preferences.semesterStartDate
-        ) { semesters, currentSemesterId, preferredStartDate ->
+            preferences.semesterStartDate,
+            refreshTicks.onStart { emit(Unit) }
+        ) { semesters, currentSemesterId, preferredStartDate, _ ->
+            val today = LocalDate.now(clock)
+            val currentPeriod = currentPeriodProvider(LocalTime.now(clock))
             val semester = semesters.firstOrNull { it.id == currentSemesterId }
                 ?: semesters.firstOrNull { it.isCurrent }
             semester?.let {
+                val semesterStartDate = preferredStartDate ?: it.startDate
                 TimetableQuery(
                     semesterId = it.id,
-                    semesterStartDate = preferredStartDate ?: it.startDate
+                    week = ChronoUnit.DAYS.between(semesterStartDate, today).toInt() / 7 + 1,
+                    dayOfWeek = today.dayOfWeek.value,
+                    currentPeriod = currentPeriod
                 )
             }
         }.flatMapLatest { query ->
-            if (query == null) {
+            if (query == null || query.week < 1) {
                 flowOf(TimetableHomeSummary())
             } else {
-                val today = LocalDate.now(clock)
-                val week = ChronoUnit.DAYS.between(query.semesterStartDate, today).toInt() / 7 + 1
-                if (week < 1) {
-                    flowOf(TimetableHomeSummary())
-                } else {
-                    courseDao.observeBySemesterWeekAndDay(
-                        semesterId = query.semesterId,
-                        week = week,
-                        dayOfWeek = today.dayOfWeek.value
-                    ).map { courses ->
-                        val nextCourse = selectNextCourse(courses)
-                        TimetableHomeSummary(
-                            todayCourseCount = courses.size,
-                            nextCourseLabel = if (courses.isEmpty()) {
-                                null
-                            } else {
-                                nextCourse?.toCourseLabel() ?: "今日课程已结束"
-                            },
-                            isEmpty = courses.isEmpty()
-                        )
-                    }
+                courseDao.observeBySemesterWeekAndDay(
+                    semesterId = query.semesterId,
+                    week = query.week,
+                    dayOfWeek = query.dayOfWeek
+                ).map { courses ->
+                    val nextCourse = selectNextCourse(courses, query.currentPeriod)
+                    TimetableHomeSummary(
+                        todayCourseCount = courses.size,
+                        nextCourseLabel = if (courses.isEmpty()) {
+                            null
+                        } else {
+                            nextCourse?.toCourseLabel() ?: "今日课程已结束"
+                        },
+                        isEmpty = courses.isEmpty()
+                    )
                 }
             }
         }
 
-    private fun selectNextCourse(courses: List<CourseEntity>): CourseEntity? {
-        val currentPeriod = currentPeriodProvider(LocalTime.now(clock))
+    private fun selectNextCourse(
+        courses: List<CourseEntity>,
+        currentPeriod: Int?
+    ): CourseEntity? {
         return if (currentPeriod == null) {
             null
         } else {
@@ -94,8 +100,17 @@ class DaoTimetableSummaryRepository(
 
     private data class TimetableQuery(
         val semesterId: Long,
-        val semesterStartDate: LocalDate
+        val week: Int,
+        val dayOfWeek: Int,
+        val currentPeriod: Int?
     )
+}
+
+private fun minuteTicker(): Flow<Unit> = flow {
+    while (true) {
+        delay(60_000L)
+        emit(Unit)
+    }
 }
 
 private data class PeriodSlot(
