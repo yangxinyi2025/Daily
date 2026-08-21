@@ -51,10 +51,10 @@ fun DailyBottomBar(
                 alwaysShowLabel = true,
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.primary,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    selectedTextColor = SkyInk,
                     indicatorColor = Color.Transparent,
-                    unselectedIconColor = SkyMutedText,
-                    unselectedTextColor = SkyMutedText
+                    unselectedIconColor = SkyInk.copy(alpha = 0.72f),
+                    unselectedTextColor = SkyInk.copy(alpha = 0.72f)
                 )
             )
         }
