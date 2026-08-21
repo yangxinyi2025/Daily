@@ -14,8 +14,15 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+enum class HealthTab(val label: String) {
+    WEIGHT("体重"),
+    ACTIVITY("活动"),
+    REPORT("月报")
+}
+
 data class HealthState(
     val selectedMonth: YearMonth,
+    val selectedTab: HealthTab = HealthTab.WEIGHT,
     val weights: List<WeightRecord> = emptyList(),
     val activities: List<ActivityRecord> = emptyList(),
     val report: LocalReport? = null,
@@ -86,6 +93,10 @@ class HealthViewModel(
         selectedMonth.value = YearMonth.now(clock)
     }
 
+    fun selectTab(tab: HealthTab) {
+        _state.update { it.copy(selectedTab = tab) }
+    }
+
     fun recordWeight(weightJin: Double, notes: String? = null) {
         scope.launch {
             try {
@@ -114,9 +125,11 @@ class HealthViewModel(
             _state.update { it.copy(isLoading = true, errorMessage = null, sourceMessage = null) }
             try {
                 val result = repository.readActivity(month)
+                val activities = repository.observeActivityRecords(month).first()
                 val report = repository.generateMonthlyReport(month)
                 _state.update {
                     it.copy(
+                        activities = activities,
                         report = report,
                         isLoading = false,
                         sourceMessage = result.message,

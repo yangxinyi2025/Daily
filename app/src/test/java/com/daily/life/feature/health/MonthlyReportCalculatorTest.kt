@@ -48,6 +48,30 @@ class MonthlyReportCalculatorTest {
         assertEquals(ReportDataState.EMPTY, report.dataState)
     }
 
+    @Test
+    fun recentWeightsIncludePreviousMonthDatesInsideTrailingWindow() {
+        val report = MonthlyReportCalculator.calculate(
+            month = YearMonth.of(2026, 2),
+            weights = listOf(
+                weight("2026-01-29", 142.0),
+                weight("2026-01-31", 141.0),
+                weight("2026-02-14", 139.0),
+                weight("2026-02-28", 138.0)
+            ),
+            activities = emptyList(),
+            targetWeightJin = null
+        )
+
+        assertEquals(
+            listOf(
+                LocalDate.parse("2026-01-31"),
+                LocalDate.parse("2026-02-14"),
+                LocalDate.parse("2026-02-28")
+            ),
+            report.recentWeights.map(WeightPoint::date)
+        )
+    }
+
     private fun weight(date: String, jin: Double): WeightRecord = WeightRecord(
         recordedAt = LocalDate.parse(date).atStartOfDay().toInstant(ZoneOffset.UTC),
         weightJin = jin,

@@ -156,6 +156,40 @@ interface HealthDao {
     @Query("SELECT * FROM activity_records WHERE id = :id")
     suspend fun findActivityById(id: Long): ActivityRecordEntity?
 
+    @Query(
+        """
+        SELECT * FROM activity_records
+        WHERE source = :source
+          AND rawRecordId = :rawRecordId
+        LIMIT 1
+        """
+    )
+    suspend fun findActivityBySourceAndRawRecordId(
+        source: String,
+        rawRecordId: String
+    ): ActivityRecordEntity?
+
+    @Query(
+        """
+        SELECT * FROM activity_records
+        WHERE source = :source
+          AND recordedAt = :recordedAt
+          AND activityType = :activityType
+          AND ((:steps IS NULL AND steps IS NULL) OR steps = :steps)
+          AND ((:distanceMeters IS NULL AND distanceMeters IS NULL) OR distanceMeters = :distanceMeters)
+          AND ((:durationMinutes IS NULL AND durationMinutes IS NULL) OR durationMinutes = :durationMinutes)
+        LIMIT 1
+        """
+    )
+    suspend fun findActivityByFingerprint(
+        source: String,
+        recordedAt: Long,
+        activityType: ActivityType,
+        steps: Long?,
+        distanceMeters: Double?,
+        durationMinutes: Int?
+    ): ActivityRecordEntity?
+
     @Query("SELECT * FROM monthly_reports WHERE id = :id")
     suspend fun findMonthlyReportById(id: Long): MonthlyReportEntity?
 

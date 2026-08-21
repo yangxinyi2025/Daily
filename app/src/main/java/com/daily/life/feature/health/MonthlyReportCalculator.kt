@@ -19,6 +19,7 @@ object MonthlyReportCalculator {
         val currentWeights = weights
             .filter { YearMonth.from(it.recordedAt.atZone(zone)) == month }
             .sortedBy(WeightRecord::recordedAt)
+        val allWeights = weights.sortedBy(WeightRecord::recordedAt)
         val previousWeights = weights
             .filter { YearMonth.from(it.recordedAt.atZone(zone)) == month.minusMonths(1) }
             .sortedBy(WeightRecord::recordedAt)
@@ -37,7 +38,7 @@ object MonthlyReportCalculator {
             .groupBy { it.recordedAt.toLocalDate(zone).with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)) }
             .mapValues { (_, records) -> records.map(WeightRecord::weightJin).average() }
         val recentStart = month.atEndOfMonth().minusDays(29)
-        val recentWeights = currentWeights.filter { record ->
+        val recentWeights = allWeights.filter { record ->
             val date = record.recordedAt.toLocalDate(zone)
             date in recentStart..month.atEndOfMonth()
         }.map { record ->

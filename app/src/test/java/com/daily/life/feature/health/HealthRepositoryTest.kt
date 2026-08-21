@@ -3,6 +3,7 @@ package com.daily.life.feature.health
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.daily.life.core.database.DailyDatabase
+import com.daily.life.core.database.ActivityRecordEntity
 import com.daily.life.core.database.ActivityType
 import com.daily.life.core.datastore.DailyPreferences
 import java.io.File
@@ -102,5 +103,64 @@ class HealthRepositoryTest {
         assertEquals(1, sourceFactoryCalls)
         assertEquals(1, result.importedCount)
         assertEquals(2_000L, database.healthDao().observeActivitiesBetween(0L, Long.MAX_VALUE).first().single().steps)
+    }
+
+    @Test
+    fun repeatedActivityImportsUpsertByStableIdentityAndKeepManualRecords() = runTest {
+        database.healthDao().insertActivity(
+            ActivityRecordEntity(
+                recordedAt = Instant.parse("2026-08-20T06:30:00Z").toEpochMilli(),
+                activityType = ActivityType.WALK,
+                steps = 1_200L,
+                distanceMeters = 900.0,
+                durationMinutes = 10,
+                source = "MANUAL"
+            )
+        )
+        val source = object : ActivityDataSource {
+            override suspend fun availability() = DataSourceAvailability.available("测试适配器")
+
+            override suspend fun read(start: Instant, end: Instant): List<ActivityRecord> = listOf(
+                ActivityRecord(
+                    recordedAt = Instant.parse("2026-08-20T07:00:00Z"),
+                    activityType = ActivityType.WALK,
+                    steps = 2_000L,
+                    distanceMeters = 1_500.0,
+                    durationMinutes = 20,
+                    source = "HEALTH_CONNECT",
+                    rawRecordId = "walk-20260820-0700"
+                ),
+                ActivityRecord(
+                    recordedAt = Instant.parse("2026-08-20T08:00:00Z"),
+                    activityType = ActivityType.RUN,
+                    steps = 1_500L,
+                    distanceMeters = 1_000.0,
+                    durationMinutes = 12,
+                    source = "PHONE_SENSOR"
+                )
+            )
+        }
+        val repository = HealthRepository(
+            healthDao = database.healthDao(),
+            preferences = preferences,
+            activitySources = { listOf(source) }
+        )
+
+        repository.readActivity(
+            start = Instant.parse("2026-08-20T00:00:00Z"),
+            end = Instant.parse("2026-08-21T00:00:00Z")
+        )
+        repository.readActivity(
+            start = Instant.parse("2026-08-20T00:00:00Z"),
+            end = Instant.parse("2026-08-21T00:00:00Z")
+        )
+
+        val records = database.healthDao().observeActivitiesBetween(0L, Long.MAX_VALUE).first()
+
+        assertEquals(3, records.size)
+        assertEquals(1, records.count { it.source == "MANUAL" })
+        assertEquals(1, records.count { it.rawRecordId == "walk-20260820-0700" })
+        assertEquals(1, records.count { it.source == "PHONE_SENSOR" && it.rawRecordId == null })
+        assertEquals(4_700L, records.sumOf { it.steps ?: 0L })
     }
 }

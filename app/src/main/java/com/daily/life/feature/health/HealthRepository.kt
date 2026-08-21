@@ -82,7 +82,7 @@ class HealthRepository(
                 return@forEach
             }
             source.read(start, end).forEach { record ->
-                healthDao.insertActivity(record.toEntity())
+                upsertImportedActivity(record)
                 importedCount += 1
             }
             messages += "${availability.label}：已读取"
@@ -100,6 +100,26 @@ class HealthRepository(
             start = month.atDay(1).atStartOfDay(zone).toInstant(),
             end = month.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant()
         )
+
+    private suspend fun upsertImportedActivity(record: ActivityRecord) {
+        val existing = record.rawRecordId
+            ?.takeIf(String::isNotBlank)
+            ?.let { rawRecordId ->
+                healthDao.findActivityBySourceAndRawRecordId(
+                    source = record.source,
+                    rawRecordId = rawRecordId
+                )
+            }
+            ?: healthDao.findActivityByFingerprint(
+                source = record.source,
+                recordedAt = record.recordedAt.toEpochMilli(),
+                activityType = record.activityType,
+                steps = record.steps,
+                distanceMeters = record.distanceMeters,
+                durationMinutes = record.durationMinutes
+            )
+        healthDao.insertActivity(record.toEntity(id = existing?.id ?: record.id))
+    }
 
     suspend fun generateMonthlyReport(month: YearMonth, zone: ZoneId = clock.zone): LocalReport {
         val weights = observeWeightRecords().first()
@@ -145,7 +165,7 @@ class HealthRepository(
         rawRecordId = entity.rawRecordId
     )
 
-    private fun ActivityRecord.toEntity(): ActivityRecordEntity = ActivityRecordEntity(
+    private fun ActivityRecord.toEntity(id: Long = this.id): ActivityRecordEntity = ActivityRecordEntity(
         id = id,
         recordedAt = recordedAt.toEpochMilli(),
         activityType = activityType,

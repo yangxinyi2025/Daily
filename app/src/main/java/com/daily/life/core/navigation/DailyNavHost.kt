@@ -160,6 +160,7 @@ fun DailyNavHost(
                     onPreviousMonth = healthViewModel::selectPreviousMonth,
                     onNextMonth = healthViewModel::selectNextMonth,
                     onCurrentMonth = healthViewModel::selectCurrentMonth,
+                    onSelectTab = healthViewModel::selectTab,
                     onRecordWeight = healthViewModel::recordWeight,
                     onSetTargetWeight = healthViewModel::setTargetWeight,
                     onReadActivity = healthViewModel::readActivity,
