@@ -92,6 +92,24 @@ class BillRepository(
         return log
     }
 
+    suspend fun insertTransaction(row: BillPreviewRow) {
+        val now = clock.millis()
+        database.transactionDao().insert(
+            TransactionEntity(
+                occurredAt = row.occurredAt,
+                amountCents = row.amountCents,
+                direction = row.direction.toEntity(),
+                category = row.category.label,
+                counterparty = row.counterparty,
+                source = row.source.name,
+                rawText = row.rawText,
+                notes = row.notes,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+    }
+
     suspend fun updateTransaction(row: BillPreviewRow) {
         database.transactionDao().update(
             TransactionEntity(

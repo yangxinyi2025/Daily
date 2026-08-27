@@ -7,6 +7,6 @@ class AppContainerTest {
     @Test
     fun unavailableFactoriesReturnNullInsteadOfThrowing() {
         assertNull(RepositoryFactories().timetableRepositoryFactory.create())
-        assertNull(AdapterFactories().deepSeekAdviceClientFactory.create())
+        assertNull(AdapterFactories().reminderSchedulerFactory.create())
     }
 }

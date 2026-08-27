@@ -3,6 +3,14 @@ package com.daily.life.feature.timetable
 import androidx.test.core.app.ApplicationProvider
 import com.daily.life.core.NoOpReminderScheduler
 import com.daily.life.core.ReminderScheduler
+import com.daily.life.core.calendar.CalendarAlertMethod
+import com.daily.life.core.calendar.CalendarProviderClient
+import com.daily.life.core.calendar.CalendarReminderRequest
+import com.daily.life.core.calendar.CalendarReminderSyncer
+import com.daily.life.core.calendar.CalendarTarget
+import com.daily.life.core.calendar.SystemCalendarScheduleEvent
+import com.daily.life.core.calendar.SystemCalendarScheduleReader
+import com.daily.life.core.calendar.SystemCalendarGateway
 import com.daily.life.core.database.CourseEntity
 import com.daily.life.core.database.CourseWeekEntity
 import com.daily.life.core.database.DailyDatabase
@@ -12,6 +20,7 @@ import java.io.File
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -90,7 +99,14 @@ class TimetableRepositoryTest {
                 startDate = LocalDate.of(2026, 9, 1),
                 endDate = LocalDate.of(2027, 1, 15)
             ),
-            replaceExisting = true
+            replaceExisting = true,
+            calendarAdjustments = listOf(
+                SemesterCalendarAdjustmentInput(
+                    actualDate = LocalDate.of(2026, 10, 10),
+                    sourceDayOfWeek = 5,
+                    sourceLabel = "补周五"
+                )
+            )
         )
 
         val courses = database.courseDao().observeBySemester(confirmedSemesterId).first()
@@ -104,6 +120,10 @@ class TimetableRepositoryTest {
             database.courseDao().findWithWeeksById(courses[1].id)?.weeks?.map(CourseWeekEntity::week)?.sorted()
         )
         assertEquals(confirmedSemesterId, preferences.currentSemesterId.first())
+        assertEquals(
+            listOf(LocalDate.of(2026, 10, 10)),
+            database.semesterCalendarAdjustmentDao().findBySemester(confirmedSemesterId).map { it.actualDate }
+        )
         assertEquals(listOf(confirmedSemesterId), scheduler.scheduledSemesterIds)
         assertTrue(scheduler.coursesWereVisibleWhenScheduled)
     }
@@ -111,6 +131,182 @@ class TimetableRepositoryTest {
     @Test
     fun noOpReminderSchedulerIsSafeToInject() = runTest {
         NoOpReminderScheduler.scheduleCourseReminders(42L)
+    }
+
+    @Test
+    fun confirmImportUsesSystemCalendarInsteadOfDailyCourseSchedulerWhenCalendarSyncIsConfigured() = runTest {
+        val scheduler = RecordingReminderScheduler(database)
+        val calendarClient = RecordingCalendarClient()
+        preferences.setCourseReminderMinutes(15)
+        val repository = RoomTimetableRepository(
+            database = database,
+            preferences = preferences,
+            reminderScheduler = scheduler,
+            calendarReminderSyncer = CalendarReminderSyncer(
+                database = database,
+                gateway = SystemCalendarGateway(calendarClient)
+            ),
+            clock = fixedClock()
+        )
+
+        repository.confirmImport(
+            preview = TimetableParseResult(
+                courses = listOf(previewCourse("数据库", 1, 1, 2, "1周", setOf(1))),
+                warnings = emptyList(),
+                unsupportedRows = emptyList()
+            ),
+            semester = SemesterInput(
+                name = "2026 秋季",
+                startDate = LocalDate.of(2026, 9, 1),
+                endDate = LocalDate.of(2027, 1, 15),
+                isCurrent = true
+            ),
+            replaceExisting = false
+        )
+
+        assertTrue(scheduler.scheduledSemesterIds.isEmpty())
+        assertEquals(listOf("课程：数据库"), calendarClient.insertedRequests.map(CalendarReminderRequest::title))
+    }
+
+    @Test
+    fun courseCalendarMessagesAlsoFollowConfirmedMakeupDay() = runTest {
+        val calendarClient = RecordingCalendarClient()
+        preferences.setCourseReminderMinutes(15)
+        val calendarReader = SystemCalendarScheduleReader(
+            canReadCalendar = { true },
+            queryEvents = { _, _ ->
+                listOf(
+                    SystemCalendarScheduleEvent(
+                        startAt = LocalDate.of(2026, 9, 5).atStartOfDay(ZoneId.of("Asia/Shanghai")).toInstant(),
+                        endAt = LocalDate.of(2026, 9, 6).atStartOfDay(ZoneId.of("Asia/Shanghai")).toInstant(),
+                        title = "补周五",
+                        description = null
+                    )
+                )
+            }
+        )
+        val repository = RoomTimetableRepository(
+            database = database,
+            preferences = preferences,
+            reminderScheduler = NoOpReminderScheduler,
+            calendarReminderSyncer = CalendarReminderSyncer(
+                database = database,
+                gateway = SystemCalendarGateway(calendarClient)
+            ),
+            calendarScheduleReader = calendarReader,
+            clock = fixedClock()
+        )
+
+        repository.confirmImport(
+            preview = TimetableParseResult(
+                courses = listOf(previewCourse("数据库", 5, 1, 2, "1周", setOf(1))),
+                warnings = emptyList(),
+                unsupportedRows = emptyList()
+            ),
+            semester = SemesterInput(
+                name = "2026 秋季",
+                startDate = LocalDate.of(2026, 8, 31),
+                endDate = LocalDate.of(2027, 1, 15),
+                isCurrent = true
+            ),
+            replaceExisting = false,
+            calendarAdjustments = listOf(
+                SemesterCalendarAdjustmentInput(
+                    actualDate = LocalDate.of(2026, 9, 5),
+                    sourceDayOfWeek = 5,
+                    sourceLabel = "补周五"
+                )
+            )
+        )
+
+        assertEquals(
+            listOf(
+                LocalDate.of(2026, 9, 4),
+                LocalDate.of(2026, 9, 5)
+            ),
+            calendarClient.insertedRequests.map { it.startAt.atZone(ZoneId.of("Asia/Shanghai")).toLocalDate() }
+        )
+    }
+
+    @Test
+    fun replacingAnImportedTimetableDeletesItsOldSystemCalendarCourseReminders() = runTest {
+        val calendarClient = RecordingCalendarClient()
+        preferences.setCourseReminderMinutes(15)
+        val repository = RoomTimetableRepository(
+            database = database,
+            preferences = preferences,
+            reminderScheduler = NoOpReminderScheduler,
+            calendarReminderSyncer = CalendarReminderSyncer(
+                database = database,
+                gateway = SystemCalendarGateway(calendarClient)
+            ),
+            clock = fixedClock()
+        )
+        val semester = SemesterInput(
+            name = "2026 秋季",
+            startDate = LocalDate.of(2026, 9, 1),
+            endDate = LocalDate.of(2027, 1, 15),
+            isCurrent = true
+        )
+
+        repository.confirmImport(
+            preview = TimetableParseResult(
+                courses = listOf(previewCourse("旧课程", 1, 1, 2, "1周", setOf(1))),
+                warnings = emptyList(),
+                unsupportedRows = emptyList()
+            ),
+            semester = semester,
+            replaceExisting = false
+        )
+        repository.confirmImport(
+            preview = TimetableParseResult(
+                courses = listOf(previewCourse("新课程", 2, 3, 4, "1周", setOf(1))),
+                warnings = emptyList(),
+                unsupportedRows = emptyList()
+            ),
+            semester = semester,
+            replaceExisting = true
+        )
+
+        assertEquals(listOf(1L), calendarClient.deletedEventIds)
+        assertEquals(listOf("课程：旧课程", "课程：新课程"), calendarClient.insertedRequests.map(CalendarReminderRequest::title))
+    }
+
+    @Test
+    fun updatingPeriodTimesKeepsStoredRowsWhenCalendarSyncFails() = runTest {
+        preferences.setCourseReminderMinutes(15)
+        val repository = RoomTimetableRepository(
+            database = database,
+            preferences = preferences,
+            reminderScheduler = NoOpReminderScheduler,
+            calendarReminderSyncer = CalendarReminderSyncer(
+                database = database,
+                gateway = SystemCalendarGateway(PermissionDeniedCalendarClient())
+            ),
+            clock = fixedClock()
+        )
+        val semesterId = repository.confirmImport(
+            preview = TimetableParseResult(
+                courses = listOf(previewCourse("数据库", 1, 1, 2, "1周", setOf(1))),
+                warnings = emptyList(),
+                unsupportedRows = emptyList()
+            ),
+            semester = SemesterInput(
+                name = "2026 秋季",
+                startDate = LocalDate.of(2026, 9, 1),
+                endDate = LocalDate.of(2027, 1, 15),
+                isCurrent = true
+            ),
+            replaceExisting = false
+        )
+        val changedTimes = defaultSemesterPeriodTimes().toMutableList().also {
+            it[0] = SemesterPeriodTime(1, java.time.LocalTime.of(8, 5), java.time.LocalTime.of(8, 45))
+        }
+
+        val result = runCatching { repository.updatePeriodTimes(semesterId, changedTimes) }
+
+        assertTrue(result.isFailure)
+        assertEquals(java.time.LocalTime.of(8, 0), database.semesterPeriodDao().findBySemester(semesterId).first().startTime)
     }
 
     private fun previewCourse(
@@ -147,5 +343,52 @@ class TimetableRepositoryTest {
             coursesWereVisibleWhenScheduled =
                 database.courseDao().observeBySemester(semesterId).first().isNotEmpty()
         }
+    }
+
+    private class RecordingCalendarClient : CalendarProviderClient {
+        val insertedRequests = mutableListOf<CalendarReminderRequest>()
+        val deletedEventIds = mutableListOf<Long>()
+
+        override fun hasReadWritePermission(): Boolean = true
+
+        override fun writableCalendars(): List<CalendarTarget> = listOf(
+            CalendarTarget(id = 1L, isPrimary = true, canWrite = true, isVisible = true)
+        )
+
+        override fun insertEvent(calendarId: Long, request: CalendarReminderRequest): Long {
+            insertedRequests += request
+            return insertedRequests.size.toLong()
+        }
+
+        override fun updateEvent(eventId: Long, request: CalendarReminderRequest): Boolean = true
+
+        override fun replaceAlertReminder(
+            eventId: Long,
+            minutes: Int,
+            method: CalendarAlertMethod
+        ): Boolean = true
+
+        override fun deleteEvent(eventId: Long): Boolean {
+            deletedEventIds += eventId
+            return true
+        }
+    }
+
+    private class PermissionDeniedCalendarClient : CalendarProviderClient {
+        override fun hasReadWritePermission(): Boolean = false
+
+        override fun writableCalendars(): List<CalendarTarget> = emptyList()
+
+        override fun createDailyLocalCalendar(): CalendarTarget? = null
+
+        override fun insertEvent(calendarId: Long, request: CalendarReminderRequest): Long = 0L
+
+        override fun updateEvent(eventId: Long, request: CalendarReminderRequest): Boolean = false
+
+        override fun replaceAlertReminder(eventId: Long, minutes: Int, method: CalendarAlertMethod): Boolean = false
+
+        override fun clearReminders(eventId: Long): Boolean = false
+
+        override fun deleteEvent(eventId: Long): Boolean = false
     }
 }

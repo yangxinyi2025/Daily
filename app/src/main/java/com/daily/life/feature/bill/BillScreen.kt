@@ -34,6 +34,7 @@ fun BillScreen(
     onDirectionChange: (Direction?) -> Unit,
     onSearchChange: (String) -> Unit,
     onOpenImport: () -> Unit,
+    onOpenNewEditor: () -> Unit,
     onFileSelected: (String, java.io.InputStream) -> Unit,
     onTogglePreviewRow: (Int) -> Unit,
     onCancelImport: () -> Unit,
@@ -72,6 +73,20 @@ fun BillScreen(
         )
         return
     }
+
+    BillDashboardScreen(
+        state = state,
+        onPreviousPeriod = onPreviousPeriod,
+        onNextPeriod = onNextPeriod,
+        onCurrentPeriod = onCurrentPeriod,
+        onPeriodChange = onPeriodChange,
+        onDirectionChange = onDirectionChange,
+        onSearchChange = onSearchChange,
+        onOpenImport = onOpenImport,
+        onOpenNewEditor = onOpenNewEditor,
+        onOpenEditor = onOpenEditor
+    )
+    return
 
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp),

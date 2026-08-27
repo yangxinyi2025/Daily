@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Daily 账单视觉稿</title>
+  <style>
+    :root { --bg:#f6f8fd; --card:#fff; --ink:#121b33; --muted:#7b869d; --primary:#6f8ff4; --accent:#9188e8; --cyan:#76b8c7; --green:#6da987; --rose:#d9909c; --border:#e2e8f4; }
+    * { box-sizing:border-box; }
+    body { margin:0; width:390px; min-height:844px; background:var(--bg); color:var(--ink); font-family:"Noto Sans SC","Microsoft YaHei",system-ui,sans-serif; }
+    .screen { min-height:844px; padding:16px 18px 96px; }
+    .top { display:flex; justify-content:space-between; align-items:flex-start; }
+    .top-copy { flex:1; }
+    h1 { margin:0; font-size:28px; line-height:36px; font-weight:600; letter-spacing:-.03em; }
+    .sub { margin:4px 0 0; color:var(--muted); font-size:14px; line-height:20px; }
+    .actions { display:flex; gap:2px; margin-top:0; }
+    .icon-button { width:44px; height:44px; border:0; background:transparent; color:var(--ink); display:grid; place-items:center; }
+    svg { display:block; }
+    .period { margin-top:16px; padding:15px 16px; background:var(--card); border:1px solid var(--border); border-radius:20px; display:flex; align-items:center; justify-content:space-between; }
+    .period-main { display:flex; align-items:center; gap:5px; font-size:17px; font-weight:600; }
+    .period-main svg { color:var(--muted); }
+    .current { border:0; background:#f0f3ff; color:var(--primary); border-radius:10px; padding:7px 10px; font-size:12px; }
+    .summary { margin-top:12px; padding:18px 20px; background:var(--card); border:1px solid var(--border); border-radius:26px; box-shadow:0 3px 12px rgba(31,48,92,.05); }
+    .summary-top { display:flex; align-items:flex-start; justify-content:space-between; }
+    .summary-label { color:var(--muted); font-size:14px; }
+    .summary-note { color:var(--muted); font-size:12px; }
+    .amount { margin-top:5px; font-size:32px; line-height:38px; font-weight:600; letter-spacing:-.04em; }
+    .amount small { font-size:17px; margin-right:2px; font-weight:500; }
+    .summary-row { display:flex; margin-top:18px; }
+    .summary-item { flex:1; }
+    .summary-item + .summary-item { border-left:1px solid var(--border); padding-left:16px; }
+    .summary-item span { display:block; margin-bottom:3px; color:var(--muted); font-size:12px; }
+    .summary-item strong { font-size:15px; font-weight:600; }
+    .income strong { color:var(--green); } .balance strong { color:var(--primary); }
+    .section-head { display:flex; justify-content:space-between; align-items:baseline; margin:20px 2px 9px; }
+    .section-head h2 { margin:0; font-size:20px; line-height:28px; font-weight:500; }
+    .section-head span { color:var(--muted); font-size:13px; }
+    .section { padding:14px 16px; background:var(--card); border:1px solid var(--border); border-radius:20px; box-shadow:0 3px 12px rgba(31,48,92,.04); }
+    .category { display:grid; grid-template-columns:42px 1fr auto; gap:10px; align-items:center; margin:8px 0; }
+    .cat-label { font-size:14px; }
+    .bar { height:7px; background:#edf1f8; border-radius:99px; overflow:hidden; }
+    .fill { height:100%; border-radius:99px; }
+    .food { width:74%; background:var(--rose); } .shopping { width:48%; background:var(--accent); } .transport { width:29%; background:var(--cyan); } .other { width:19%; background:var(--green); }
+    .cat-amount { min-width:54px; text-align:right; color:var(--muted); font-size:12px; }
+    .date-head { display:flex; justify-content:space-between; align-items:baseline; margin:15px 2px 2px; }
+    .date-head strong { font-size:14px; font-weight:600; } .date-head span { color:var(--muted); font-size:12px; }
+    .tx { display:flex; align-items:center; min-height:60px; padding:8px 0; }
+    .tx + .tx { border-top:1px solid #eef1f7; }
+    .tx-icon { width:34px; height:34px; border-radius:11px; display:grid; place-items:center; margin-right:11px; font-size:14px; font-weight:600; }
+    .tx-icon.food { background:#fff0f2; color:var(--rose); } .tx-icon.shop { background:#f1efff; color:var(--accent); } .tx-icon.ride { background:#edf8fa; color:var(--cyan); }
+    .tx-info { flex:1; min-width:0; } .tx-title { font-size:15px; font-weight:500; } .tx-meta { margin-top:2px; color:var(--muted); font-size:12px; }
+    .tx-value { font-size:14px; font-weight:600; } .tx-value.in { color:var(--green); }
+    .bottom { position:fixed; left:0; bottom:0; width:390px; height:72px; background:rgba(246,248,253,.97); border-top:1px solid var(--border); display:flex; justify-content:space-around; align-items:center; }
+    .nav { width:20%; text-align:center; color:rgba(18,27,51,.72); font-size:11px; line-height:16px; } .nav svg { margin:0 auto 2px; } .nav.active { color:var(--primary); }
+  </style>
+</head>
+<body>
+  <main class="screen">
+    <div class="top">
+      <div class="top-copy"><h1>账单</h1><p class="sub">把每一笔生活，都放在心上。</p></div>
+      <div class="actions"><button class="icon-button" aria-label="导入"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg></button><button class="icon-button" aria-label="记一笔"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
+    </div>
+    <div class="period"><div class="period-main">2026年8月 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7 10 5 5 5-5"/></svg></div><button class="current">回到本月</button></div>
+    <section class="summary"><div class="summary-top"><span class="summary-label">本月支出</span><span class="summary-note">共 18 笔</span></div><div class="amount"><small>¥</small>2,486.50</div><div class="summary-row"><div class="summary-item income"><span>收入</span><strong>¥5,800.00</strong></div><div class="summary-item balance"><span>结余</span><strong>¥3,313.50</strong></div><div class="summary-item"><span>预算</span><strong>未设置</strong></div></div></section>
+    <div class="section-head"><h2>支出分类</h2><span>本月</span></div>
+    <section class="section"><div class="category"><span class="cat-label">餐饮</span><div class="bar"><div class="fill food"></div></div><span class="cat-amount">¥986.00</span></div><div class="category"><span class="cat-label">购物</span><div class="bar"><div class="fill shopping"></div></div><span class="cat-amount">¥634.50</span></div><div class="category"><span class="cat-label">交通</span><div class="bar"><div class="fill transport"></div></div><span class="cat-amount">¥382.00</span></div><div class="category"><span class="cat-label">其他</span><div class="bar"><div class="fill other"></div></div><span class="cat-amount">¥484.00</span></div></section>
+    <div class="section-head"><h2>最近账单</h2><span>18 笔</span></div>
+    <section class="section"><div class="date-head"><strong>8月22日 · 周六</strong><span>支出 ¥86.00</span></div><div class="tx"><div class="tx-icon food">食</div><div class="tx-info"><div class="tx-title">校园餐厅</div><div class="tx-meta">餐饮 · 12:18</div></div><div class="tx-value">− ¥32.00</div></div><div class="tx"><div class="tx-icon ride">行</div><div class="tx-info"><div class="tx-title">地铁出行</div><div class="tx-meta">交通 · 08:36</div></div><div class="tx-value">− ¥4.00</div></div><div class="date-head"><strong>8月21日 · 周五</strong><span>收入 ¥2,000.00</span></div><div class="tx"><div class="tx-icon shop">收</div><div class="tx-info"><div class="tx-title">生活费</div><div class="tx-meta">收入 · 09:02</div></div><div class="tx-value in">＋ ¥2,000.00</div></div></section>
+  </main>
+  <nav class="bottom">
+    <div class="nav"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="m3 10 9-7 9 7v10H3z"/><path d="M9 21v-7h6v7"/></svg><div>首页</div></div>
+    <div class="nav"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM5 9h14M8 12h2M12 12h2M16 12h1M8 16h2M12 16h2M16 16h1"/></svg><div>课表</div></div>
+    <div class="nav"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM5 8h14M7 11h10M7 15h7"/></svg><div>日程</div></div>
+    <div class="nav"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 8.8c0 5.2-8.8 10.1-8.8 10.1S3.2 14 3.2 8.8A4.8 4.8 0 0 1 12 6.1a4.8 4.8 0 0 1 8.8 2.7z"/></svg><div>健康</div></div>
+    <div class="nav active"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M4 3h16v18l-3-2-3 2-2-2-3 2-3-2-2 2V3zM8 8h8M8 12h8M8 16h5"/></svg><div>账单</div></div>
+  </nav>
+</body>
+</html>

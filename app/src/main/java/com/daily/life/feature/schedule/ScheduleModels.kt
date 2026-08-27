@@ -93,8 +93,14 @@ data class ScheduleState(
     val selectedDate: LocalDate = LocalDate.now(),
     val events: List<ScheduleEvent> = emptyList(),
     val editor: ScheduleEditorState? = null,
-    val statusMessage: String? = null
+    val statusMessage: String? = null,
+    val calendarEventIdToEdit: Long? = null
 )
+
+internal fun ReminderMode.displayLabel(): String = when (this) {
+    ReminderMode.ALARM -> "闹钟提醒"
+    ReminderMode.NOTIFICATION -> "消息提醒"
+}
 
 fun ScheduleEvent.toEntity(): ScheduleEventEntity = ScheduleEventEntity(
     id = id,

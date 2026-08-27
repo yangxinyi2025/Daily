@@ -40,6 +40,36 @@ interface SemesterDao {
 }
 
 @Dao
+interface SemesterPeriodDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(entities: List<SemesterPeriodEntity>)
+
+    @Query("SELECT * FROM semester_periods WHERE semesterId = :semesterId ORDER BY period")
+    fun observeBySemester(semesterId: Long): Flow<List<SemesterPeriodEntity>>
+
+    @Query("SELECT * FROM semester_periods WHERE semesterId = :semesterId ORDER BY period")
+    suspend fun findBySemester(semesterId: Long): List<SemesterPeriodEntity>
+
+    @Query("DELETE FROM semester_periods WHERE semesterId = :semesterId")
+    suspend fun deleteBySemester(semesterId: Long)
+}
+
+@Dao
+interface SemesterCalendarAdjustmentDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(entities: List<SemesterCalendarAdjustmentEntity>)
+
+    @Query("SELECT * FROM semester_calendar_adjustments WHERE semesterId = :semesterId ORDER BY actualDate")
+    suspend fun findBySemester(semesterId: Long): List<SemesterCalendarAdjustmentEntity>
+
+    @Query("SELECT * FROM semester_calendar_adjustments WHERE semesterId = :semesterId ORDER BY actualDate")
+    fun observeBySemester(semesterId: Long): Flow<List<SemesterCalendarAdjustmentEntity>>
+
+    @Query("DELETE FROM semester_calendar_adjustments WHERE semesterId = :semesterId")
+    suspend fun deleteBySemester(semesterId: Long)
+}
+
+@Dao
 interface CourseDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entity: CourseEntity): Long
@@ -61,6 +91,9 @@ interface CourseDao {
 
     @Query("SELECT * FROM courses WHERE semesterId = :semesterId ORDER BY dayOfWeek, startPeriod")
     fun observeBySemester(semesterId: Long): Flow<List<CourseEntity>>
+
+    @Query("SELECT * FROM courses WHERE semesterId = :semesterId ORDER BY dayOfWeek, startPeriod")
+    suspend fun findBySemester(semesterId: Long): List<CourseEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertWeek(entity: CourseWeekEntity)
@@ -140,6 +173,21 @@ interface ScheduleEventDao {
 
     @Query("SELECT * FROM schedule_events WHERE eventAt BETWEEN :startInclusive AND :endInclusive ORDER BY eventAt")
     fun observeBetween(startInclusive: Long, endInclusive: Long): Flow<List<ScheduleEventEntity>>
+}
+
+@Dao
+interface CalendarSyncLinkDao {
+    @Query("SELECT * FROM calendar_sync_links WHERE ownerKind = :ownerKind AND ownerKey = :ownerKey LIMIT 1")
+    suspend fun find(ownerKind: CalendarSyncKind, ownerKey: String): CalendarSyncLinkEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(link: CalendarSyncLinkEntity)
+
+    @Query("DELETE FROM calendar_sync_links WHERE ownerKind = :ownerKind AND ownerKey = :ownerKey")
+    suspend fun delete(ownerKind: CalendarSyncKind, ownerKey: String)
+
+    @Query("SELECT * FROM calendar_sync_links WHERE ownerKind = :ownerKind ORDER BY ownerKey")
+    suspend fun findByKind(ownerKind: CalendarSyncKind): List<CalendarSyncLinkEntity>
 }
 
 @Dao
@@ -246,6 +294,27 @@ interface HealthDao {
 
     @Query("DELETE FROM weight_records")
     suspend fun deleteAllWeights()
+}
+
+@Dao
+interface PeriodDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(entity: PeriodRecordEntity): Long
+
+    @Update
+    suspend fun update(entity: PeriodRecordEntity)
+
+    @Query("DELETE FROM period_records WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("SELECT * FROM period_records WHERE id = :id")
+    suspend fun findById(id: Long): PeriodRecordEntity?
+
+    @Query("SELECT * FROM period_records ORDER BY startDate DESC, id DESC")
+    fun observeAll(): Flow<List<PeriodRecordEntity>>
+
+    @Query("SELECT * FROM period_records ORDER BY startDate DESC, id DESC")
+    suspend fun findAll(): List<PeriodRecordEntity>
 }
 
 @Dao

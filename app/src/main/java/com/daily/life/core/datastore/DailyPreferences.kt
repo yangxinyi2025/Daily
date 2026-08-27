@@ -34,6 +34,15 @@ class DailyPreferences private constructor(
     val targetWeightJin: Flow<Double?> =
         dataStore.data.map { preferences -> preferences[TARGET_WEIGHT_JIN] }
 
+    val menstrualCycleDays: Flow<Int> =
+        dataStore.data.map { preferences ->
+            (preferences[MENSTRUAL_CYCLE_DAYS] ?: DEFAULT_MENSTRUAL_CYCLE_DAYS)
+                .coerceIn(MIN_MENSTRUAL_CYCLE_DAYS, MAX_MENSTRUAL_CYCLE_DAYS)
+        }
+
+    val courseReminderMinutes: Flow<Int?> =
+        dataStore.data.map { preferences -> preferences[COURSE_REMINDER_MINUTES] }
+
     val defaultBudgetCents: Flow<Long?> =
         dataStore.data.map { preferences -> preferences[DEFAULT_BUDGET_CENTS] }
 
@@ -79,6 +88,26 @@ class DailyPreferences private constructor(
         }
     }
 
+    suspend fun setMenstrualCycleDays(value: Int?) {
+        dataStore.edit { preferences ->
+            if (value == null) {
+                preferences.remove(MENSTRUAL_CYCLE_DAYS)
+            } else {
+                preferences[MENSTRUAL_CYCLE_DAYS] = value.coerceIn(
+                    MIN_MENSTRUAL_CYCLE_DAYS,
+                    MAX_MENSTRUAL_CYCLE_DAYS
+                )
+            }
+        }
+    }
+
+    suspend fun setCourseReminderMinutes(value: Int?) {
+        dataStore.edit { preferences ->
+            if (value == null) preferences.remove(COURSE_REMINDER_MINUTES)
+            else preferences[COURSE_REMINDER_MINUTES] = value.coerceIn(1, 180)
+        }
+    }
+
     suspend fun setDefaultBudgetCents(value: Long?) {
         dataStore.edit { preferences ->
             if (value == null) {
@@ -118,11 +147,17 @@ class DailyPreferences private constructor(
         private val SEMESTER_START_DATE = stringPreferencesKey("semester_start_date")
         private val CURRENT_SEMESTER_ID = longPreferencesKey("current_semester_id")
         private val TARGET_WEIGHT_JIN = doublePreferencesKey("target_weight_jin")
+        private val MENSTRUAL_CYCLE_DAYS = intPreferencesKey("menstrual_cycle_days")
+        private val COURSE_REMINDER_MINUTES = intPreferencesKey("course_reminder_minutes")
         private val DEFAULT_BUDGET_CENTS = longPreferencesKey("default_budget_cents")
         private val WEB_DAV_ENDPOINT = stringPreferencesKey("web_dav_endpoint")
         private val AUTO_SYNC_ENABLED = booleanPreferencesKey("auto_sync_enabled")
         private val LAST_SYNC_AT = longPreferencesKey("last_sync_at")
         private val SYNC_STATUS = stringPreferencesKey("sync_status")
+
+        const val DEFAULT_MENSTRUAL_CYCLE_DAYS = 30
+        const val MIN_MENSTRUAL_CYCLE_DAYS = 15
+        const val MAX_MENSTRUAL_CYCLE_DAYS = 90
 
         fun create(context: Context): DailyPreferences =
             create(produceFile = { context.preferencesDataStoreFile("daily.preferences_pb") })

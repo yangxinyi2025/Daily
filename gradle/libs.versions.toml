@@ -20,6 +20,7 @@ androidx-test-core = "1.6.1"
 robolectric = "4.14.1"
 coroutines = "1.10.2"
 security-crypto = "1.1.0-alpha06"
+health-connect = "1.1.0-rc03"
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -59,3 +60,4 @@ androidx-test-core = { module = "androidx.test:core", version.ref = "androidx-te
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "security-crypto" }
+androidx-health-connect-client = { module = "androidx.health.connect:connect-client", version.ref = "health-connect" }

@@ -3,7 +3,6 @@ package com.daily.life.core
 import android.content.Context
 import com.daily.life.core.database.DailyDatabase
 import com.daily.life.core.datastore.DailyPreferences
-import com.daily.life.core.notification.AndroidReminderScheduler
 import com.daily.life.core.security.AndroidSecretStore
 import com.daily.life.core.security.SecretStore
 import com.daily.life.feature.bill.BillRepository
@@ -33,13 +32,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         healthRepositoryFactory = DeferredFactory {
             com.daily.life.feature.health.HealthRepository(
                 healthDao = database.healthDao(),
-                preferences = preferences,
-                activitySources = {
-                    listOfNotNull(
-                        adapters.healthConnectAdapterFactory.create(),
-                        adapters.sensorActivityAdapterFactory.create()
-                    )
-                }
+                preferences = preferences
             )
         },
         billRepositoryFactory = DeferredFactory {
@@ -49,20 +42,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             )
         }
     )
-    override val adapters: AdapterFactories = AdapterFactories(
-        reminderSchedulerFactory = DeferredFactory {
-            AndroidReminderScheduler(
-                context = context,
-                database = database
-            )
-        },
-        healthConnectAdapterFactory = DeferredFactory {
-            com.daily.life.feature.health.HealthConnectAdapter(context)
-        },
-        sensorActivityAdapterFactory = DeferredFactory {
-            com.daily.life.feature.health.SensorActivityAdapter(context)
-        }
-    )
+    override val adapters: AdapterFactories = AdapterFactories()
 }
 
 data class RepositoryFactories(
@@ -73,11 +53,7 @@ data class RepositoryFactories(
 )
 
 data class AdapterFactories(
-    val reminderSchedulerFactory: ComponentFactory<ReminderScheduler> = DeferredFactory(),
-    val healthConnectAdapterFactory: ComponentFactory<com.daily.life.feature.health.HealthConnectAdapter> = DeferredFactory(),
-    val sensorActivityAdapterFactory: ComponentFactory<com.daily.life.feature.health.SensorActivityAdapter> = DeferredFactory(),
-    val webDavClientFactory: ComponentFactory<WebDavClient> = DeferredFactory(),
-    val deepSeekAdviceClientFactory: ComponentFactory<DeepSeekAdviceClient> = DeferredFactory()
+    val reminderSchedulerFactory: ComponentFactory<ReminderScheduler> = DeferredFactory()
 )
 
 interface TimetableRepository
@@ -85,8 +61,6 @@ interface ScheduleRepository
 typealias ReminderScheduler = com.daily.life.core.notification.ReminderScheduler
 
 object NoOpReminderScheduler : ReminderScheduler
-interface WebDavClient
-interface DeepSeekAdviceClient
 
 interface ComponentFactory<T : Any> {
     fun create(): T?

@@ -1,5 +1,6 @@
 package com.daily.life.feature.timetable
 
+import java.time.LocalTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -52,6 +53,30 @@ class PdfTimetableParserTest {
         PdfTimetableParser().parse(input)
 
         assertTrue(input.closed)
+    }
+
+    @Test
+    fun initializesPdfBoxOnlyWhenAPdfIsActuallyImported() {
+        var initializationCount = 0
+        val input = requireNotNull(
+            javaClass.classLoader?.getResourceAsStream("fixtures/timetable-synthetic.pdf")
+        )
+
+        PdfTimetableParser { initializationCount += 1 }.parse(input)
+
+        assertEquals(1, initializationCount)
+    }
+
+    @Test
+    fun recognizesPeriodTimesWithCommonChineseSeparators() {
+        val result = PdfTimetableParser().parseExtractedText(
+            "第1节 08:00-08:45\n2节 08:50～09:35\n第3节 09:50 至 10:35\n第4节 25:00-11:25"
+        )
+
+        assertEquals(LocalTime.of(8, 0), result.parsedPeriodTimes.getValue(1).startTime)
+        assertEquals(LocalTime.of(9, 35), result.parsedPeriodTimes.getValue(2).endTime)
+        assertEquals(LocalTime.of(10, 35), result.parsedPeriodTimes.getValue(3).endTime)
+        assertFalse(result.parsedPeriodTimes.containsKey(4))
     }
 
     private class CloseTrackingInputStream(bytes: ByteArray) : java.io.ByteArrayInputStream(bytes) {

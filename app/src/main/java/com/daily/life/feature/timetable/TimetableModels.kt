@@ -1,5 +1,6 @@
 package com.daily.life.feature.timetable
 
+import com.daily.life.core.calendar.SystemCalendarSpecialDay
 import java.time.LocalDate
 
 enum class WeekParity {
@@ -38,7 +39,8 @@ data class UnsupportedTimetableRow(
 data class TimetableParseResult(
     val courses: List<TimetablePreviewCourse>,
     val warnings: List<String>,
-    val unsupportedRows: List<UnsupportedTimetableRow>
+    val unsupportedRows: List<UnsupportedTimetableRow>,
+    val parsedPeriodTimes: Map<Int, SemesterPeriodTime> = emptyMap()
 )
 
 data class SemesterInput(
@@ -46,6 +48,22 @@ data class SemesterInput(
     val startDate: LocalDate,
     val endDate: LocalDate? = null,
     val isCurrent: Boolean = true
+)
+
+data class SemesterCalendarAdjustmentInput(
+    val actualDate: LocalDate,
+    val sourceDayOfWeek: Int,
+    val sourceDate: LocalDate? = null,
+    val sourceLabel: String? = null
+)
+
+data class TimetableAdjustmentChoiceState(
+    val actualDate: LocalDate,
+    val label: String,
+    val selectedSourceDayOfWeek: Int?,
+    val sourceDate: LocalDate? = null,
+    val options: List<Int> = (1..7).toList(),
+    val isRequired: Boolean = true
 )
 
 data class TimetableCourseUiState(
@@ -63,6 +81,7 @@ data class TimetableCourseUiState(
 data class TimetableDayColumnState(
     val dayOfWeek: Int,
     val label: String,
+    val date: LocalDate? = null,
     val courses: List<TimetableCourseUiState>
 )
 
@@ -84,6 +103,12 @@ data class TimetableImportRowState(
     val rawRow: String
 )
 
+data class TimetablePeriodTimeRowState(
+    val period: Int,
+    val start: String,
+    val end: String
+)
+
 data class TimetableImportState(
     val isOpen: Boolean = false,
     val fileName: String? = null,
@@ -93,8 +118,21 @@ data class TimetableImportState(
     val previewRows: List<TimetableImportRowState> = emptyList(),
     val warnings: List<String> = emptyList(),
     val unsupportedRows: List<UnsupportedTimetableRow> = emptyList(),
+    val periodTimes: List<TimetablePeriodTimeRowState> = defaultSemesterPeriodTimes().map {
+        TimetablePeriodTimeRowState(it.period, it.startTime.toString(), it.endTime.toString())
+    },
+    val periodTimesDetectedFromPdf: Boolean = false,
+    val calendarSpecialDays: List<SystemCalendarSpecialDay> = emptyList(),
+    val calendarAdjustmentChoices: List<TimetableAdjustmentChoiceState> = emptyList(),
+    val calendarReadWarning: String? = null,
     val replaceExisting: Boolean = true,
     val canConfirm: Boolean = false,
+    val errorMessage: String? = null
+)
+
+data class TimetablePeriodEditorState(
+    val isOpen: Boolean = false,
+    val rows: List<TimetablePeriodTimeRowState> = emptyList(),
     val errorMessage: String? = null
 )
 
@@ -106,31 +144,41 @@ data class TimetableState(
     val weekLabel: String = "第 1 周",
     val days: List<TimetableDayColumnState> = defaultTimetableDays(),
     val timeLabels: List<TimetablePeriodLabel> = defaultPeriodLabels(),
+    val periodTimes: List<SemesterPeriodTime> = defaultSemesterPeriodTimes(),
     val importState: TimetableImportState = TimetableImportState(),
+    val periodEditor: TimetablePeriodEditorState = TimetablePeriodEditorState(),
+    val calendarSpecialDays: List<SystemCalendarSpecialDay> = emptyList(),
+    val calendarAdjustmentWarning: String? = null,
     val isEmpty: Boolean = true
 )
 
-fun defaultTimetableDays(): List<TimetableDayColumnState> = listOf(
-    TimetableDayColumnState(1, "周一", emptyList()),
-    TimetableDayColumnState(2, "周二", emptyList()),
-    TimetableDayColumnState(3, "周三", emptyList()),
-    TimetableDayColumnState(4, "周四", emptyList()),
-    TimetableDayColumnState(5, "周五", emptyList()),
-    TimetableDayColumnState(6, "周六", emptyList()),
-    TimetableDayColumnState(7, "周日", emptyList())
-)
+fun defaultTimetableDays(weekStartDate: LocalDate? = null): List<TimetableDayColumnState> = listOf(
+    "周一", "周二", "周三", "周四", "周五", "周六", "周日"
+).mapIndexed { index, label ->
+    TimetableDayColumnState(
+        dayOfWeek = index + 1,
+        label = label,
+        date = weekStartDate?.plusDays(index.toLong()),
+        courses = emptyList()
+    )
+}
+
+fun timetableDaysForWeek(semesterStartDate: LocalDate, week: Int): List<TimetableDayColumnState> =
+    defaultTimetableDays(
+        weekStartDate = semesterStartDate.plusWeeks((week - 1).coerceAtLeast(0).toLong())
+    )
 
 fun defaultPeriodLabels(): List<TimetablePeriodLabel> = listOf(
-    TimetablePeriodLabel(1, "1\n08:00"),
-    TimetablePeriodLabel(2, "2\n08:55"),
-    TimetablePeriodLabel(3, "3\n10:10"),
-    TimetablePeriodLabel(4, "4\n11:05"),
-    TimetablePeriodLabel(5, "5\n14:00"),
-    TimetablePeriodLabel(6, "6\n14:55"),
-    TimetablePeriodLabel(7, "7\n16:10"),
-    TimetablePeriodLabel(8, "8\n17:05"),
-    TimetablePeriodLabel(9, "9\n19:00"),
-    TimetablePeriodLabel(10, "10\n19:55"),
-    TimetablePeriodLabel(11, "11\n20:50"),
-    TimetablePeriodLabel(12, "12\n21:45")
+    TimetablePeriodLabel(1, "1\n08:00\n08:45"),
+    TimetablePeriodLabel(2, "2\n08:50\n09:35"),
+    TimetablePeriodLabel(3, "3\n09:50\n10:35"),
+    TimetablePeriodLabel(4, "4\n10:40\n11:25"),
+    TimetablePeriodLabel(5, "5\n11:30\n12:15"),
+    TimetablePeriodLabel(6, "6\n13:30\n14:15"),
+    TimetablePeriodLabel(7, "7\n14:20\n15:05"),
+    TimetablePeriodLabel(8, "8\n15:20\n16:05"),
+    TimetablePeriodLabel(9, "9\n16:10\n16:55"),
+    TimetablePeriodLabel(10, "10\n18:30\n19:15"),
+    TimetablePeriodLabel(11, "11\n19:20\n20:05"),
+    TimetablePeriodLabel(12, "12\n20:10\n20:55")
 )

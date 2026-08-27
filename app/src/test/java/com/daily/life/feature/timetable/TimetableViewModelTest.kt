@@ -17,6 +17,51 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TimetableViewModelTest {
+
+    @Test
+    fun stateUsesTheCurrentSemestersSavedPeriodTimes() = runTest {
+        val repository = FakeTimetableRepository(
+            semester = SemesterEntity(
+                id = 1L,
+                name = "2026 秋季",
+                startDate = LocalDate.of(2026, 9, 1),
+                isCurrent = true,
+                createdAt = 0L
+            )
+        )
+        repository.updatePeriodTimes(
+            1L,
+            defaultSemesterPeriodTimes().toMutableList().also {
+                it[0] = SemesterPeriodTime(1, java.time.LocalTime.of(8, 10), java.time.LocalTime.of(8, 55))
+            }
+        )
+
+        val viewModel = TimetableViewModel(
+            repository = repository,
+            parser = TimetableParser { error("unused") },
+            clock = fixedClock(),
+            coroutineScope = backgroundScope
+        )
+        runCurrent()
+
+        assertEquals("1\n08:10\n08:55", viewModel.state.value.timeLabels.first().label)
+    }
+
+    @Test
+    fun openingThePeriodEditorUsesTheCurrentSemesterTimes() = runTest {
+        val repository = FakeTimetableRepository(
+            semester = SemesterEntity(1L, "2026 秋季", LocalDate.of(2026, 9, 1), isCurrent = true, createdAt = 0L)
+        )
+        repository.updatePeriodTimes(1L, defaultSemesterPeriodTimes())
+        val viewModel = TimetableViewModel(repository, TimetableParser { error("unused") }, fixedClock(), coroutineScope = backgroundScope)
+        runCurrent()
+
+        viewModel.openPeriodEditor()
+        runCurrent()
+
+        assertTrue(viewModel.state.value.periodEditor.isOpen)
+        assertEquals("08:00", viewModel.state.value.periodEditor.rows.first().start)
+    }
     @Test
     fun startsOnCurrentWeekAndGroupsVisibleCoursesByDay() = runTest {
         val repository = FakeTimetableRepository(
@@ -56,6 +101,7 @@ class TimetableViewModelTest {
         assertEquals(2, state.currentWeek)
         assertEquals(2, state.selectedWeek)
         assertEquals("第 2 周", state.weekLabel)
+        assertEquals(LocalDate.of(2026, 9, 8), state.days.first().date)
         assertEquals("数据库", state.days.first { it.dayOfWeek == 3 }.courses.single().courseName)
 
         viewModel.selectNextWeek()
@@ -122,17 +168,29 @@ class TimetableViewModelTest {
     ) : TimetableRepository {
         override val currentSemester = MutableStateFlow(semester)
         private val coursesByWeek = courses.mapValues { MutableStateFlow(it.value) }
+        private val periodTimes = MutableStateFlow(defaultSemesterPeriodTimes())
         val confirmations = mutableListOf<Confirmation>()
 
         override fun observeCourses(semesterId: Long, week: Int): Flow<List<CourseEntity>> =
             coursesByWeek[week] ?: MutableStateFlow(emptyList())
 
+        override fun observePeriodTimes(semesterId: Long): Flow<List<SemesterPeriodTime>> = periodTimes
+
+        override fun observeCalendarAdjustments(semesterId: Long): Flow<List<com.daily.life.core.database.SemesterCalendarAdjustmentEntity>> =
+            MutableStateFlow(emptyList())
+
+        override suspend fun updatePeriodTimes(semesterId: Long, times: List<SemesterPeriodTime>) {
+            periodTimes.value = times
+        }
+
         override suspend fun confirmImport(
             preview: TimetableParseResult,
             semester: SemesterInput,
-            replaceExisting: Boolean
+            replaceExisting: Boolean,
+            periodTimes: List<SemesterPeriodTime>,
+            calendarAdjustments: List<SemesterCalendarAdjustmentInput>
         ): Long {
-            confirmations += Confirmation(preview, semester, replaceExisting)
+            confirmations += Confirmation(preview, semester, replaceExisting, periodTimes)
             return 99L
         }
     }
@@ -140,6 +198,7 @@ class TimetableViewModelTest {
     private data class Confirmation(
         val preview: TimetableParseResult,
         val semester: SemesterInput,
-        val replaceExisting: Boolean
+        val replaceExisting: Boolean,
+        val periodTimes: List<SemesterPeriodTime>
     )
 }

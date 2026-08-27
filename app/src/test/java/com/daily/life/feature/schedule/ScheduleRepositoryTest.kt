@@ -1,6 +1,10 @@
 package com.daily.life.feature.schedule
 
 import androidx.test.core.app.ApplicationProvider
+import com.daily.life.core.notification.AlarmReminderSpec
+import com.daily.life.core.notification.ReminderScheduleDecision
+import com.daily.life.core.notification.ReminderScheduleStatus
+import com.daily.life.core.notification.ReminderScheduler
 import com.daily.life.core.database.DailyDatabase
 import com.daily.life.core.database.ReminderMode
 import java.time.Instant
@@ -61,6 +65,21 @@ class ScheduleRepositoryTest {
         )
     }
 
+    @Test
+    fun alarmScheduleUsesDailyExactAlarmAndNotTheSystemCalendar() = runTest {
+        val scheduler = RecordingAlarmScheduler()
+        repository = RoomScheduleRepository(database, reminderScheduler = scheduler)
+        val event = eventAt("2026-08-21T10:00:00+08:00").copy(
+            reminderMode = ReminderMode.ALARM,
+            reminderOffsetMinutes = 10
+        )
+
+        repository.create(event)
+
+        assertEquals(event.eventAt.minusSeconds(10 * 60L), scheduler.scheduled.single().triggerAt)
+        assertEquals(event.eventAt, scheduler.scheduled.single().eventAt)
+    }
+
     private fun eventAt(value: String): ScheduleEvent =
         ScheduleEvent(
             title = "生日",
@@ -73,4 +92,13 @@ class ScheduleRepositoryTest {
         )
 
     private fun instantAt(value: String): Instant = OffsetDateTime.parse(value).toInstant()
+
+    private class RecordingAlarmScheduler : ReminderScheduler {
+        val scheduled = mutableListOf<AlarmReminderSpec>()
+
+        override suspend fun schedule(reminder: AlarmReminderSpec): ReminderScheduleDecision {
+            scheduled += reminder
+            return ReminderScheduleDecision(ReminderScheduleStatus.SCHEDULED, reminder.triggerAt)
+        }
+    }
 }

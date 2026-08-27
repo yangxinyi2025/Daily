@@ -1,9 +1,6 @@
 package com.daily.life.feature.settings
 
 import com.daily.life.core.datastore.DailyPreferences
-import com.daily.life.core.security.InMemorySecretStore
-import com.daily.life.core.security.SecretId
-import com.daily.life.core.security.SecretStore
 import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.CoroutineScope
@@ -11,7 +8,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SettingsViewModelTest {
@@ -21,7 +17,6 @@ class SettingsViewModelTest {
         val viewModel = SettingsViewModel(
             semesterRepository = EmptySemesterSettingsRepository,
             preferences = preferences,
-            secretStore = InMemorySecretStore(),
             coroutineScope = backgroundScope
         )
 
@@ -41,7 +36,6 @@ class SettingsViewModelTest {
         val viewModel = SettingsViewModel(
             semesterRepository = EmptySemesterSettingsRepository,
             preferences = preferences,
-            secretStore = InMemorySecretStore(),
             coroutineScope = backgroundScope
         )
 
@@ -60,7 +54,6 @@ class SettingsViewModelTest {
         val viewModel = SettingsViewModel(
             semesterRepository = EmptySemesterSettingsRepository,
             preferences = preferences,
-            secretStore = InMemorySecretStore(),
             coroutineScope = backgroundScope
         )
 
@@ -71,36 +64,6 @@ class SettingsViewModelTest {
             250_000L,
             viewModel.state.first { it.monthlyBudgetCents == 250_000L }.monthlyBudgetCents
         )
-    }
-
-    @Test
-    fun savingWebDavConfigStoresSecretsAndMasksState() = runTest {
-        val preferences = createTestPreferences()
-        val secretStore: SecretStore = InMemorySecretStore()
-        val viewModel = SettingsViewModel(
-            semesterRepository = EmptySemesterSettingsRepository,
-            preferences = preferences,
-            secretStore = secretStore,
-            coroutineScope = backgroundScope
-        )
-
-        viewModel.updateSemesterStartDate(LocalDate.of(2026, 9, 1))
-        viewModel.saveWebDavConfig(
-            WebDavConfigInput(
-                endpoint = "https://dav.example.com/daily",
-                username = "xinyi",
-                password = "super-secret-password"
-            )
-        )
-
-        val state = viewModel.state.first { it.webDavEndpoint == "https://dav.example.com/daily" }
-
-        assertEquals("https://dav.example.com/daily", preferences.webDavEndpoint.first())
-        assertEquals("xinyi", secretStore.read(SecretId.WebDavUsername))
-        assertEquals("super-secret-password", secretStore.read(SecretId.WebDavPassword))
-        assertEquals(LocalDate.of(2026, 9, 1), state.semesterStartDate)
-        assertTrue(state.webDavPasswordSummary.contains("已保存"))
-        assertTrue(!state.webDavPasswordSummary.contains("super-secret-password"))
     }
 
     private fun createTestPreferences(): DailyPreferences {

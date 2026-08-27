@@ -1,7 +1,5 @@
 package com.daily.life.feature.home
 
-import com.daily.life.core.database.ActivityRecordEntity
-import com.daily.life.core.database.ActivityType
 import com.daily.life.core.database.BudgetDao
 import com.daily.life.core.database.CourseDao
 import com.daily.life.core.database.CourseEntity
@@ -200,34 +198,12 @@ class DaoHealthSummaryRepository(
     override val summary: Flow<HealthHomeSummary>
 
     init {
-        val zone = clock.zone
-        val today = LocalDate.now(clock)
-        val dayStart = today.atStartOfDay(zone).toInstant().toEpochMilli()
-        val dayEnd = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1L
-        summary = combine(
-            healthDao.observeWeights(),
-            healthDao.observeActivitiesBetween(dayStart, dayEnd)
-        ) { weights, activities ->
+        summary = healthDao.observeWeights().map { weights ->
             HealthHomeSummary(
                 latestWeightJin = weights.firstOrNull()?.weightJin,
-                latestActivityLabel = activities.firstOrNull()?.toHomeLabel(),
-                isEmpty = weights.isEmpty() && activities.isEmpty()
+                isEmpty = weights.isEmpty()
             )
         }
-    }
-
-    private fun ActivityRecordEntity.toHomeLabel(): String {
-        val activityName = when (activityType) {
-            ActivityType.WALK -> "步行"
-            ActivityType.RUN -> "跑步"
-        }
-        val detail = when {
-            steps != null -> String.format(Locale.US, "%,d 步", steps)
-            distanceMeters != null -> String.format(Locale.US, "%.1f 公里", distanceMeters / 1_000.0)
-            durationMinutes != null -> "$durationMinutes 分钟"
-            else -> "已记录"
-        }
-        return "今日$activityName $detail"
     }
 }
 

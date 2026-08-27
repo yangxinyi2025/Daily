@@ -15,7 +15,6 @@ data class HomeState(
     val nextEventLabel: String? = null,
     val todaySchedules: List<HomeScheduleRow> = emptyList(),
     val latestWeightJin: Double? = null,
-    val latestActivityLabel: String? = null,
     val monthlySpendingCents: Long = 0L,
     val monthlyBudgetCents: Long? = null,
     val hasBillData: Boolean = false
@@ -51,12 +50,6 @@ data class HomeState(
                 destination = DailyDestination.Health
             ),
             HomeCardState(
-                title = "今日活动",
-                value = latestActivityLabel ?: "今天还没有活动记录",
-                actionLabel = if (latestActivityLabel == null) "记录今天活动" else "查看活动",
-                destination = DailyDestination.Health
-            ),
-            HomeCardState(
                 title = "本月账单",
                 value = when {
                     !hasBillData -> "本月还没有账单"
@@ -88,6 +81,46 @@ data class HomeScheduleRow(
     val timeLabel: String
 )
 
+internal data class HomeCardContent(
+    val primaryText: String,
+    val secondaryText: String?,
+    val hasContent: Boolean
+)
+
+internal fun courseCardContent(state: HomeState): HomeCardContent {
+    val firstCourse = state.todayCourses.firstOrNull()
+    return if (firstCourse == null) {
+        HomeCardContent(
+            primaryText = "今天还没有课程",
+            secondaryText = null,
+            hasContent = false
+        )
+    } else {
+        HomeCardContent(
+            primaryText = "第 ${firstCourse.startPeriod} 节 · ${firstCourse.courseName}",
+            secondaryText = firstCourse.detail.takeIf { it.isNotBlank() },
+            hasContent = true
+        )
+    }
+}
+
+internal fun scheduleCardContent(state: HomeState): HomeCardContent {
+    val firstSchedule = state.todaySchedules.firstOrNull()
+    return if (firstSchedule == null) {
+        HomeCardContent(
+            primaryText = "今天还没有待办",
+            secondaryText = null,
+            hasContent = false
+        )
+    } else {
+        HomeCardContent(
+            primaryText = firstSchedule.title,
+            secondaryText = firstSchedule.timeLabel,
+            hasContent = true
+        )
+    }
+}
+
 data class TimetableHomeSummary(
     val todayCourseCount: Int = 0,
     val nextCourseLabel: String? = null,
@@ -104,7 +137,6 @@ data class ScheduleHomeSummary(
 
 data class HealthHomeSummary(
     val latestWeightJin: Double? = null,
-    val latestActivityLabel: String? = null,
     val isEmpty: Boolean = true
 )
 

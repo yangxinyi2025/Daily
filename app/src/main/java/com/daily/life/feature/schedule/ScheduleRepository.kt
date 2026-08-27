@@ -1,6 +1,10 @@
 package com.daily.life.feature.schedule
 
 import com.daily.life.core.database.DailyDatabase
+import com.daily.life.core.calendar.CalendarGatewayResult
+import com.daily.life.core.calendar.CalendarReminderSyncer
+import com.daily.life.core.calendar.ReminderRouting
+import com.daily.life.core.notification.AlarmReminderSpec
 import com.daily.life.core.notification.ReminderScheduler
 import com.daily.life.core.notification.ReminderScheduleStatus
 import java.time.Instant
@@ -19,6 +23,7 @@ interface ScheduleRepository {
     suspend fun delete(id: Long)
     fun observeBetween(startInclusive: Instant, endInclusive: Instant): Flow<List<ScheduleEvent>>
     suspend fun findById(id: Long): ScheduleEvent? = null
+    suspend fun systemCalendarEventId(eventId: Long): Long? = null
     suspend fun findAll(): List<ScheduleEvent> = emptyList()
     suspend fun createYearlyInstancesIfNeeded(now: Instant): List<ScheduleEvent> = emptyList()
 
@@ -39,6 +44,7 @@ interface ScheduleRepository {
 class RoomScheduleRepository(
     private val database: DailyDatabase,
     private val reminderScheduler: ReminderScheduler? = null,
+    private val calendarReminderSyncer: CalendarReminderSyncer? = null,
     private val clock: java.time.Clock = java.time.Clock.systemDefaultZone()
 ) : ScheduleRepository {
     private val dao = database.scheduleEventDao()
@@ -49,17 +55,18 @@ class RoomScheduleRepository(
 
     override suspend fun create(event: ScheduleEvent): Long {
         val id = dao.insert(event.toEntity().copy(id = 0L))
-        _lastReminderStatus.value = reminderScheduler?.schedule(event.copy(id = id))?.status
+        scheduleReminder(event.copy(id = id))
         return id
     }
 
     override suspend fun update(event: ScheduleEvent) {
+        dao.findById(event.id)?.toModel()?.let { previous -> cancelReminder(previous) }
         dao.update(event.toEntity())
-        _lastReminderStatus.value = reminderScheduler?.schedule(event)?.status
+        scheduleReminder(event)
     }
 
     override suspend fun delete(id: Long) {
-        reminderScheduler?.cancel(id)
+        dao.findById(id)?.toModel()?.let { previous -> cancelReminder(previous) }
         dao.deleteById(id)
     }
 
@@ -79,6 +86,9 @@ class RoomScheduleRepository(
         }
 
     override suspend fun findById(id: Long): ScheduleEvent? = dao.findById(id)?.toModel()
+
+    override suspend fun systemCalendarEventId(eventId: Long): Long? =
+        calendarReminderSyncer?.scheduleCalendarEventId(eventId)
 
     override suspend fun findAll(): List<ScheduleEvent> = dao.findAll().map { it.toModel() }
 
@@ -105,5 +115,42 @@ class RoomScheduleRepository(
         val date = ScheduleRepository.nextOccurrence(event, now.atZone(zone).toLocalDate())
         val time = event.eventAt.atZone(zone).toLocalTime()
         return event.copy(eventAt = date.atTime(time).atZone(zone).toInstant())
+    }
+
+    private suspend fun scheduleReminder(event: ScheduleEvent) {
+        when {
+            ReminderRouting.usesDailyAlarm(event) -> {
+                calendarReminderSyncer?.deleteSchedule(event.id)
+                val scheduler = reminderScheduler
+                _lastReminderStatus.value = if (scheduler == null) {
+                    ReminderScheduleStatus.PERMISSION_RESTRICTED
+                } else {
+                    scheduler.schedule(
+                        AlarmReminderSpec(
+                            id = event.id,
+                            title = event.title,
+                            triggerAt = event.eventAt.minusSeconds(event.reminderOffsetMinutes.coerceAtLeast(0) * 60L),
+                            eventAt = event.eventAt,
+                            notes = event.notes
+                        )
+                    ).status
+                }
+            }
+            ReminderRouting.usesSystemCalendar(event) && calendarReminderSyncer != null -> {
+                reminderScheduler?.cancel(event.id)
+                _lastReminderStatus.value = when (calendarReminderSyncer.syncSchedule(event)) {
+                    is CalendarGatewayResult.Synced -> ReminderScheduleStatus.SCHEDULED
+                    else -> ReminderScheduleStatus.PERMISSION_RESTRICTED
+                }
+            }
+            else -> _lastReminderStatus.value = null
+        }
+    }
+
+    private suspend fun cancelReminder(event: ScheduleEvent) {
+        when {
+            ReminderRouting.usesDailyAlarm(event) -> reminderScheduler?.cancel(event.id)
+            ReminderRouting.usesSystemCalendar(event) -> calendarReminderSyncer?.deleteSchedule(event.id)
+        }
     }
 }

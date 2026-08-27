@@ -1,5 +1,11 @@
 package com.daily.life.feature.settings
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,12 +27,17 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.daily.life.core.designsystem.DailyCard
+import com.daily.life.core.designsystem.DailyDatePickerField
+import com.daily.life.core.system.BackgroundRuntimeSettingsAction
+import com.daily.life.core.system.backgroundRuntimeSettingsAction
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import java.time.LocalDate
-import java.time.format.DateTimeParseException
 import java.util.Locale
 import kotlin.math.roundToLong
 
@@ -34,17 +46,11 @@ fun SettingsScreen(
     state: SettingsState,
     onSemesterStartDateChange: (LocalDate) -> Unit,
     onTargetWeightChange: (Double?) -> Unit,
-    onMonthlyBudgetChange: (Long?) -> Unit,
-    onSaveDeepSeekKey: (String) -> Unit,
-    onSaveWebDavConfig: (WebDavConfigInput) -> Unit
+    onMonthlyBudgetChange: (Long?) -> Unit
 ) {
     var semesterStartDateText by rememberSaveable { mutableStateOf(state.semesterStartDate?.toString().orEmpty()) }
     var targetWeightText by rememberSaveable { mutableStateOf(state.targetWeightJin?.toString().orEmpty()) }
     var monthlyBudgetText by rememberSaveable { mutableStateOf(state.monthlyBudgetCents?.let(::formatBudgetInput).orEmpty()) }
-    var deepSeekKeyText by rememberSaveable { mutableStateOf("") }
-    var webDavEndpointText by rememberSaveable { mutableStateOf(state.webDavEndpoint.orEmpty()) }
-    var webDavUsernameText by rememberSaveable { mutableStateOf("") }
-    var webDavPasswordText by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(state.semesterStartDate) {
         semesterStartDateText = state.semesterStartDate?.toString().orEmpty()
@@ -54,9 +60,6 @@ fun SettingsScreen(
     }
     LaunchedEffect(state.monthlyBudgetCents) {
         monthlyBudgetText = state.monthlyBudgetCents?.let(::formatBudgetInput).orEmpty()
-    }
-    LaunchedEffect(state.webDavEndpoint) {
-        webDavEndpointText = state.webDavEndpoint.orEmpty()
     }
 
     Column(
@@ -81,15 +84,13 @@ fun SettingsScreen(
                 text = state.currentSemesterName ?: "尚未选择当前学期",
                 style = MaterialTheme.typography.bodyLarge
             )
-            OutlinedTextField(
+            DailyDatePickerField(
                 value = semesterStartDateText,
-                onValueChange = { value ->
-                    semesterStartDateText = value
-                    parseLocalDateOrNull(value)?.let(onSemesterStartDateChange)
-                },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("学期开始日期") },
-                supportingText = { Text("格式：YYYY-MM-DD") }
+                label = "学期开始日期",
+                onDateSelected = { date ->
+                    semesterStartDateText = date.toString()
+                    onSemesterStartDateChange(date)
+                }
             )
         }
 
@@ -133,89 +134,71 @@ fun SettingsScreen(
             )
         }
 
-        DailyCard {
-            Text(text = "DeepSeek", style = MaterialTheme.typography.titleLarge)
-            Text(
-                text = "保存状态：${state.deepSeekKeySummary}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            OutlinedTextField(
-                value = deepSeekKeyText,
-                onValueChange = { deepSeekKeyText = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("DeepSeek Key") },
-                visualTransformation = PasswordVisualTransformation()
-            )
-            Button(onClick = {
-                onSaveDeepSeekKey(deepSeekKeyText)
-                deepSeekKeyText = ""
-            }) {
-                Text("保存 DeepSeek Key")
+        BackgroundRuntimeSettingsCard()
+
+    }
+}
+
+@Composable
+private fun BackgroundRuntimeSettingsCard() {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var isBackgroundRuntimeAllowed by rememberSaveable {
+        mutableStateOf(context.isIgnoringBatteryOptimizations())
+    }
+
+    DisposableEffect(context, lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isBackgroundRuntimeAllowed = context.isIgnoringBatteryOptimizations()
             }
         }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
-        DailyCard {
-            Text(text = "WebDAV", style = MaterialTheme.typography.titleLarge)
-            Text(
-                text = "同步状态：${state.syncStatus}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = "用户名：${state.webDavUsernameSummary}  密码：${state.webDavPasswordSummary}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            OutlinedTextField(
-                value = webDavEndpointText,
-                onValueChange = { webDavEndpointText = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("WebDAV 地址") }
-            )
-            OutlinedTextField(
-                value = webDavUsernameText,
-                onValueChange = { webDavUsernameText = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("WebDAV 用户名") }
-            )
-            OutlinedTextField(
-                value = webDavPasswordText,
-                onValueChange = { webDavPasswordText = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("WebDAV 密码") },
-                visualTransformation = PasswordVisualTransformation()
-            )
-            Button(onClick = {
-                onSaveWebDavConfig(
-                    WebDavConfigInput(
-                        endpoint = webDavEndpointText,
-                        username = webDavUsernameText,
-                        password = webDavPasswordText
-                    )
-                )
-                webDavUsernameText = ""
-                webDavPasswordText = ""
-            }) {
-                Text("保存 WebDAV 配置")
-            }
-        }
-
-        DailyCard {
-            Text(text = "权限与可用性", style = MaterialTheme.typography.titleLarge)
-            Text(text = "通知：${state.notificationPermissionSummary}", style = MaterialTheme.typography.bodyMedium)
-            Text(text = "精确提醒：${state.exactAlarmPermissionSummary}", style = MaterialTheme.typography.bodyMedium)
-            Text(text = "健康权限：${state.healthPermissionSummary}", style = MaterialTheme.typography.bodyMedium)
+    DailyCard {
+        Text(text = "后台运行", style = MaterialTheme.typography.titleLarge)
+        Text(
+            text = if (isBackgroundRuntimeAllowed) {
+                "已允许忽略系统电池优化，闹钟可在息屏时正常运行。"
+            } else {
+                "为保证闹钟在息屏时响起，请在系统设置中为 Daily 允许后台高耗电或取消电池优化。"
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Button(
+            onClick = { context.openBackgroundRuntimeSettings() },
+            modifier = Modifier.testTag("settings_background_runtime")
+        ) {
+            Text(if (isBackgroundRuntimeAllowed) "查看系统设置" else "去设置")
         }
     }
 }
 
-private fun parseLocalDateOrNull(value: String): LocalDate? =
-    try {
-        LocalDate.parse(value)
-    } catch (_: DateTimeParseException) {
-        null
+private fun Context.isIgnoringBatteryOptimizations(): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false
+    return getSystemService(PowerManager::class.java)
+        ?.isIgnoringBatteryOptimizations(packageName) == true
+}
+
+private fun Context.openBackgroundRuntimeSettings() {
+    val packageUri = Uri.parse("package:$packageName")
+    val primaryIntent = when (backgroundRuntimeSettingsAction(Build.VERSION.SDK_INT)) {
+        BackgroundRuntimeSettingsAction.REQUEST_EXEMPTION -> Intent(
+            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+            packageUri
+        )
+        BackgroundRuntimeSettingsAction.APP_DETAILS -> Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            packageUri
+        )
     }
+    val fallbackIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri)
+    runCatching { startActivity(primaryIntent) }
+        .recoverCatching { startActivity(fallbackIntent) }
+}
 
 private fun parseBudgetInput(value: String): Long? =
     value.toDoubleOrNull()?.let { amount -> (amount * 100).roundToLong() }

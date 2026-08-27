@@ -42,6 +42,12 @@ data class BillParseWarning(
     val message: String
 )
 
+data class BillSkippedRow(
+    val rowNumber: Int?,
+    val rawPreview: String,
+    val reason: String
+)
+
 data class BillPreviewRow(
     val rowNumber: Int,
     val occurredAt: Long,
@@ -71,6 +77,7 @@ data class BillParseResult(
     val rows: List<BillPreviewRow>,
     val warnings: List<BillParseWarning> = emptyList(),
     val skippedRows: Int = 0,
+    val skippedDetails: List<BillSkippedRow> = emptyList(),
     val duplicateCandidates: List<DuplicateCandidate> = emptyList(),
     val source: BillSource? = rows.firstOrNull()?.source
 )

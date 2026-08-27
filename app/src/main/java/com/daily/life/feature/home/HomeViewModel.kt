@@ -57,7 +57,6 @@ class HomeViewModel(
         nextEventLabel = schedule.nextEventLabel,
         todaySchedules = schedule.todaySchedules,
         latestWeightJin = health.latestWeightJin,
-        latestActivityLabel = health.latestActivityLabel,
         monthlySpendingCents = bill.monthlyExpenseCents,
         monthlyBudgetCents = bill.monthlyBudgetCents,
         hasBillData = !bill.isEmpty

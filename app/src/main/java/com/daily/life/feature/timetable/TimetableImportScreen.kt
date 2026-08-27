@@ -1,6 +1,7 @@
 package com.daily.life.feature.timetable
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,6 +12,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -21,6 +24,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.daily.life.core.designsystem.DailyCard
+import com.daily.life.core.designsystem.DailyDatePickerField
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 @Composable
 fun TimetableImportScreen(
@@ -28,9 +36,11 @@ fun TimetableImportScreen(
     onChooseFile: () -> Unit,
     onSemesterInputChange: (String, String) -> Unit,
     onRowChange: (TimetableImportRowState) -> Unit,
+    onPeriodTimeChange: (TimetablePeriodTimeRowState) -> Unit,
     onReplaceExistingChange: (Boolean) -> Unit,
     onCancel: () -> Unit,
-    onConfirm: () -> Unit
+    onConfirm: () -> Unit,
+    onMakeupSourceChange: (LocalDate, Int?) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -69,6 +79,49 @@ fun TimetableImportScreen(
             }
         }
 
+        if (state.calendarSpecialDays.isNotEmpty() || state.calendarReadWarning != null) {
+            DailyCard {
+                Text(text = "节假日与调休校准", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    text = "节假日按系统日历隐藏课程；调休请确认补课来源。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                state.calendarSpecialDays
+                    .filter { it.kind == com.daily.life.core.calendar.SystemCalendarSpecialDayKind.Holiday }
+                    .sortedBy { it.date }
+                    .forEach { day ->
+                        Text("${day.date.format(IMPORT_DATE_FORMATTER)} · 休 · ${day.label}")
+                    }
+                state.calendarAdjustmentChoices.forEach { choice ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("${choice.actualDate.format(IMPORT_DATE_FORMATTER)} · ${choice.label}")
+                            if (choice.selectedSourceDayOfWeek == null) {
+                                Text(
+                                    "请选择补课来源",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                        MakeupSourcePicker(
+                            selectedDay = choice.selectedSourceDayOfWeek,
+                            options = choice.options,
+                            onSelected = { day -> onMakeupSourceChange(choice.actualDate, day) }
+                        )
+                    }
+                }
+                state.calendarReadWarning?.let { warning ->
+                    Text(warning, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+
         DailyCard {
             Text(text = "学期信息", style = MaterialTheme.typography.titleLarge)
             OutlinedTextField(
@@ -80,15 +133,11 @@ fun TimetableImportScreen(
                 label = { Text("学期名称") },
                 singleLine = true
             )
-            OutlinedTextField(
+            DailyDatePickerField(
                 value = state.semesterStartDate,
-                onValueChange = { onSemesterInputChange(state.semesterName, it) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("timetable_import_semester_start"),
-                label = { Text("开始日期") },
-                supportingText = { Text("格式：YYYY-MM-DD") },
-                singleLine = true
+                label = "开始日期",
+                onDateSelected = { date -> onSemesterInputChange(state.semesterName, date.toString()) },
+                modifier = Modifier.testTag("timetable_import_semester_start")
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(
@@ -108,6 +157,36 @@ fun TimetableImportScreen(
                         text = "• ${row.reason}：${row.rawText}",
                         color = MaterialTheme.colorScheme.error
                     )
+                }
+            }
+        }
+
+        if (state.previewRows.isNotEmpty()) {
+            DailyCard {
+                Text(text = "节次时间核对", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    text = if (state.periodTimesDetectedFromPdf) "已从 PDF 识别部分时间，请确认后导入" else "未在 PDF 中识别到节次时间，请核对后导入",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                state.periodTimes.forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("第 ${row.period} 节", modifier = Modifier.padding(top = 16.dp))
+                        OutlinedTextField(
+                            value = row.start,
+                            onValueChange = { onPeriodTimeChange(row.copy(start = it)) },
+                            modifier = Modifier.weight(1f),
+                            label = { Text("开始") },
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = row.end,
+                            onValueChange = { onPeriodTimeChange(row.copy(end = it)) },
+                            modifier = Modifier.weight(1f),
+                            label = { Text("结束") },
+                            singleLine = true
+                        )
+                    }
                 }
             }
         }
@@ -140,6 +219,36 @@ fun TimetableImportScreen(
         }
     }
 }
+
+@Composable
+private fun MakeupSourcePicker(
+    selectedDay: Int?,
+    options: List<Int>,
+    onSelected: (Int) -> Unit
+) {
+    var expanded by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    Box {
+        OutlinedButton(onClick = { expanded = true }) {
+            Text(selectedDay?.let(::importDayLabel) ?: "请选择")
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { day ->
+                DropdownMenuItem(
+                    text = { Text(importDayLabel(day)) },
+                    onClick = {
+                        expanded = false
+                        onSelected(day)
+                    }
+                )
+            }
+        }
+    }
+}
+
+private fun importDayLabel(day: Int): String =
+    listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日").getOrElse(day - 1) { "请选择" }
+
+private val IMPORT_DATE_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("M月d日")
 
 @Composable
 private fun ImportPreviewRow(

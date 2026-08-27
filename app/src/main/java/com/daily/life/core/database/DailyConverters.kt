@@ -2,6 +2,7 @@ package com.daily.life.core.database
 
 import androidx.room.TypeConverter
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.YearMonth
 
 class DailyConverters {
@@ -10,6 +11,12 @@ class DailyConverters {
 
     @TypeConverter
     fun toLocalDate(value: String?): LocalDate? = value?.let(LocalDate::parse)
+
+    @TypeConverter
+    fun fromLocalTime(value: LocalTime?): String? = value?.toString()
+
+    @TypeConverter
+    fun toLocalTime(value: String?): LocalTime? = value?.let(LocalTime::parse)
 
     @TypeConverter
     fun fromYearMonth(value: YearMonth?): String? = value?.toString()
@@ -33,6 +40,12 @@ class DailyConverters {
 
     @TypeConverter
     fun toReminderMode(value: String?): ReminderMode? = value?.let(ReminderMode::valueOf)
+
+    @TypeConverter
+    fun fromCourseReminderMode(value: CourseReminderMode?): String? = value?.name
+
+    @TypeConverter
+    fun toCourseReminderMode(value: String?): CourseReminderMode? = value?.let(CourseReminderMode::valueOf)
 
     @TypeConverter
     fun fromActivityType(value: ActivityType?): String? = value?.name

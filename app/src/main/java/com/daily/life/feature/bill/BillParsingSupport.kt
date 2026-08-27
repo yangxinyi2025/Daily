@@ -49,11 +49,15 @@ internal object BillParsingSupport {
                 rows = emptyList(),
                 warnings = listOf(BillParseWarning(null, "未找到包含日期、金额和收支方向的表头")),
                 skippedRows = rows.count { it.cells.any(String::isNotBlank) },
+                skippedDetails = rows.filter { it.cells.any(String::isNotBlank) }.map { row ->
+                    BillSkippedRow(row.rowNumber, row.rawText.preview(), "未找到可用表头，无法定位日期和金额")
+                },
                 source = source
             )
         }
         val header = findHeaderMap(rows[headerIndex].cells)!!
         val warnings = mutableListOf<BillParseWarning>()
+        val skippedDetails = mutableListOf<BillSkippedRow>()
         val parsed = mutableListOf<BillPreviewRow>()
         var skipped = 0
         rows.drop(headerIndex + 1).forEach { row ->
@@ -63,14 +67,24 @@ internal object BillParsingSupport {
             val status = header.status?.let { cell(row, it) }
             if (status.containsAny("关闭", "失败", "撤销", "取消")) {
                 skipped += 1
-                warnings += BillParseWarning(row.rowNumber, "已跳过非成功交易：$status")
+                val reason = "已跳过非成功交易：$status"
+                warnings += BillParseWarning(row.rowNumber, reason)
+                skippedDetails += BillSkippedRow(row.rowNumber, row.rawText.preview(), reason)
                 return@forEach
             }
             val occurredAt = parseDate(cell(row, header.date))
             val amountCents = parseAmountCents(rawAmountText)
             if (occurredAt == null || amountCents == null) {
                 skipped += 1
-                warnings += BillParseWarning(row.rowNumber, "无法识别日期或金额，已跳过")
+                val reason = buildString {
+                    append("无法识别")
+                    if (occurredAt == null) append("日期")
+                    if (occurredAt == null && amountCents == null) append("或")
+                    if (amountCents == null) append("金额")
+                    append("，已跳过")
+                }
+                warnings += BillParseWarning(row.rowNumber, reason)
+                skippedDetails += BillSkippedRow(row.rowNumber, row.rawText.preview(), reason)
                 return@forEach
             }
             val direction = parseDirection(directionText, rawAmountText)
@@ -112,6 +126,7 @@ internal object BillParsingSupport {
             rows = rowsWithDuplicates,
             warnings = warnings,
             skippedRows = skipped,
+            skippedDetails = skippedDetails,
             duplicateCandidates = duplicateCandidates,
             source = source
         )
@@ -259,4 +274,6 @@ internal object BillParsingSupport {
     ).joinToString("|")
 
     private fun String?.containsAny(vararg values: String): Boolean = values.any { value -> this?.contains(value) == true }
+
+    private fun String.preview(): String = replace(Regex("\\s+"), " ").trim().take(180)
 }

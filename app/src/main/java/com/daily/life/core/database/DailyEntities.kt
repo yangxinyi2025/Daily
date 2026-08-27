@@ -7,6 +7,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.Relation
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.YearMonth
 
 @Entity(tableName = "semesters")
@@ -17,6 +18,48 @@ data class SemesterEntity(
     val endDate: LocalDate? = null,
     val isCurrent: Boolean = false,
     val createdAt: Long
+)
+
+@Entity(
+    tableName = "semester_periods",
+    primaryKeys = ["semesterId", "period"],
+    foreignKeys = [
+        ForeignKey(
+            entity = SemesterEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["semesterId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["semesterId"])]
+)
+data class SemesterPeriodEntity(
+    val semesterId: Long,
+    val period: Int,
+    val startTime: LocalTime,
+    val endTime: LocalTime
+)
+
+@Entity(
+    tableName = "semester_calendar_adjustments",
+    primaryKeys = ["semesterId", "actualDate"],
+    foreignKeys = [
+        ForeignKey(
+            entity = SemesterEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["semesterId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["semesterId"])]
+)
+data class SemesterCalendarAdjustmentEntity(
+    val semesterId: Long,
+    val actualDate: LocalDate,
+    val sourceDayOfWeek: Int,
+    val sourceDate: LocalDate? = null,
+    val sourceLabel: String? = null,
+    val updatedAt: Long
 )
 
 @Entity(
@@ -48,7 +91,9 @@ data class CourseEntity(
     val teacher: String? = null,
     val courseCode: String? = null,
     val credits: Double? = null,
-    val notes: String? = null
+    val notes: String? = null,
+    val courseReminderMode: CourseReminderMode = CourseReminderMode.FOLLOW_GLOBAL,
+    val courseReminderMinutes: Int? = null
 )
 
 @Entity(
@@ -80,6 +125,23 @@ enum class ReminderMode {
     ALARM
 }
 
+enum class CalendarSyncKind {
+    SCHEDULE_EVENT,
+    COURSE_OCCURRENCE
+}
+
+@Entity(tableName = "calendar_sync_links", primaryKeys = ["ownerKind", "ownerKey"])
+data class CalendarSyncLinkEntity(
+    val ownerKind: CalendarSyncKind,
+    val ownerKey: String,
+    val calendarId: Long,
+    val eventId: Long,
+    val eventStartAt: Long,
+    val lastError: String? = null
+)
+
+enum class CourseReminderMode { FOLLOW_GLOBAL, DISABLED, CUSTOM }
+
 @Entity(
     tableName = "schedule_events",
     indices = [Index(value = ["eventAt"])]
@@ -107,6 +169,16 @@ data class WeightRecordEntity(
     val weightJin: Double,
     val source: String,
     val notes: String? = null
+)
+
+@Entity(
+    tableName = "period_records",
+    indices = [Index(value = ["startDate"]), Index(value = ["endDate"])]
+)
+data class PeriodRecordEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    val startDate: LocalDate,
+    val endDate: LocalDate
 )
 
 enum class ActivityType {

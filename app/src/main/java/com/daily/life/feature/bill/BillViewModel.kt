@@ -3,6 +3,7 @@ package com.daily.life.feature.bill
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
@@ -232,6 +233,16 @@ class BillViewModel(
         }
     }
 
+    fun openNewEditor() {
+        _state.update {
+            it.copy(
+                editorState = BillEditorState(
+                    dateText = DATE_FORMATTER.withZone(clock.zone).format(Instant.ofEpochMilli(clock.millis()))
+                )
+            )
+        }
+    }
+
     fun updateEditor(editor: BillEditorState) {
         _state.update { it.copy(editorState = editor) }
     }
@@ -242,22 +253,39 @@ class BillViewModel(
 
     fun saveEditor() {
         val editor = _state.value.editorState ?: return
-        val original = editor.transaction ?: return
         val amountCents = editor.amountText.toBigDecimalOrNull()?.movePointRight(2)?.toLong() ?: return
         val date = runCatching { java.time.LocalDateTime.parse(editor.dateText, DATE_FORMATTER) }.getOrNull() ?: return
         scope.launch {
             try {
-                repository.updateTransaction(
-                    original.copy(
-                        occurredAt = date.atZone(clock.zone).toInstant().toEpochMilli(),
-                        amountCents = amountCents,
-                        counterparty = editor.counterpartyText,
-                        category = editor.category,
-                        direction = editor.direction,
-                        notes = editor.notesText.ifBlank { null }
+                val occurredAt = date.atZone(clock.zone).toInstant().toEpochMilli()
+                val original = editor.transaction
+                if (original == null) {
+                    repository.insertTransaction(
+                        BillPreviewRow(
+                            rowNumber = 0,
+                            occurredAt = occurredAt,
+                            amountCents = amountCents,
+                            direction = editor.direction,
+                            category = editor.category,
+                            counterparty = editor.counterpartyText.ifBlank { "未命名账单" },
+                            source = BillSource.WECHAT,
+                            rawText = editor.counterpartyText,
+                            notes = editor.notesText.ifBlank { null }
+                        )
                     )
-                )
-                _state.update { it.copy(editorState = null, statusMessage = "账单已更新") }
+                } else {
+                    repository.updateTransaction(
+                        original.copy(
+                            occurredAt = occurredAt,
+                            amountCents = amountCents,
+                            counterparty = editor.counterpartyText,
+                            category = editor.category,
+                            direction = editor.direction,
+                            notes = editor.notesText.ifBlank { null }
+                        )
+                    )
+                }
+                _state.update { it.copy(editorState = null, statusMessage = if (original == null) "账单已记录" else "账单已更新") }
                 refreshStatistics()
             } catch (error: Exception) {
                 _state.update { it.copy(errorMessage = error.message ?: "保存账单失败") }

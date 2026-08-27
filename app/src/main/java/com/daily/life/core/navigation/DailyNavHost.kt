@@ -26,6 +26,7 @@ import com.daily.life.feature.home.HomeViewModel
 import com.daily.life.feature.health.HealthRepository
 import com.daily.life.feature.health.HealthScreen
 import com.daily.life.feature.health.HealthViewModel
+import com.daily.life.feature.health.PeriodRepository
 import com.daily.life.feature.bill.BillRepository
 import com.daily.life.feature.bill.BillScreen
 import com.daily.life.feature.bill.BillViewModel
@@ -35,6 +36,11 @@ import com.daily.life.feature.settings.SettingsViewModel
 import com.daily.life.feature.schedule.RoomScheduleRepository
 import com.daily.life.feature.schedule.ScheduleScreen
 import com.daily.life.feature.schedule.ScheduleViewModel
+import com.daily.life.core.calendar.AndroidCalendarProviderClient
+import com.daily.life.core.calendar.CalendarReminderSyncer
+import com.daily.life.core.calendar.SystemCalendarGateway
+import com.daily.life.core.calendar.SystemCalendarScheduleReader
+import com.daily.life.core.notification.AndroidReminderScheduler
 import com.daily.life.feature.timetable.PdfTimetableParser
 import com.daily.life.feature.timetable.RoomTimetableRepository
 import com.daily.life.feature.timetable.TimetableScreen
@@ -94,14 +100,21 @@ fun DailyNavHost(
             composable(DailyDestination.Timetable.route) {
                 val container = application.container
                 val timetableViewModel: TimetableViewModel = viewModel {
+                    val calendarReader = SystemCalendarScheduleReader.from(application)
                     TimetableViewModel(
                         repository = RoomTimetableRepository(
                             database = container.database,
                             preferences = container.preferences,
                             reminderScheduler = container.adapters.reminderSchedulerFactory.create()
-                                ?: NoOpReminderScheduler
+                                ?: NoOpReminderScheduler,
+                            calendarReminderSyncer = CalendarReminderSyncer(
+                                database = container.database,
+                                gateway = SystemCalendarGateway(AndroidCalendarProviderClient(application))
+                            ),
+                            calendarScheduleReader = calendarReader
                         ),
-                        parser = PdfTimetableParser()
+                        parser = PdfTimetableParser(application::initializePdfBox),
+                        calendarReader = calendarReader
                     )
                 }
                 val timetableState by timetableViewModel.state.collectAsState()
@@ -111,12 +124,20 @@ fun DailyNavHost(
                     onNextWeek = timetableViewModel::selectNextWeek,
                     onCurrentWeek = timetableViewModel::selectCurrentWeek,
                     onOpenImport = timetableViewModel::openImport,
+                    onOpenPeriodEditor = timetableViewModel::openPeriodEditor,
                     onPdfSelected = timetableViewModel::selectPdf,
                     onSemesterInputChange = timetableViewModel::updateSemesterInput,
                     onImportRowChange = timetableViewModel::updateImportRow,
+                    onImportPeriodTimeChange = timetableViewModel::updateImportPeriodTime,
                     onReplaceExistingChange = timetableViewModel::updateReplaceExisting,
                     onCancelImport = timetableViewModel::cancelImport,
-                    onConfirmImport = timetableViewModel::confirmImport
+                    onConfirmImport = timetableViewModel::confirmImport,
+                    onPeriodEditorRowChange = timetableViewModel::updatePeriodEditorRow,
+                    onRestorePeriodDefaults = timetableViewModel::restoreDefaultPeriodTimes,
+                    onSavePeriodTimes = timetableViewModel::savePeriodTimes,
+                    onClosePeriodEditor = timetableViewModel::closePeriodEditor,
+                    onMakeupSourceChange = timetableViewModel::updateMakeupSource,
+                    onRefreshSystemCalendarDays = timetableViewModel::refreshSystemCalendarDays
                 )
             }
             composable(DailyDestination.Schedule.route) {
@@ -125,8 +146,11 @@ fun DailyNavHost(
                     ScheduleViewModel(
                         repository = RoomScheduleRepository(
                             database = container.database,
-                            reminderScheduler = container.adapters.reminderSchedulerFactory.create()
-                                ?: NoOpReminderScheduler
+                            reminderScheduler = AndroidReminderScheduler(application),
+                            calendarReminderSyncer = CalendarReminderSyncer(
+                                database = container.database,
+                                gateway = SystemCalendarGateway(AndroidCalendarProviderClient(application))
+                            )
                         )
                     )
                 }
@@ -141,7 +165,8 @@ fun DailyNavHost(
                     onDelete = scheduleViewModel::deleteEvent,
                     onSaveEditor = scheduleViewModel::saveEditor,
                     onDismissEditor = scheduleViewModel::dismissEditor,
-                    onEditorChange = scheduleViewModel::replaceEditor
+                    onEditorChange = scheduleViewModel::replaceEditor,
+                    onCalendarEventEditorOpened = scheduleViewModel::consumeCalendarEventEditorRequest
                 )
             }
             composable(DailyDestination.Health.route) {
@@ -154,6 +179,10 @@ fun DailyNavHost(
                 val healthViewModel: HealthViewModel = viewModel {
                     HealthViewModel(
                         repository = healthRepository,
+                        periodRepository = PeriodRepository(
+                            periodDao = container.database.periodDao(),
+                            preferences = container.preferences
+                        ),
                         preferences = container.preferences
                     )
                 }
@@ -166,8 +195,9 @@ fun DailyNavHost(
                     onSelectTab = healthViewModel::selectTab,
                     onRecordWeight = healthViewModel::recordWeight,
                     onSetTargetWeight = healthViewModel::setTargetWeight,
-                    onReadActivity = healthViewModel::readActivity,
-                    onRegenerateReport = healthViewModel::regenerateReport
+                    onRecordPeriod = healthViewModel::recordPeriod,
+                    onUpdatePeriod = healthViewModel::updatePeriod,
+                    onDeletePeriod = healthViewModel::deletePeriod
                 )
             }
             composable(DailyDestination.Bill.route) {
@@ -190,6 +220,7 @@ fun DailyNavHost(
                     onDirectionChange = billViewModel::setDirectionFilter,
                     onSearchChange = billViewModel::setSearchText,
                     onOpenImport = billViewModel::openImport,
+                    onOpenNewEditor = billViewModel::openNewEditor,
                     onFileSelected = billViewModel::selectFile,
                     onTogglePreviewRow = billViewModel::togglePreviewRow,
                     onCancelImport = billViewModel::cancelImport,
@@ -208,8 +239,7 @@ fun DailyNavHost(
                             semesterDao = container.database.semesterDao(),
                             preferences = container.preferences
                         ),
-                        preferences = container.preferences,
-                        secretStore = container.secretStore
+                        preferences = container.preferences
                     )
                 }
                 val settingsState by settingsViewModel.state.collectAsState()
@@ -217,9 +247,7 @@ fun DailyNavHost(
                     state = settingsState,
                     onSemesterStartDateChange = settingsViewModel::updateSemesterStartDate,
                     onTargetWeightChange = settingsViewModel::updateTargetWeightJin,
-                    onMonthlyBudgetChange = settingsViewModel::updateMonthlyBudgetCents,
-                    onSaveDeepSeekKey = settingsViewModel::saveDeepSeekKey,
-                    onSaveWebDavConfig = settingsViewModel::saveWebDavConfig
+                    onMonthlyBudgetChange = settingsViewModel::updateMonthlyBudgetCents
                 )
             }
         }

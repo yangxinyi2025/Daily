@@ -84,8 +84,6 @@ class ScheduleViewModel(
 
     fun updateReminderOffset(value: String) = updateEditor { copy(reminderOffsetMinutes = value) }
 
-    fun updateReminderMode(value: ReminderMode) = updateEditor { copy(reminderMode = value) }
-
     fun updateRepeatYearly(value: Boolean) = updateEditor { copy(repeatYearly = value) }
 
     fun updateNotes(value: String) = updateEditor { copy(notes = value) }
@@ -108,12 +106,22 @@ class ScheduleViewModel(
             } else {
                 repository.update(event)
             }
-            val message = if (repository.lastReminderStatus == ReminderScheduleStatus.PERMISSION_RESTRICTED) {
-                "日程已保存，但提醒权限受限"
-            } else {
-                "日程已保存"
+            val message = when (repository.lastReminderStatus) {
+                ReminderScheduleStatus.PERMISSION_RESTRICTED ->
+                    if (event.reminderMode == ReminderMode.ALARM) {
+                        "日程已保存，但闹钟权限未开启或闹钟未注册"
+                    } else {
+                        "日程已保存，但系统日历提醒未同步"
+                    }
+                else -> "日程已保存"
             }
-            _state.update { current -> current.copy(editor = null, statusMessage = message) }
+            _state.update { current ->
+                current.copy(
+                    editor = null,
+                    statusMessage = message,
+                    calendarEventIdToEdit = null
+                )
+            }
         }
     }
 
@@ -122,6 +130,10 @@ class ScheduleViewModel(
             repository.delete(eventId)
             _state.update { it.copy(statusMessage = "日程已删除") }
         }
+    }
+
+    fun consumeCalendarEventEditorRequest() {
+        _state.update { it.copy(calendarEventIdToEdit = null) }
     }
 
     private fun updateEditor(update: ScheduleEditorState.() -> ScheduleEditorState) {

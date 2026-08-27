@@ -7,12 +7,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 
-data class WebDavConfigInput(
-    val endpoint: String,
-    val username: String,
-    val password: String
-)
-
 data class SemesterSettingsSummary(
     val name: String?,
     val startDate: LocalDate?

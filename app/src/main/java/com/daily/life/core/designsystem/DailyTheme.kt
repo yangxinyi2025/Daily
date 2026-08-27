@@ -6,8 +6,8 @@ import androidx.compose.runtime.Composable
 
 private val DailyColorScheme = lightColorScheme(
     primary = SkyPrimary,
-    onPrimary = SkyInk,
-    primaryContainer = SkySurfaceMuted,
+    onPrimary = SkySurface,
+    primaryContainer = SkyPurpleSurface,
     onPrimaryContainer = SkyInk,
     secondary = SkySecondary,
     onSecondary = SkyInk,
@@ -15,7 +15,7 @@ private val DailyColorScheme = lightColorScheme(
     onSecondaryContainer = SkyInk,
     tertiary = SkyAccent,
     onTertiary = SkyInk,
-    tertiaryContainer = SkySurfaceMuted,
+    tertiaryContainer = SkyPurpleSurface,
     onTertiaryContainer = SkyInk,
     background = SkyBackground,
     onBackground = SkyInk,

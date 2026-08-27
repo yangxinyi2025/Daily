@@ -25,7 +25,7 @@ class HomeViewModelTest {
             coroutineScope = backgroundScope
         )
 
-        val state = viewModel.state.first { it.cards.size == 5 }
+        val state = viewModel.state.first { it.cards.size == 4 }
 
         assertEquals("你好", state.greeting)
         assertEquals("8月20日 星期四", state.dateLabel)
@@ -35,9 +35,9 @@ class HomeViewModelTest {
         assertEquals(null, state.nextCourseLabel)
         assertEquals(null, state.nextEventLabel)
         assertEquals(null, state.latestWeightJin)
-        assertEquals(null, state.latestActivityLabel)
         assertEquals(null, state.monthlyBudgetCents)
-        assertEquals(5, state.cards.size)
+        assertEquals(4, state.cards.size)
+        assertTrue(state.cards.none { it.title == "今日活动" })
         assertTrue(state.cards.any { it.actionLabel == "导入第一份课表" && it.destination == DailyDestination.Timetable })
         assertTrue(state.cards.any { it.actionLabel == "记录今天体重" && it.destination == DailyDestination.Health })
     }
@@ -67,7 +67,6 @@ class HomeViewModelTest {
                 MutableStateFlow(
                     HealthHomeSummary(
                         latestWeightJin = 120.5,
-                        latestActivityLabel = "今日步行 6,000 步",
                         isEmpty = false
                     )
                 )
@@ -95,7 +94,6 @@ class HomeViewModelTest {
         assertEquals(1, state.upcomingEventCount)
         assertEquals("晚上体测 19:00", state.nextEventLabel)
         assertEquals(120.5, state.latestWeightJin ?: Double.NaN, 0.0)
-        assertEquals("今日步行 6,000 步", state.latestActivityLabel)
         assertEquals(23_450L, state.monthlySpendingCents)
         assertEquals(100_000L, state.monthlyBudgetCents)
         assertTrue(cards.any { it.title == "今日课表" && it.value.contains("2 节课") })

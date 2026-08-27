@@ -7,8 +7,6 @@ class StartupSafetyTest {
     @Test
     fun optionalIntegrationsAreNotCreatedByDefault() {
         val factories = AdapterFactories()
-        assertNull(factories.healthConnectAdapterFactory.create())
-        assertNull(factories.webDavClientFactory.create())
-        assertNull(factories.deepSeekAdviceClientFactory.create())
+        assertNull(factories.reminderSchedulerFactory.create())
     }
 }

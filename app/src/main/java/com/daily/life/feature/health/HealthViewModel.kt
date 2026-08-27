@@ -2,6 +2,7 @@ package com.daily.life.feature.health
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.daily.life.core.datastore.DailyPreferences
 import java.time.Clock
 import java.time.LocalDate
 import java.time.YearMonth
@@ -16,26 +17,24 @@ import kotlinx.coroutines.launch
 
 enum class HealthTab(val label: String) {
     WEIGHT("体重"),
-    ACTIVITY("活动"),
-    REPORT("月报")
+    PERIOD("经期")
 }
 
 data class HealthState(
     val selectedMonth: YearMonth,
     val selectedTab: HealthTab = HealthTab.WEIGHT,
     val weights: List<WeightRecord> = emptyList(),
-    val activities: List<ActivityRecord> = emptyList(),
-    val report: LocalReport? = null,
+    val periodRecords: List<PeriodRecord> = emptyList(),
+    val nextPeriodStart: LocalDate? = null,
+    val menstrualCycleDays: Int = DailyPreferences.DEFAULT_MENSTRUAL_CYCLE_DAYS,
     val targetWeightJin: Double? = null,
-    val isLoading: Boolean = false,
     val errorMessage: String? = null,
-    val sourceMessage: String? = null,
-    val sourceAvailability: List<DataSourceAvailability> = emptyList(),
     val statusMessage: String? = null
 )
 
 class HealthViewModel(
     private val repository: HealthRepository,
+    private val periodRepository: PeriodRepository,
     private val preferences: com.daily.life.core.datastore.DailyPreferences,
     private val clock: Clock = Clock.systemDefaultZone(),
     coroutineScope: CoroutineScope? = null
@@ -57,26 +56,18 @@ class HealthViewModel(
             }
         }
         scope.launch {
-            selectedMonth.collectLatest { month ->
-                _state.update { it.copy(selectedMonth = month, isLoading = true, errorMessage = null) }
-                try {
-                    val activities = repository.observeActivityRecords(month).first()
-                    val report = repository.generateMonthlyReport(month)
-                    _state.update {
-                        it.copy(
-                            activities = activities,
-                            report = report,
-                            isLoading = false
-                        )
-                    }
-                } catch (error: Exception) {
-                        _state.update {
-                            it.copy(
-                                isLoading = false,
-                                errorMessage = error.message ?: "月报生成失败"
-                            )
-                        }
-                }
+            periodRepository.observeRecords().collect { records ->
+                _state.update { it.copy(periodRecords = records) }
+            }
+        }
+        scope.launch {
+            periodRepository.observeNextStartDate().collect { nextStartDate ->
+                _state.update { it.copy(nextPeriodStart = nextStartDate) }
+            }
+        }
+        scope.launch {
+            preferences.menstrualCycleDays.collect { cycleDays ->
+                _state.update { it.copy(menstrualCycleDays = cycleDays) }
             }
         }
     }
@@ -119,41 +110,37 @@ class HealthViewModel(
         }
     }
 
-    fun readActivity() {
+    fun recordPeriod(startDate: LocalDate, endDate: LocalDate) {
         scope.launch {
-            val month = selectedMonth.value
-            _state.update { it.copy(isLoading = true, errorMessage = null, sourceMessage = null) }
             try {
-                val result = repository.readActivity(month)
-                val activities = repository.observeActivityRecords(month).first()
-                val report = repository.generateMonthlyReport(month)
+                periodRepository.record(startDate, endDate)
                 _state.update {
                     it.copy(
-                        activities = activities,
-                        report = report,
-                        isLoading = false,
-                        sourceMessage = result.message,
-                        sourceAvailability = result.availabilities,
-                        statusMessage = "已读取 ${result.importedCount} 条活动记录"
+                        statusMessage = "经期已记录",
+                        errorMessage = null
                     )
                 }
             } catch (error: Exception) {
                 _state.update {
-                    it.copy(isLoading = false, errorMessage = error.message ?: "读取活动失败")
+                    it.copy(errorMessage = error.message ?: "经期记录失败")
                 }
             }
         }
     }
 
-    fun regenerateReport() {
+    fun updatePeriod(record: PeriodRecord) {
         scope.launch {
-            _state.update { it.copy(isLoading = true, errorMessage = null) }
-            try {
-                val report = repository.generateMonthlyReport(selectedMonth.value)
-                _state.update { it.copy(report = report, isLoading = false) }
-            } catch (error: Exception) {
-                _state.update { it.copy(isLoading = false, errorMessage = error.message) }
-            }
+            runCatching { periodRepository.update(record) }
+                .onSuccess { _state.update { it.copy(statusMessage = "经期记录已更新", errorMessage = null) } }
+                .onFailure { error -> _state.update { it.copy(errorMessage = error.message ?: "经期更新失败") } }
         }
     }
+
+    fun deletePeriod(id: Long) {
+        scope.launch {
+            periodRepository.delete(id)
+            _state.update { it.copy(statusMessage = "经期记录已删除", errorMessage = null) }
+        }
+    }
+
 }

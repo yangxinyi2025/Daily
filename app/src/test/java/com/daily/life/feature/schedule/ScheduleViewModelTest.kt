@@ -1,6 +1,6 @@
 package com.daily.life.feature.schedule
 
-import com.daily.life.core.database.ReminderMode
+import com.daily.life.core.notification.ReminderScheduleStatus
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -37,9 +37,54 @@ class ScheduleViewModelTest {
         assertEquals("带准考证", repository.created.single().notes)
     }
 
+    @Test
+    fun failedSystemCalendarSyncDoesNotOfferTheOldDailyAlarmPermission() = runTest {
+        val repository = RecordingScheduleRepository().apply {
+            reminderStatus = ReminderScheduleStatus.PERMISSION_RESTRICTED
+        }
+        val viewModel = ScheduleViewModel(
+            repository = repository,
+            clock = Clock.fixed(Instant.parse("2026-08-21T00:00:00Z"), ZoneOffset.UTC),
+            coroutineScope = backgroundScope
+        )
+
+        viewModel.startCreate()
+        viewModel.updateTitle("考试")
+        viewModel.saveEditor()
+        advanceUntilIdle()
+
+        assertEquals("日程已保存，但系统日历提醒未同步", viewModel.state.value.statusMessage)
+    }
+
+    @Test
+    fun savingAnOldAlarmDraftUsesMessageReminder() = runTest {
+        val repository = RecordingScheduleRepository().apply {
+            reminderStatus = ReminderScheduleStatus.SCHEDULED
+        }
+        val viewModel = ScheduleViewModel(
+            repository = repository,
+            clock = Clock.fixed(Instant.parse("2026-08-21T00:00:00Z"), ZoneOffset.UTC),
+            coroutineScope = backgroundScope
+        )
+
+        viewModel.startCreate()
+        viewModel.updateTitle("考试")
+        viewModel.saveEditor()
+        advanceUntilIdle()
+
+        assertEquals("日程已保存", viewModel.state.value.statusMessage)
+        assertEquals(com.daily.life.core.database.ReminderMode.NOTIFICATION, repository.created.single().reminderMode)
+        assertEquals(null, viewModel.state.value.calendarEventIdToEdit)
+    }
+
     private class RecordingScheduleRepository : ScheduleRepository {
         val created = mutableListOf<ScheduleEvent>()
+        var reminderStatus: ReminderScheduleStatus? = null
+        var calendarEventId: Long? = 42L
         private val events = MutableStateFlow<List<ScheduleEvent>>(emptyList())
+
+        override val lastReminderStatus: ReminderScheduleStatus?
+            get() = reminderStatus
 
         override suspend fun create(event: ScheduleEvent): Long {
             created += event
@@ -56,5 +101,7 @@ class ScheduleViewModelTest {
             events
 
         override suspend fun findById(id: Long): ScheduleEvent? = events.value.firstOrNull { it.id == id }
+
+        override suspend fun systemCalendarEventId(eventId: Long): Long? = calendarEventId
     }
 }

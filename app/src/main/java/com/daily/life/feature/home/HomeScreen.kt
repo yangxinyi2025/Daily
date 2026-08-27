@@ -1,46 +1,45 @@
 package com.daily.life.feature.home
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.EventNote
-import androidx.compose.material.icons.outlined.NotificationsNone
-import androidx.compose.material.icons.outlined.RadioButtonUnchecked
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import java.math.BigInteger
-import com.daily.life.core.designsystem.QuietSkyListRow
-import com.daily.life.core.designsystem.QuietSkyPageHeader
-import com.daily.life.core.designsystem.QuietSkySectionCard
-import com.daily.life.core.designsystem.SkyAccent
-import com.daily.life.core.designsystem.SkyOutline
-import com.daily.life.core.designsystem.SkyPrimary
-import com.daily.life.core.designsystem.SkySurface
+import androidx.compose.ui.unit.sp
+import com.daily.life.R
 import com.daily.life.core.navigation.DailyDestination
+
+private val HomeInk = Color(0xFF0E172B)
+private val HomeMuted = Color(0xFF78859E)
+private val HomePurple = Color(0xFF6E66F7)
+private val HomeCoursePill = Color(0xFFF0EBFF)
+private val HomeTodoPill = Color(0xFFFFEDE3)
 
 @Composable
 fun HomeScreen(
@@ -52,37 +51,60 @@ fun HomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(start = 18.dp, top = 16.dp, end = 18.dp, bottom = 96.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(start = 18.dp, top = 30.dp, end = 18.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        QuietSkyPageHeader(
-            title = "首页",
-            subtitle = "今天的重点，一眼看清。",
-            actions = {
-                Icon(
-                    imageVector = Icons.Outlined.NotificationsNone,
-                    contentDescription = "通知",
-                    modifier = Modifier.padding(12.dp)
-                )
-                IconButton(onClick = onOpenSettings) {
-                    Icon(
-                        imageVector = Icons.Outlined.Settings,
-                        contentDescription = "打开设置"
-                    )
-                }
-            }
-        )
-
+        HomeHeader(onOpenSettings = onOpenSettings)
         HomeOverviewCard(state = state)
-
-        CourseSection(
-            courses = state.todayCourses,
-            onOpenTimetable = { onDestinationSelected(DailyDestination.Timetable) }
+        HomeContentCard(
+            title = "今日课表",
+            content = courseCardContent(state),
+            iconResource = R.drawable.home_course_icon,
+            illustrationResource = R.drawable.home_course_illustration,
+            iconBackground = HomeCoursePill,
+            onClick = { onDestinationSelected(DailyDestination.Timetable) }
         )
+        HomeContentCard(
+            title = "今日待办",
+            content = scheduleCardContent(state),
+            iconResource = R.drawable.home_todo_icon,
+            illustrationResource = R.drawable.home_todo_illustration,
+            iconBackground = HomeTodoPill,
+            onClick = { onDestinationSelected(DailyDestination.Schedule) }
+        )
+    }
+}
 
-        ScheduleSection(
-            schedules = state.todaySchedules,
-            onOpenSchedule = { onDestinationSelected(DailyDestination.Schedule) }
+@Composable
+private fun HomeHeader(onOpenSettings: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        Column {
+            Text(
+                text = "首页",
+                color = HomeInk,
+                fontSize = 34.sp,
+                lineHeight = 41.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "今天的重点，一眼看清。",
+                modifier = Modifier.padding(top = 2.dp),
+                color = HomeMuted,
+                fontSize = 14.sp,
+                lineHeight = 20.sp
+            )
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        Image(
+            painter = painterResource(R.drawable.home_settings),
+            contentDescription = "打开设置",
+            modifier = Modifier
+                .padding(top = 6.dp)
+                .size(34.dp)
+                .clickable(onClick = onOpenSettings)
         )
     }
 }
@@ -90,161 +112,179 @@ fun HomeScreen(
 @Composable
 private fun HomeOverviewCard(state: HomeState) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(26.dp),
-        colors = CardDefaults.cardColors(containerColor = SkySurface),
-        border = BorderStroke(1.dp, SkyOutline),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(224.dp),
+        shape = RoundedCornerShape(30.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 7.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+        Box(modifier = Modifier.fillMaxSize()) {
+            Image(
+                painter = painterResource(R.drawable.home_summary_scene),
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(150.dp),
+                contentScale = ContentScale.FillBounds
+            )
+            Text(
+                text = state.dateLabel,
+                modifier = Modifier.offset(x = 24.dp, y = 24.dp),
+                color = HomeMuted,
+                fontSize = 15.sp,
+                lineHeight = 18.sp
+            )
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 16.dp, end = 11.dp),
+                color = Color.White.copy(alpha = 0.76f),
+                shape = RoundedCornerShape(15.dp)
             ) {
                 Text(
-                    text = state.dateLabel,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "今天",
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    color = Color(0xFF6F67F2),
+                    fontSize = 14.sp,
+                    lineHeight = 17.sp,
+                    fontWeight = FontWeight.Medium
                 )
-                Spacer(modifier = Modifier.weight(1f))
-                Surface(
-                    color = SkyAccent.copy(alpha = 0.14f),
-                    shape = RoundedCornerShape(50.dp)
-                ) {
-                    Text(
-                        text = "今天",
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
             }
-
             Text(
                 text = "${state.greeting}，今天还有 ${state.upcomingEventCount} 件事",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                modifier = Modifier.offset(x = 24.dp, y = 64.dp),
+                color = HomeInk,
+                fontSize = 25.sp,
+                lineHeight = 31.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-
-            Row(modifier = Modifier.fillMaxWidth()) {
-                OverviewMetric(
-                    label = "课程",
-                    value = state.todayCourseCount.toString(),
-                    modifier = Modifier.weight(1f)
-                )
-                OverviewMetric(
-                    label = "日程",
-                    value = state.upcomingEventCount.toString(),
-                    modifier = Modifier.weight(1f)
-                )
-                OverviewMetric(
-                    label = "预算",
-                    value = state.budgetUsageLabel(),
-                    modifier = Modifier.weight(1f)
-                )
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(78.dp),
+                color = Color.White.copy(alpha = 0.96f),
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 22.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    OverviewMetric(label = "课程", value = state.todayCourseCount.toString())
+                    OverviewMetric(label = "日程", value = state.upcomingEventCount.toString())
+                    OverviewMetric(label = "预算", value = state.budgetUsageLabel())
+                }
             }
         }
     }
 }
 
 @Composable
-private fun OverviewMetric(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier
-) {
-    Column(modifier = modifier) {
+private fun OverviewMetric(label: String, value: String) {
+    Column(
+        modifier = Modifier.width(74.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Text(
             text = value,
-            modifier = Modifier.fillMaxWidth(),
-            style = MaterialTheme.typography.titleLarge,
-            color = SkyPrimary,
+            color = HomePurple,
+            fontSize = if (label == "预算" && value.length > 3) 21.sp else 23.sp,
+            lineHeight = 28.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center
         )
         Text(
             text = label,
-            modifier = Modifier.fillMaxWidth(),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
+            modifier = Modifier.padding(top = 2.dp),
+            color = HomeMuted,
+            fontSize = 12.sp,
+            lineHeight = 14.sp
         )
     }
 }
 
 @Composable
-private fun CourseSection(
-    courses: List<HomeCourseRow>,
-    onOpenTimetable: () -> Unit
+private fun HomeContentCard(
+    title: String,
+    content: HomeCardContent,
+    iconResource: Int,
+    illustrationResource: Int,
+    iconBackground: Color,
+    onClick: () -> Unit
 ) {
-    QuietSkySectionCard(
-        modifier = Modifier.clickable(onClick = onOpenTimetable)
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(156.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 7.dp)
     ) {
-        Text(text = "今日课表", style = MaterialTheme.typography.titleLarge)
-        if (courses.isEmpty()) {
-            QuietSkyListRow(
-                icon = Icons.Outlined.CalendarMonth,
-                title = "今天还没有课程",
-                iconContentDescription = "课表",
-                trailing = {
-                    TextButton(onClick = onOpenTimetable) {
-                        Text(text = "查看课表")
-                    }
-                }
-            )
-        } else {
-            courses.forEach { course ->
-                QuietSkyListRow(
-                    icon = Icons.Outlined.CalendarMonth,
-                    title = "第 ${course.startPeriod} 节 · ${course.courseName}",
-                    subtitle = course.detail.takeIf { it.isNotBlank() },
-                    iconContentDescription = "课程"
+        Box(modifier = Modifier.fillMaxSize()) {
+            Surface(
+                modifier = Modifier
+                    .offset(x = 20.dp, y = 28.dp)
+                    .size(42.dp),
+                shape = RoundedCornerShape(21.dp),
+                color = iconBackground
+            ) {
+                Image(
+                    painter = painterResource(iconResource),
+                    contentDescription = null,
+                    modifier = Modifier.padding(9.dp)
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun ScheduleSection(
-    schedules: List<HomeScheduleRow>,
-    onOpenSchedule: () -> Unit
-) {
-    QuietSkySectionCard(
-        modifier = Modifier.clickable(onClick = onOpenSchedule)
-    ) {
-        Text(text = "今日待办", style = MaterialTheme.typography.titleLarge)
-        if (schedules.isEmpty()) {
-            QuietSkyListRow(
-                icon = Icons.Outlined.EventNote,
-                iconTint = SkyAccent,
-                title = "今天还没有待办",
-                iconContentDescription = "日程",
-                trailing = {
-                    TextButton(onClick = onOpenSchedule) {
-                        Text(text = "查看日程")
-                    }
-                }
+            Text(
+                text = title,
+                modifier = Modifier.offset(x = 74.dp, y = 39.dp),
+                color = HomeInk,
+                fontSize = 18.sp,
+                lineHeight = 22.sp,
+                fontWeight = FontWeight.Bold
             )
-        } else {
-            schedules.forEach { schedule ->
-                QuietSkyListRow(
-                    icon = Icons.Outlined.EventNote,
-                    iconTint = SkyAccent,
-                    title = schedule.title,
-                    subtitle = schedule.timeLabel,
-                    iconContentDescription = "日程",
-                    trailing = {
-                        Icon(
-                            imageVector = Icons.Outlined.RadioButtonUnchecked,
-                            contentDescription = "未完成",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
+            Image(
+                painter = painterResource(illustrationResource),
+                contentDescription = null,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 18.dp, end = 11.dp)
+                    .width(132.dp)
+                    .height(122.dp),
+                contentScale = ContentScale.FillBounds
+            )
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 24.dp, end = 146.dp, bottom = 24.dp)
+            ) {
+                Text(
+                    text = content.primaryText,
+                    color = HomeMuted,
+                    fontSize = 14.sp,
+                    lineHeight = 18.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
+                content.secondaryText?.let { detail ->
+                    Text(
+                        text = detail,
+                        modifier = Modifier.padding(top = 2.dp),
+                        color = HomeMuted,
+                        fontSize = 12.sp,
+                        lineHeight = 15.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     }
@@ -252,8 +292,8 @@ private fun ScheduleSection(
 
 private fun HomeState.budgetUsageLabel(): String {
     val budget = monthlyBudgetCents?.takeIf { it > 0L } ?: return "未设置"
-    val percentage = BigInteger.valueOf(monthlySpendingCents)
-        .multiply(BigInteger.valueOf(100L))
-        .divide(BigInteger.valueOf(budget))
+    val percentage = java.math.BigInteger.valueOf(monthlySpendingCents)
+        .multiply(java.math.BigInteger.valueOf(100L))
+        .divide(java.math.BigInteger.valueOf(budget))
     return "$percentage%"
 }

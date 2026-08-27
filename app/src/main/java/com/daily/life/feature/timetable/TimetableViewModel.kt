@@ -2,11 +2,14 @@ package com.daily.life.feature.timetable
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.daily.life.core.calendar.SystemCalendarScheduleReader
+import com.daily.life.core.calendar.SystemCalendarSpecialDay
 import com.daily.life.core.database.CourseEntity
 import com.daily.life.core.database.SemesterEntity
 import java.io.InputStream
 import java.time.Clock
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.format.DateTimeParseException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -18,6 +21,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -28,26 +32,63 @@ class TimetableViewModel(
     private val parser: TimetableParser,
     private val clock: Clock = Clock.systemDefaultZone(),
     private val parserDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val calendarReader: SystemCalendarScheduleReader? = null,
     coroutineScope: CoroutineScope? = null
 ) : ViewModel() {
     private val scope = coroutineScope ?: viewModelScope
     private val selectedWeek = MutableStateFlow(1)
     private val importState = MutableStateFlow(TimetableImportState())
+    private val periodEditor = MutableStateFlow(TimetablePeriodEditorState())
+    private val calendarSpecialDays = MutableStateFlow<List<SystemCalendarSpecialDay>>(emptyList())
+    private val calendarReadWarning = MutableStateFlow<String?>(null)
     private var previewCourses: List<TimetablePreviewCourse> = emptyList()
 
-    val state: StateFlow<TimetableState> = combine(
-        repository.currentSemester,
-        selectedWeek,
-        importState
-    ) { semester, week, importing ->
-        Query(semester, week, importing)
-    }.flatMapLatest { query ->
+    private val query: Flow<Query> = combine(
+        combine(
+            repository.currentSemester,
+            selectedWeek,
+            importState,
+            periodEditor
+        ) { semester, week, importing, editor -> Query(semester, week, importing, editor) },
+        calendarSpecialDays,
+        calendarReadWarning
+    ) { query, specialDays, readWarning ->
+        query.copy(calendarSpecialDays = specialDays, calendarReadWarning = readWarning)
+    }
+
+    val state: StateFlow<TimetableState> = query.flatMapLatest { query ->
         val semester = query.semester
         if (semester == null) {
-            flowOf(createState(null, query.week, emptyList(), query.importState))
+            flowOf(
+                createState(
+                    semester = null,
+                    week = query.week,
+                    courses = emptyList(),
+                    periodTimes = defaultSemesterPeriodTimes(),
+                    importing = query.importState,
+                    editor = query.periodEditor,
+                    specialDays = query.calendarSpecialDays,
+                    confirmedAdjustments = emptyMap(),
+                    calendarReadWarning = query.calendarReadWarning
+                )
+            )
         } else {
-            repository.observeCourses(semester.id, query.week).map { courses ->
-                createState(semester, query.week, courses, query.importState)
+            combine(
+                repository.observeCourses(semester.id, query.week),
+                repository.observePeriodTimes(semester.id),
+                repository.observeCalendarAdjustments(semester.id)
+            ) { courses, periodTimes, adjustments ->
+                createState(
+                    semester = semester,
+                    week = query.week,
+                    courses = courses,
+                    periodTimes = periodTimes,
+                    importing = query.importState,
+                    editor = query.periodEditor,
+                    specialDays = query.calendarSpecialDays,
+                    confirmedAdjustments = adjustments.associate { it.actualDate to it.sourceDayOfWeek },
+                    calendarReadWarning = query.calendarReadWarning
+                )
             }
         }
     }.stateIn(
@@ -64,6 +105,7 @@ class TimetableViewModel(
                     semester.startDate,
                     LocalDate.now(clock)
                 )
+                refreshCalendarDays(semester.startDate, semester.endDate)
             }
         }
     }
@@ -89,6 +131,7 @@ class TimetableViewModel(
                 semesterStartDate = timetable.currentSemesterStartDate?.toString().orEmpty()
             )
         )
+        refreshImportCalendarDays()
     }
 
     fun selectPdf(fileName: String, input: InputStream) {
@@ -125,9 +168,16 @@ class TimetableViewModel(
                 previewRows = previewCourses.mapIndexed(::toRowState),
                 warnings = preview.warnings,
                 unsupportedRows = preview.unsupportedRows,
+                periodTimes = defaultSemesterPeriodTimes().map { time ->
+                    preview.parsedPeriodTimes[time.period]?.let { parsed ->
+                        TimetablePeriodTimeRowState(parsed.period, parsed.startTime.toString(), parsed.endTime.toString())
+                    } ?: TimetablePeriodTimeRowState(time.period, time.startTime.toString(), time.endTime.toString())
+                },
+                periodTimesDetectedFromPdf = preview.parsedPeriodTimes.isNotEmpty(),
                 errorMessage = null
             )
         )
+        refreshImportCalendarDays()
     }
 
     fun updateSemesterInput(name: String, startDate: String) {
@@ -137,10 +187,73 @@ class TimetableViewModel(
                 semesterStartDate = startDate
             )
         )
+        refreshImportCalendarDays()
+    }
+
+    fun refreshSystemCalendarDays() {
+        scope.launch {
+            val semester = repository.currentSemester.first() ?: return@launch
+            refreshCalendarDays(
+                startDate = semester.startDate,
+                endDate = semester.endDate,
+                updateImportState = importState.value.isOpen
+            )
+        }
+    }
+
+    fun updateMakeupSource(actualDate: LocalDate, sourceDayOfWeek: Int?) {
+        val choices = importState.value.calendarAdjustmentChoices.map { choice ->
+            if (choice.actualDate == actualDate) choice.copy(selectedSourceDayOfWeek = sourceDayOfWeek) else choice
+        }
+        updateImportState(importState.value.copy(calendarAdjustmentChoices = choices))
     }
 
     fun updateReplaceExisting(replaceExisting: Boolean) {
         updateImportState(importState.value.copy(replaceExisting = replaceExisting))
+    }
+
+    fun updateImportPeriodTime(row: TimetablePeriodTimeRowState) {
+        val rows = importState.value.periodTimes.toMutableList()
+        val index = rows.indexOfFirst { it.period == row.period }
+        if (index < 0) return
+        rows[index] = row
+        updateImportState(importState.value.copy(periodTimes = rows))
+    }
+
+    fun openPeriodEditor() {
+        periodEditor.value = TimetablePeriodEditorState(
+            isOpen = true,
+            rows = state.value.periodTimes.map { TimetablePeriodTimeRowState(it.period, it.startTime.toString(), it.endTime.toString()) }
+        )
+    }
+
+    fun closePeriodEditor() {
+        periodEditor.value = TimetablePeriodEditorState()
+    }
+
+    fun updatePeriodEditorRow(row: TimetablePeriodTimeRowState) {
+        periodEditor.value = periodEditor.value.copy(rows = periodEditor.value.rows.map { if (it.period == row.period) row else it })
+    }
+
+    fun restoreDefaultPeriodTimes() {
+        periodEditor.value = periodEditor.value.copy(rows = defaultSemesterPeriodTimes().map {
+            TimetablePeriodTimeRowState(it.period, it.startTime.toString(), it.endTime.toString())
+        })
+    }
+
+    fun savePeriodTimes() {
+        val rows = periodEditor.value.rows
+        val times = importPeriodTimes(rows)
+        if (times == null || validateSemesterPeriodTimes(times) != null) {
+            periodEditor.value = periodEditor.value.copy(errorMessage = "请检查节次时间")
+            return
+        }
+        scope.launch {
+            val semester = repository.currentSemester.first() ?: return@launch
+            runCatching { repository.updatePeriodTimes(semester.id, times) }
+                .onSuccess { closePeriodEditor() }
+                .onFailure { error -> periodEditor.value = periodEditor.value.copy(errorMessage = error.message ?: "保存失败") }
+        }
     }
 
     fun updateImportRow(row: TimetableImportRowState) {
@@ -187,7 +300,11 @@ class TimetableViewModel(
                         name = importing.semesterName.trim(),
                         startDate = startDate
                     ),
-                    replaceExisting = importing.replaceExisting
+                    replaceExisting = importing.replaceExisting,
+                    periodTimes = importing.periodTimes.map {
+                        SemesterPeriodTime(it.period, LocalTime.parse(it.start), LocalTime.parse(it.end))
+                    },
+                    calendarAdjustments = importing.calendarAdjustmentChoices.toAdjustmentInputs()
                 )
             }.onSuccess {
                 previewCourses = emptyList()
@@ -207,26 +324,86 @@ class TimetableViewModel(
         semester: SemesterEntity?,
         week: Int,
         courses: List<CourseEntity>,
-        importing: TimetableImportState
+        periodTimes: List<SemesterPeriodTime>,
+        importing: TimetableImportState,
+        editor: TimetablePeriodEditorState,
+        specialDays: List<SystemCalendarSpecialDay> = emptyList(),
+        confirmedAdjustments: Map<LocalDate, Int> = emptyMap(),
+        calendarReadWarning: String? = null
     ): TimetableState {
         val currentWeek = semester?.let {
             WeekCalculator.currentWeek(it.startDate, LocalDate.now(clock))
         } ?: 1
         val coursesByDay = courses.groupBy(CourseEntity::dayOfWeek)
+        val visibleDays = semester?.let { timetableDaysForWeek(it.startDate, week) }
+            ?.mapIndexed { index, day ->
+                val slot = mapWeekToScheduleSlots(
+                    semesterStartDate = semester.startDate,
+                    selectedWeek = week,
+                    specialDays = specialDays,
+                    confirmedAdjustments = confirmedAdjustments
+                )[index]
+                day.copy(
+                    courses = slot.courseDayOfWeek?.let(coursesByDay::get).orEmpty().map(::toCourseUiState)
+                )
+            }
+            .orEmpty()
+        val needsMakeupConfirmation = semester?.let {
+            mapWeekToScheduleSlots(it.startDate, week, specialDays, confirmedAdjustments)
+                .any(TimetableScheduleSlot::needsMakeupConfirmation)
+        } == true
         return TimetableState(
             currentSemesterName = semester?.name,
             currentSemesterStartDate = semester?.startDate,
             selectedWeek = week,
             currentWeek = currentWeek,
             weekLabel = "第 $week 周",
-            days = defaultTimetableDays().map { day ->
-                day.copy(
-                    courses = coursesByDay[day.dayOfWeek].orEmpty().map(::toCourseUiState)
-                )
-            },
+            timeLabels = periodLabels(periodTimes),
+            periodTimes = periodTimes,
+            days = visibleDays.ifEmpty { defaultTimetableDays() },
             importState = importing,
-            isEmpty = courses.isEmpty()
+            periodEditor = editor,
+            calendarSpecialDays = specialDays,
+            calendarAdjustmentWarning = when {
+                needsMakeupConfirmation -> "检测到调休日期，请重新导入课表确认补课来源。"
+                else -> calendarReadWarning
+            },
+            isEmpty = visibleDays.none { it.courses.isNotEmpty() }
         )
+    }
+
+    private fun refreshImportCalendarDays() {
+        val startDate = parseDate(importState.value.semesterStartDate) ?: return
+        scope.launch {
+            refreshCalendarDays(
+                startDate = startDate,
+                endDate = startDate.plusWeeks(DEFAULT_IMPORT_SEMESTER_WEEKS.toLong()).minusDays(1),
+                updateImportState = true
+            )
+        }
+    }
+
+    private fun refreshCalendarDays(startDate: LocalDate, endDate: LocalDate?, updateImportState: Boolean = false) {
+        val reader = calendarReader ?: return
+        scope.launch {
+            val rangeEnd = endDate ?: startDate.plusWeeks(DEFAULT_IMPORT_SEMESTER_WEEKS.toLong()).minusDays(1)
+            val days = reader.readBetween(startDate, rangeEnd)
+            calendarSpecialDays.value = days
+            calendarReadWarning.value = if (reader.hasReadPermission()) null else {
+                "未获得系统日历读取权限，无法校准节假日和调休。"
+            }
+            if (updateImportState) {
+                val current = importState.value
+                val choices = buildTimetableAdjustmentChoices(days, current.calendarAdjustmentChoices)
+                updateImportState(
+                    current.copy(
+                        calendarSpecialDays = days,
+                        calendarAdjustmentChoices = choices,
+                        calendarReadWarning = calendarReadWarning.value
+                    )
+                )
+            }
+        }
     }
 
     private fun toCourseUiState(course: CourseEntity): TimetableCourseUiState =
@@ -285,9 +462,17 @@ class TimetableViewModel(
                         course.startPeriod != null &&
                         course.endPeriod != null &&
                         (course.weekRule.weeks.isNotEmpty() || course.weekRule.parity != null)
-                }
+                } &&
+                adjustmentChoicesAreComplete(value.calendarAdjustmentChoices) &&
+                importPeriodTimes(value.periodTimes) != null &&
+                validateSemesterPeriodTimes(importPeriodTimes(value.periodTimes).orEmpty()) == null
         )
     }
+
+    private fun importPeriodTimes(rows: List<TimetablePeriodTimeRowState>): List<SemesterPeriodTime>? =
+        runCatching {
+            rows.map { SemesterPeriodTime(it.period, LocalTime.parse(it.start), LocalTime.parse(it.end)) }
+        }.getOrNull()
 
     private fun parseDayOfWeek(raw: String): Int? = when (raw.trim().lowercase()) {
         "1", "一", "周一", "星期一", "monday", "mon" -> 1
@@ -319,6 +504,13 @@ class TimetableViewModel(
     private data class Query(
         val semester: SemesterEntity?,
         val week: Int,
-        val importState: TimetableImportState
+        val importState: TimetableImportState,
+        val periodEditor: TimetablePeriodEditorState,
+        val calendarSpecialDays: List<SystemCalendarSpecialDay> = emptyList(),
+        val calendarReadWarning: String? = null
     )
+
+    private companion object {
+        const val DEFAULT_IMPORT_SEMESTER_WEEKS = 20
+    }
 }
