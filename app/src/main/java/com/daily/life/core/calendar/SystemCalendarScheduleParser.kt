@@ -39,7 +39,11 @@ internal fun systemCalendarSpecialDayKindFor(
     val text = normalizedCalendarText(title, description)
     if (text.isBlank() || text.contains("课程：") || text.contains("课程:")) return null
     return when {
-        text.contains("调休") || text.contains("补班") || text.contains("上班") || text == "班" ->
+        text.contains("调休") ||
+            text.contains("补班") ||
+            text.contains("上班") ||
+            text == "班" ||
+            MAKEUP_SOURCE_DAY_PATTERN.containsMatchIn(text) ->
             SystemCalendarSpecialDayKind.MakeupWorkday
         text.contains("节假日") || text.contains("放假") || text.contains("休息") ||
             text.contains("休假") || text == "休" || text.endsWith("休") || text.contains(" 休") ||
@@ -60,8 +64,7 @@ internal fun mergeSystemCalendarSpecialDays(
     .sortedBy(SystemCalendarSpecialDay::date)
 
 private fun parseSourceDayOfWeek(text: String): Int? {
-    val match = Regex("补\\s*(?:上班|课)?\\s*(?:周|星期)\\s*([一二三四五六日天1-7])")
-        .find(text)
+    val match = MAKEUP_SOURCE_DAY_PATTERN.find(text)
         ?: return null
     return when (match.groupValues[1]) {
         "一", "1" -> 1
@@ -104,3 +107,5 @@ private val CHINESE_PUBLIC_HOLIDAY_NAMES = listOf(
     "中秋节",
     "国庆节"
 )
+
+private val MAKEUP_SOURCE_DAY_PATTERN = Regex("补\\s*(?:上班|课)?\\s*(?:周|星期)\\s*([一二三四五六日天1-7])")

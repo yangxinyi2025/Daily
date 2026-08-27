@@ -85,7 +85,7 @@ class TimetableCalendarMappingTest {
 
     @Test
     fun reminderOccurrencesReturnActualMakeupDateAndSkipHolidayDate() {
-        val holidayDate = LocalDate.of(2026, 9, 17)
+        val holidayDate = LocalDate.of(2026, 9, 18)
         val makeupDate = LocalDate.of(2026, 9, 19)
         val dates = courseOccurrenceDates(
             semesterStartDate = semesterStart,
@@ -101,11 +101,35 @@ class TimetableCalendarMappingTest {
         assertEquals(listOf(makeupDate), dates)
     }
 
+    @Test
+    fun confirmedMakeupAddsTheActualDateForTheSourceWeekday() {
+        val actual = LocalDate.of(2026, 9, 5)
+
+        assertEquals(
+            listOf(LocalDate.of(2026, 9, 4), actual),
+            courseOccurrenceDates(
+                LocalDate.of(2026, 8, 31),
+                1,
+                5,
+                listOf(makeupDay(actual)),
+                mapOf(actual to 5)
+            )
+        )
+    }
+
     private fun specialDay(date: LocalDate, kind: SystemCalendarSpecialDayKind) = SystemCalendarSpecialDay(
         date = date,
         kind = kind,
         sourceDayOfWeek = null,
         sourceDate = null,
         label = kind.name
+    )
+
+    private fun makeupDay(actualDate: LocalDate) = SystemCalendarSpecialDay(
+        date = actualDate,
+        kind = SystemCalendarSpecialDayKind.MakeupWorkday,
+        sourceDayOfWeek = null,
+        sourceDate = null,
+        label = "调休上班"
     )
 }

@@ -5,11 +5,20 @@ import java.time.LocalDate
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
+import org.junit.Before
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 class SemesterCalendarAdjustmentDaoTest {
-    private val database = DailyDatabase.buildInMemory(ApplicationProvider.getApplicationContext())
+    private lateinit var database: DailyDatabase
+
+    @Before
+    fun setUp() {
+        database = DailyDatabase.buildInMemory(ApplicationProvider.getApplicationContext())
+    }
 
     @After
     fun tearDown() {
@@ -18,6 +27,7 @@ class SemesterCalendarAdjustmentDaoTest {
 
     @Test
     fun storesAndReplacesAdjustmentBySemesterAndActualDate() = runTest {
+        insertSemester(7L)
         val dao = database.semesterCalendarAdjustmentDao()
         val first = SemesterCalendarAdjustmentEntity(
             semesterId = 7L,
@@ -39,6 +49,8 @@ class SemesterCalendarAdjustmentDaoTest {
 
     @Test
     fun deletingSemesterAdjustmentsDoesNotDeleteAnotherSemester() = runTest {
+        insertSemester(7L)
+        insertSemester(8L)
         val dao = database.semesterCalendarAdjustmentDao()
         dao.upsertAll(
             listOf(
@@ -61,4 +73,15 @@ class SemesterCalendarAdjustmentDaoTest {
         sourceLabel = "补周五",
         updatedAt = 1L
     )
+
+    private suspend fun insertSemester(id: Long) {
+        database.semesterDao().insert(
+            SemesterEntity(
+                id = id,
+                name = "2026 秋季 $id",
+                startDate = LocalDate.of(2026, 9, 1),
+                createdAt = id
+            )
+        )
+    }
 }

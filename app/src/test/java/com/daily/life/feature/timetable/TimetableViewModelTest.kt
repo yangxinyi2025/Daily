@@ -1,5 +1,7 @@
 package com.daily.life.feature.timetable
 
+import com.daily.life.core.calendar.SystemCalendarScheduleEvent
+import com.daily.life.core.calendar.SystemCalendarScheduleReader
 import com.daily.life.core.database.CourseEntity
 import com.daily.life.core.database.SemesterEntity
 import java.time.Clock
@@ -11,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.TestScope
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -157,10 +160,70 @@ class TimetableViewModelTest {
         assertFalse(viewModel.state.value.importState.isOpen)
     }
 
+    @Test
+    fun unknownMakeupIsVisibleButDoesNotBlockImport() = runTest {
+        val state = importStateWithMakeup(
+            actualDate = LocalDate.of(2026, 10, 10),
+            sourceDayOfWeek = null
+        )
+
+        assertTrue(state.calendarAdjustmentChoices.single().isRequired)
+        assertTrue(state.canConfirm)
+    }
+
     private fun fixedClock(): Clock = Clock.fixed(
         Instant.parse("2026-09-08T00:00:00Z"),
         ZoneOffset.UTC
     )
+
+    private suspend fun TestScope.importStateWithMakeup(
+        actualDate: LocalDate,
+        sourceDayOfWeek: Int?
+    ): TimetableImportState {
+        val repository = FakeTimetableRepository()
+        val reader = SystemCalendarScheduleReader(
+            zone = ZoneOffset.UTC,
+            canReadCalendar = { true },
+            queryEvents = { _, _ ->
+                listOf(
+                    SystemCalendarScheduleEvent(
+                        startAt = actualDate.atStartOfDay().toInstant(ZoneOffset.UTC),
+                        endAt = actualDate.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC),
+                        title = if (sourceDayOfWeek == null) "调休上班" else "补周${listOf("一", "二", "三", "四", "五", "六", "日")[sourceDayOfWeek - 1]}",
+                        description = null
+                    )
+                )
+            }
+        )
+        val viewModel = TimetableViewModel(
+            repository = repository,
+            parser = PdfTimetableParser(),
+            clock = fixedClock(),
+            calendarReader = reader,
+            coroutineScope = backgroundScope
+        )
+        val preview = TimetableParseResult(
+            courses = listOf(
+                TimetablePreviewCourse(
+                    courseName = "高等数学",
+                    dayOfWeek = 1,
+                    startPeriod = 1,
+                    endPeriod = 2,
+                    weekRule = WeekRuleResult("1-4周", setOf(1, 2, 3, 4)),
+                    rawRow = "高等数学 | 周一 | 1-2 | 1-4周",
+                    needsReview = false
+                )
+            ),
+            warnings = emptyList(),
+            unsupportedRows = emptyList()
+        )
+
+        viewModel.showImportPreview("synthetic.pdf", preview)
+        viewModel.updateSemesterInput("2026 秋季", "2026-09-01")
+        runCurrent()
+
+        return viewModel.state.value.importState
+    }
 
     private class FakeTimetableRepository(
         semester: SemesterEntity? = null,

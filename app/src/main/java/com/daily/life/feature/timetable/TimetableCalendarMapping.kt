@@ -33,7 +33,7 @@ internal fun mapWeekToScheduleSlots(
                 needsMakeupConfirmation = false
             )
             SystemCalendarSpecialDayKind.MakeupWorkday -> {
-                val sourceDay = confirmedAdjustments[actualDate]?.takeIf { it in 1..7 }
+                val sourceDay = resolvedSourceDayOfWeek(specialDay, confirmedAdjustments)
                 TimetableScheduleSlot(
                     actualDate = actualDate,
                     week = selectedWeek,
@@ -45,7 +45,7 @@ internal fun mapWeekToScheduleSlots(
             null -> TimetableScheduleSlot(
                 actualDate = actualDate,
                 week = selectedWeek,
-                courseDayOfWeek = actualDate.dayOfWeek.value,
+                courseDayOfWeek = offset.toInt() + 1,
                 isHoliday = false,
                 needsMakeupConfirmation = false
             )
@@ -70,14 +70,22 @@ internal fun courseOccurrenceDates(
     when (nominalSpecialDay?.kind) {
         SystemCalendarSpecialDayKind.Holiday -> Unit
         SystemCalendarSpecialDayKind.MakeupWorkday -> {
-            if (confirmedAdjustments[nominalDate] == courseDayOfWeek) dates += nominalDate
+            if (resolvedSourceDayOfWeek(nominalSpecialDay, confirmedAdjustments) == courseDayOfWeek) {
+                dates += nominalDate
+            }
         }
         null -> dates += nominalDate
     }
     specialDaysByDate.values
         .filter { it.date >= weekStart && it.date < weekEnd }
         .filter { it.kind == SystemCalendarSpecialDayKind.MakeupWorkday }
-        .filter { confirmedAdjustments[it.date] == courseDayOfWeek }
+        .filter { resolvedSourceDayOfWeek(it, confirmedAdjustments) == courseDayOfWeek }
         .forEach { dates += it.date }
     return dates.sorted()
 }
+
+private fun resolvedSourceDayOfWeek(
+    specialDay: SystemCalendarSpecialDay,
+    confirmedAdjustments: Map<LocalDate, Int>
+): Int? = confirmedAdjustments[specialDay.date]?.takeIf { it in 1..7 }
+    ?: specialDay.sourceDayOfWeek?.takeIf { it in 1..7 }

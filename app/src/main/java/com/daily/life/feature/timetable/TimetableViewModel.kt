@@ -103,7 +103,7 @@ class TimetableViewModel(
                 semester ?: return@collect
                 selectedWeek.value = WeekCalculator.currentWeek(
                     semester.startDate,
-                    LocalDate.now(clock)
+                    currentDate()
                 )
                 refreshCalendarDays(semester.startDate, semester.endDate)
             }
@@ -332,7 +332,7 @@ class TimetableViewModel(
         calendarReadWarning: String? = null
     ): TimetableState {
         val currentWeek = semester?.let {
-            WeekCalculator.currentWeek(it.startDate, LocalDate.now(clock))
+            WeekCalculator.currentWeek(it.startDate, currentDate())
         } ?: 1
         val coursesByDay = courses.groupBy(CourseEntity::dayOfWeek)
         val visibleDays = semester?.let { timetableDaysForWeek(it.startDate, week) }
@@ -463,11 +463,12 @@ class TimetableViewModel(
                         course.endPeriod != null &&
                         (course.weekRule.weeks.isNotEmpty() || course.weekRule.parity != null)
                 } &&
-                adjustmentChoicesAreComplete(value.calendarAdjustmentChoices) &&
                 importPeriodTimes(value.periodTimes) != null &&
                 validateSemesterPeriodTimes(importPeriodTimes(value.periodTimes).orEmpty()) == null
         )
     }
+
+    private fun currentDate(): LocalDate = clock.instant().atZone(clock.zone).toLocalDate()
 
     private fun importPeriodTimes(rows: List<TimetablePeriodTimeRowState>): List<SemesterPeriodTime>? =
         runCatching {
