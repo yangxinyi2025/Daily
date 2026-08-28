@@ -4,7 +4,6 @@ import com.daily.life.core.calendar.SystemCalendarSpecialDay
 import com.daily.life.core.calendar.SystemCalendarSpecialDayKind
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -31,7 +30,7 @@ class TimetableImportAdjustmentTest {
     }
 
     @Test
-    fun unknownMakeupSourceRequiresUserSelection() {
+    fun unknownSaturdayMakeupSourceDefaultsToFridayAndIsReadyToImport() {
         val date = LocalDate.of(2026, 10, 10)
 
         val choices = buildTimetableAdjustmentChoices(
@@ -46,8 +45,8 @@ class TimetableImportAdjustmentTest {
             existing = emptyList()
         )
 
-        assertEquals(null, choices.single().selectedSourceDayOfWeek)
-        assertFalse(adjustmentChoicesAreComplete(choices))
+        assertEquals(5, choices.single().selectedSourceDayOfWeek)
+        assertTrue(adjustmentChoicesAreComplete(choices))
     }
 
     @Test

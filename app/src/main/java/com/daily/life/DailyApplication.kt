@@ -28,6 +28,7 @@ class DailyApplication : Application() {
         }
         applicationScope.launch {
             container.holidayCalendarRepository.initialize()
+            container.holidayCalendarRepository.syncIfStale()
         }
         HolidayCalendarSyncWorker.enqueue(this)
     }

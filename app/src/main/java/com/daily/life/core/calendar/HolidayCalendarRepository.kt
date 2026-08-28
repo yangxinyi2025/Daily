@@ -138,7 +138,8 @@ class HolidayCalendarRepository(
     suspend fun observeSourcesSnapshot(): List<HolidayCalendarSourceEntity> = dao.observeSources().first()
 
     suspend fun initialize() {
-        if (dao.observeSources().first().none { it.id == BUILTIN_SOURCE_ID }) {
+        val existing = dao.observeSources().first().firstOrNull { it.id == BUILTIN_SOURCE_ID }
+        if (existing == null) {
             dao.insertSourceIfMissing(
                 HolidayCalendarSourceEntity(
                     id = BUILTIN_SOURCE_ID,
@@ -146,6 +147,18 @@ class HolidayCalendarRepository(
                     url = BUILTIN_ICS_URL,
                     builtIn = true,
                     enabled = true
+                )
+            )
+        } else if (existing.builtIn && existing.url == LEGACY_BUILTIN_ICS_URL) {
+            dao.replaceEventsForSource(BUILTIN_SOURCE_ID, emptyList())
+            dao.upsertSource(
+                existing.copy(
+                    name = "中国节假日（推荐）",
+                    url = BUILTIN_ICS_URL,
+                    lastSuccessfulSyncAt = null,
+                    etag = null,
+                    lastModified = null,
+                    lastError = null
                 )
             )
         }
@@ -341,7 +354,7 @@ class HolidayCalendarRepository(
 
     companion object {
         const val BUILTIN_SOURCE_ID = "builtin-china-public-holidays"
-        // Provider URL must be vetted before release; keeping it in one place makes replacement safe.
-        const val BUILTIN_ICS_URL = "https://www.officeholidays.com/ics/ics_china.php"
+        const val LEGACY_BUILTIN_ICS_URL = "https://www.officeholidays.com/ics/ics_china.php"
+        const val BUILTIN_ICS_URL = "https://yangh9.github.io/ChinaCalendar/cal_holiday.ics"
     }
 }

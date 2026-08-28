@@ -20,6 +20,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -227,6 +228,45 @@ class HolidayCalendarRepositoryTest {
         assertEquals("用户名称", stored.name)
         assertFalse(stored.enabled)
         assertNotNull(stored)
+    }
+
+    @Test
+    fun initializeUpgradesTheLegacyBuiltInFeedAndClearsItsOldCache() = runBlocking {
+        val dao = database.holidayCalendarDao()
+        dao.insertSourceIfMissing(
+            HolidayCalendarSourceEntity(
+                id = HolidayCalendarRepository.BUILTIN_SOURCE_ID,
+                name = "中国节假日（推荐）",
+                url = "https://www.officeholidays.com/ics/ics_china.php",
+                builtIn = true,
+                enabled = true,
+                lastSuccessfulSyncAt = 1L,
+                etag = "legacy-etag"
+            )
+        )
+        dao.insertEvents(
+            listOf(
+                event(
+                    HolidayCalendarRepository.BUILTIN_SOURCE_ID,
+                    LocalDate.of(2026, 10, 1),
+                    CalendarDayKind.HOLIDAY_REST,
+                    "旧来源"
+                )
+            )
+        )
+        val repository = HolidayCalendarRepository(
+            dao, preferences,
+            SystemCalendarScheduleReader(ZoneId.systemDefault(), { false }) { _, _ -> emptyList() },
+            object : IcsCalendarFetcher { override fun fetch(source: IcsCalendarSource, etag: String?, lastModified: String?) = IcsFetchResult.NotModified }
+        )
+
+        repository.initialize()
+
+        val stored = dao.observeSources().first().single()
+        assertEquals(HolidayCalendarRepository.BUILTIN_ICS_URL, stored.url)
+        assertNull(stored.lastSuccessfulSyncAt)
+        assertNull(stored.etag)
+        assertEquals(0, dao.findEventsForSource(HolidayCalendarRepository.BUILTIN_SOURCE_ID).size)
     }
 
     private fun event(sourceId: String, date: LocalDate, kind: CalendarDayKind, summary: String, sourceDayOfWeek: Int? = null) =

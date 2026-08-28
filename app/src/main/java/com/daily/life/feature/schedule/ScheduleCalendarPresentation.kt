@@ -12,7 +12,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 enum class ScheduleCalendarBadge(val label: String) {
-    RestDay("周"),
     Holiday("休"),
     AdjustedWorkday("班")
 }
@@ -90,7 +89,7 @@ internal fun systemCalendarBadgesFor(
 
 internal fun badgeForCalendarRule(rule: CalendarDayRule): ScheduleCalendarBadge? = when (rule.kind) {
     CalendarDayKind.REGULAR_WORKDAY -> null
-    CalendarDayKind.REGULAR_REST_DAY -> ScheduleCalendarBadge.RestDay
+    CalendarDayKind.REGULAR_REST_DAY -> null
     CalendarDayKind.HOLIDAY_REST -> ScheduleCalendarBadge.Holiday
     CalendarDayKind.MAKEUP_WORKDAY -> ScheduleCalendarBadge.AdjustedWorkday
 }

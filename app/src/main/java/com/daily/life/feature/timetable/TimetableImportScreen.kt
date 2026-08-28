@@ -84,7 +84,7 @@ fun TimetableImportScreen(
             DailyCard {
                 Text(text = "节假日与调休校准", style = MaterialTheme.typography.titleLarge)
                 Text(
-                    text = "节假日按系统日历隐藏课程；调休请确认补课来源。",
+                    text = "节假日按系统日历隐藏课程；补班默认周六补周五、周日补周一，可按学校安排调整。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

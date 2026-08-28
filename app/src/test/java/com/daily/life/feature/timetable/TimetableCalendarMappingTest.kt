@@ -58,15 +58,15 @@ class TimetableCalendarMappingTest {
     }
 
     @Test
-    fun unconfirmedMakeupDoesNotCopyAnyCourse() {
+    fun unconfirmedWeekendMakeupUsesTheAdjacentWeekdayCourse() {
         val actualDate = LocalDate.of(2026, 9, 19)
         val makeup = specialDay(actualDate, SystemCalendarSpecialDayKind.MakeupWorkday)
 
         val slot = mapWeekToScheduleSlots(semesterStart, 1, listOf(makeup), emptyMap())
             .single { it.actualDate == actualDate }
 
-        assertEquals(null, slot.courseDayOfWeek)
-        assertTrue(slot.needsMakeupConfirmation)
+        assertEquals(5, slot.courseDayOfWeek)
+        assertFalse(slot.needsMakeupConfirmation)
     }
 
     @Test
@@ -139,15 +139,32 @@ class TimetableCalendarMappingTest {
     }
 
     @Test
-    fun unknownUnifiedMakeupDoesNotCopyCourseUntilConfirmed() {
+    fun weekendMakeupWithoutAnExplicitSourceUsesTheAdjacentWeekdayCourse() {
         val actualDate = LocalDate.of(2026, 9, 19)
         val rules = listOf(rule(actualDate, CalendarDayKind.MAKEUP_WORKDAY))
         val slot = mapWeekToScheduleSlotsWithRules(semesterStart, 1, rules, emptyMap())
             .single { it.actualDate == actualDate }
-        assertTrue(slot.needsMakeupConfirmation)
+        assertEquals(5, slot.courseDayOfWeek)
+        assertFalse(slot.needsMakeupConfirmation)
         assertEquals(
-            listOf(LocalDate.of(2026, 9, 18)),
+            listOf(LocalDate.of(2026, 9, 18), actualDate),
             courseOccurrenceDatesWithRules(semesterStart, 1, 5, rules, emptyMap())
+        )
+    }
+
+    @Test
+    fun sundayMakeupWithoutAnExplicitSourceUsesTheFollowingMondayCourse() {
+        val actualDate = LocalDate.of(2026, 9, 20)
+        val rules = listOf(rule(actualDate, CalendarDayKind.MAKEUP_WORKDAY))
+
+        val slot = mapWeekToScheduleSlotsWithRules(semesterStart, 1, rules, emptyMap())
+            .single { it.actualDate == actualDate }
+
+        assertEquals(1, slot.courseDayOfWeek)
+        assertFalse(slot.needsMakeupConfirmation)
+        assertEquals(
+            listOf(semesterStart, actualDate),
+            courseOccurrenceDatesWithRules(semesterStart, 1, 1, rules, emptyMap())
         )
     }
 

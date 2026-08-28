@@ -17,7 +17,9 @@ internal fun buildTimetableAdjustmentChoices(
             TimetableAdjustmentChoiceState(
                 actualDate = day.date,
                 label = day.label,
-                selectedSourceDayOfWeek = old?.selectedSourceDayOfWeek ?: day.sourceDayOfWeek,
+                selectedSourceDayOfWeek = old?.selectedSourceDayOfWeek
+                    ?: day.sourceDayOfWeek?.takeIf { it in 1..7 }
+                    ?: defaultMakeupSourceDayOfWeek(day.date),
                 sourceDate = old?.sourceDate ?: day.sourceDate,
                 isRequired = true
             )

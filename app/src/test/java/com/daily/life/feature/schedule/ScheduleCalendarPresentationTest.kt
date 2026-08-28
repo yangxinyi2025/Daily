@@ -64,10 +64,9 @@ class ScheduleCalendarPresentationTest {
     }
 
     @Test
-    fun calendarDayRulesMapToDistinctExistingBadgesAndManualMarker() {
+    fun calendarDayRulesOnlyBadgeHolidaysAndMakeupWorkdays() {
         val updatedAt = Instant.parse("2026-08-28T08:00:00Z").toEpochMilli()
-        assertEquals(
-            ScheduleCalendarBadge.RestDay,
+        assertNull(
             badgeForCalendarRule(
                 CalendarDayRule(
                     date = LocalDate.of(2026, 8, 1),

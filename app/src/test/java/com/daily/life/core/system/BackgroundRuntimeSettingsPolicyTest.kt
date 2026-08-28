@@ -5,9 +5,9 @@ import org.junit.Test
 
 class BackgroundRuntimeSettingsPolicyTest {
     @Test
-    fun requestsBatteryOptimizationExemptionOnAndroidMarshmallowAndLater() {
+    fun alwaysOpensTheAppDetailsPageInsteadOfRequestingAnExemption() {
         assertEquals(
-            BackgroundRuntimeSettingsAction.REQUEST_EXEMPTION,
+            BackgroundRuntimeSettingsAction.APP_DETAILS,
             backgroundRuntimeSettingsAction(apiLevel = 23)
         )
     }

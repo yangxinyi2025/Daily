@@ -36,7 +36,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.daily.life.core.designsystem.DailyCard
 import com.daily.life.core.designsystem.DailyDatePickerField
-import com.daily.life.core.system.BackgroundRuntimeSettingsAction
 import com.daily.life.core.system.backgroundRuntimeSettingsAction
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -268,7 +267,7 @@ private fun BackgroundRuntimeSettingsCard() {
             text = if (isBackgroundRuntimeAllowed) {
                 "已允许忽略系统电池优化，闹钟可在息屏时正常运行。"
             } else {
-                "为保证闹钟在息屏时响起，请在系统设置中为 Daily 允许后台高耗电或取消电池优化。"
+                "将打开 Daily 的系统应用信息页；请进入“电池”，把“后台耗电管理”设为“允许”。"
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -277,7 +276,7 @@ private fun BackgroundRuntimeSettingsCard() {
             onClick = { context.openBackgroundRuntimeSettings() },
             modifier = Modifier.testTag("settings_background_runtime")
         ) {
-            Text(if (isBackgroundRuntimeAllowed) "查看系统设置" else "去设置")
+            Text(if (isBackgroundRuntimeAllowed) "打开应用信息" else "去设置")
         }
     }
 }
@@ -290,19 +289,10 @@ private fun Context.isIgnoringBatteryOptimizations(): Boolean {
 
 private fun Context.openBackgroundRuntimeSettings() {
     val packageUri = Uri.parse("package:$packageName")
-    val primaryIntent = when (backgroundRuntimeSettingsAction(Build.VERSION.SDK_INT)) {
-        BackgroundRuntimeSettingsAction.REQUEST_EXEMPTION -> Intent(
-            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-            packageUri
-        )
-        BackgroundRuntimeSettingsAction.APP_DETAILS -> Intent(
-            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-            packageUri
-        )
+    when (backgroundRuntimeSettingsAction(Build.VERSION.SDK_INT)) {
+        com.daily.life.core.system.BackgroundRuntimeSettingsAction.APP_DETAILS ->
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri))
     }
-    val fallbackIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri)
-    runCatching { startActivity(primaryIntent) }
-        .recoverCatching { startActivity(fallbackIntent) }
 }
 
 private fun parseBudgetInput(value: String): Long? =

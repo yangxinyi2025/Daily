@@ -221,8 +221,6 @@ private fun ScheduleMonthCard(
         if (rules.values.any { it.badge != null || it.manualMarker != null }) {
             Row(modifier = Modifier.fillMaxWidth().padding(top = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                 Spacer(Modifier.weight(1f))
-                ScheduleBadgeLegend(ScheduleCalendarBadge.RestDay, "周末")
-                Spacer(Modifier.width(20.dp))
                 ScheduleBadgeLegend(ScheduleCalendarBadge.Holiday, "节假日")
                 Spacer(Modifier.width(20.dp))
                 ScheduleBadgeLegend(ScheduleCalendarBadge.AdjustedWorkday, "调休")
@@ -288,8 +286,7 @@ private fun ScheduleBadge(badge: ScheduleCalendarBadge, modifier: Modifier = Mod
     Surface(
         modifier = modifier.size(12.dp),
         shape = CircleShape,
-        color = when (badge) {
-            ScheduleCalendarBadge.RestDay -> SkyCoolBorder
+            color = when (badge) {
             ScheduleCalendarBadge.Holiday -> SkyWarm.copy(alpha = 0.82f)
             ScheduleCalendarBadge.AdjustedWorkday -> Color(0xFF8FB6FA)
         }
