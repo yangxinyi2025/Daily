@@ -168,18 +168,20 @@ class HolidayCalendarRepository(
 
     suspend fun syncSource(sourceId: String): SyncSourceResult {
         initialize()
+        val result = syncSourceInternal(sourceId)
+        persistSyncSummary(listOf(result))
+        return result
+    }
+
+    private suspend fun syncSourceInternal(sourceId: String): SyncSourceResult {
         val source = dao.observeSources().first().firstOrNull { it.id == sourceId }
             ?: return SyncSourceResult.Failed(sourceId, "日历来源不存在", retryable = false)
-        val result = try {
-            withContext(Dispatchers.IO) {
-                icsClient.fetch(
-                    IcsCalendarSource(source.id, source.name, source.url, source.builtIn),
-                    source.etag,
-                    source.lastModified
-                )
-            }
-        } catch (error: Exception) {
-            IcsFetchResult.Failure(error.message ?: "同步失败", retryable = true)
+        val result = withContext(Dispatchers.IO) {
+            icsClient.fetch(
+                IcsCalendarSource(source.id, source.name, source.url, source.builtIn),
+                source.etag,
+                source.lastModified
+            )
         }
         val syncAt = now()
         return when (result) {
@@ -200,22 +202,14 @@ class HolidayCalendarRepository(
                 }
                 dao.replaceEventsForSource(source.id, rows)
                 dao.upsertSource(source.copy(lastSuccessfulSyncAt = syncAt.toEpochMilli(), etag = result.etag, lastModified = result.lastModified, lastError = null))
-                preferences.setHolidaySyncStatus("同步成功")
-                preferences.setHolidayLastSyncAt(syncAt)
-                preferences.setHolidaySyncError(null)
                 SyncSourceResult.Success(source.id, rows.size)
             }
             IcsFetchResult.NotModified -> {
                 dao.upsertSource(source.copy(lastSuccessfulSyncAt = syncAt.toEpochMilli(), lastError = null))
-                preferences.setHolidaySyncStatus("已是最新")
-                preferences.setHolidayLastSyncAt(syncAt)
-                preferences.setHolidaySyncError(null)
                 SyncSourceResult.Success(source.id, dao.findEventsForSource(source.id).size)
             }
             is IcsFetchResult.Failure -> {
                 dao.upsertSource(source.copy(lastError = result.message))
-                preferences.setHolidaySyncStatus("同步失败，继续使用缓存")
-                preferences.setHolidaySyncError(result.message)
                 if (dao.findEventsForSource(source.id).isNotEmpty()) {
                     SyncSourceResult.UsedCache(source.id, result.message)
                 } else {
@@ -227,20 +221,7 @@ class HolidayCalendarRepository(
 
     suspend fun syncAllEnabledSources(): SyncSummary {
         initialize()
-        val results = dao.observeSources().first().filter { it.enabled }.map { syncSource(it.id) }
-        return SyncSummary(
-            succeeded = results.count { it is SyncSourceResult.Success },
-            failed = results.count { it is SyncSourceResult.Failed },
-            usedCache = results.count { it is SyncSourceResult.UsedCache },
-            message = results.joinToString("；") { result ->
-                when (result) {
-                    is SyncSourceResult.Success -> "${result.sourceId}: ${result.eventCount} 条"
-                    is SyncSourceResult.UsedCache -> "${result.sourceId}: 使用缓存（${result.message}）"
-                    is SyncSourceResult.Failed -> "${result.sourceId}: ${result.message}"
-                }
-            },
-            retryableFailure = results.any { it is SyncSourceResult.Failed && it.retryable }
-        )
+        return syncSources(dao.observeSources().first().filter { it.enabled }.map { it.id })
     }
 
     suspend fun saveDateOverride(startDate: LocalDate, endDate: LocalDate, kind: CalendarDayKind, note: String?) {
@@ -266,9 +247,56 @@ class HolidayCalendarRepository(
                 )
         }
         if (sourceNeedsRefresh) {
-            syncAllEnabledSources()
+            syncSources(sources.filter { source ->
+                source.enabled && (
+                    source.lastSuccessfulSyncAt == null ||
+                        Duration.between(Instant.ofEpochMilli(source.lastSuccessfulSyncAt), reference).toHours() >= 24
+                    )
+            }.map { it.id })
         }
     }
+
+    private suspend fun syncSources(sourceIds: List<String>): SyncSummary {
+        val results = sourceIds.map { sourceId -> syncSourceInternal(sourceId) }
+        val summary = summarize(results)
+        persistSyncSummary(results)
+        return summary
+    }
+
+    private suspend fun persistSyncSummary(results: List<SyncSourceResult>) {
+        if (results.isEmpty()) return
+        val summary = summarize(results)
+        when {
+            summary.failed > 0 -> preferences.setHolidaySyncStatus("同步失败")
+            summary.usedCache > 0 -> preferences.setHolidaySyncStatus("同步失败，继续使用缓存")
+            else -> {
+                preferences.setHolidaySyncStatus("同步成功")
+                preferences.setHolidayLastSyncAt(now())
+            }
+        }
+        val errors = results.mapNotNull { result ->
+            when (result) {
+                is SyncSourceResult.UsedCache -> "${result.sourceId}: ${result.message}"
+                is SyncSourceResult.Failed -> "${result.sourceId}: ${result.message}"
+                is SyncSourceResult.Success -> null
+            }
+        }
+        preferences.setHolidaySyncError(errors.joinToString("；").ifBlank { null })
+    }
+
+    private fun summarize(results: List<SyncSourceResult>): SyncSummary = SyncSummary(
+        succeeded = results.count { it is SyncSourceResult.Success },
+        failed = results.count { it is SyncSourceResult.Failed },
+        usedCache = results.count { it is SyncSourceResult.UsedCache },
+        message = results.joinToString("；") { result ->
+            when (result) {
+                is SyncSourceResult.Success -> "${result.sourceId}: ${result.eventCount} 条"
+                is SyncSourceResult.UsedCache -> "${result.sourceId}: 使用缓存（${result.message}）"
+                is SyncSourceResult.Failed -> "${result.sourceId}: ${result.message}"
+            }
+        },
+        retryableFailure = results.any { it is SyncSourceResult.Failed && it.retryable }
+    )
 
     companion object {
         const val BUILTIN_SOURCE_ID = "builtin-china-public-holidays"

@@ -185,8 +185,32 @@ class HolidayCalendarRepositoryTest {
             },
             now = { reference }
         )
+        repository.initialize()
+        val builtIn = dao.observeSources().first().single { it.id == HolidayCalendarRepository.BUILTIN_SOURCE_ID }
+        dao.upsertSource(builtIn.copy(lastSuccessfulSyncAt = reference.minusSeconds(60).toEpochMilli()))
         repository.syncIfStale()
-        assertEquals(2, fetchCount.get())
+        assertEquals(1, fetchCount.get())
+    }
+
+    @Test
+    fun unexpectedFetcherExceptionIsNotReclassifiedAsNetworkFailure() = runBlocking {
+        val dao = database.holidayCalendarDao()
+        dao.insertSourceIfMissing(HolidayCalendarSourceEntity("broken", "异常", "https://example.com/broken.ics", false, true))
+        val repository = HolidayCalendarRepository(
+            dao, preferences,
+            SystemCalendarScheduleReader(ZoneId.systemDefault(), { false }) { _, _ -> emptyList() },
+            object : IcsCalendarFetcher {
+                override fun fetch(source: IcsCalendarSource, etag: String?, lastModified: String?): IcsFetchResult =
+                    error("programming error")
+            }
+        )
+        var threw = false
+        try {
+            repository.syncSource("broken")
+        } catch (_: IllegalStateException) {
+            threw = true
+        }
+        assertTrue(threw)
     }
 
     @Test
