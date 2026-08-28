@@ -7,8 +7,6 @@ internal fun parseSystemCalendarSpecialDay(
     event: SystemCalendarScheduleEvent,
     zone: ZoneId
 ): List<SystemCalendarSpecialDay> {
-    val text = normalizedCalendarText(event.title, event.description)
-    val kind = systemCalendarSpecialDayKindFor(event.title, event.description) ?: return emptyList()
     val startDate = event.startAt.atZone(zone).toLocalDate()
     val endDate = event.endAt.atZone(zone).toLocalDate()
     val dates = if (endDate.isAfter(startDate)) {
@@ -18,15 +16,18 @@ internal fun parseSystemCalendarSpecialDay(
     } else {
         listOf(startDate)
     }
-    val sourceDate = parseSourceDate(text, startDate)
-    val sourceDayOfWeek = parseSourceDayOfWeek(text) ?: sourceDate?.dayOfWeek?.value
-    val label = event.title?.trim().orEmpty().ifBlank { kindLabel(kind) }
+    val classification = classifyChineseSpecialDay(event.title, event.description, startDate) ?: return emptyList()
+    val label = event.title?.trim().orEmpty().ifBlank { kindLabel(classification.kind) }
     return dates.map { date ->
         SystemCalendarSpecialDay(
             date = date,
-            kind = kind,
-            sourceDayOfWeek = sourceDayOfWeek,
-            sourceDate = sourceDate,
+            kind = when (classification.kind) {
+                CalendarDayKind.HOLIDAY_REST -> SystemCalendarSpecialDayKind.Holiday
+                CalendarDayKind.MAKEUP_WORKDAY -> SystemCalendarSpecialDayKind.MakeupWorkday
+                else -> return emptyList()
+            },
+            sourceDayOfWeek = classification.sourceDayOfWeek,
+            sourceDate = classification.sourceDate,
             label = label
         )
     }
@@ -63,39 +64,10 @@ internal fun mergeSystemCalendarSpecialDays(
     }
     .sortedBy(SystemCalendarSpecialDay::date)
 
-private fun parseSourceDayOfWeek(text: String): Int? {
-    val match = MAKEUP_SOURCE_DAY_PATTERN.find(text)
-        ?: return null
-    return when (match.groupValues[1]) {
-        "一", "1" -> 1
-        "二", "2" -> 2
-        "三", "3" -> 3
-        "四", "4" -> 4
-        "五", "5" -> 5
-        "六", "6" -> 6
-        "日", "天", "7" -> 7
-        else -> null
-    }
-}
-
-private fun normalizedCalendarText(title: String?, description: String?): String =
-    listOfNotNull(title, description)
-        .joinToString(" ")
-        .replace(Regex("\\s+"), " ")
-        .trim()
-
-private fun parseSourceDate(text: String, actualDate: LocalDate): LocalDate? {
-    val match = Regex("补\\s*(?:(\\d{4})年)?(\\d{1,2})月(\\d{1,2})日?").find(text)
-        ?: return null
-    val year = match.groupValues[1].toIntOrNull() ?: actualDate.year
-    val month = match.groupValues[2].toIntOrNull() ?: return null
-    val day = match.groupValues[3].toIntOrNull() ?: return null
-    return runCatching { LocalDate.of(year, month, day) }.getOrNull()
-}
-
-private fun kindLabel(kind: SystemCalendarSpecialDayKind): String = when (kind) {
-    SystemCalendarSpecialDayKind.Holiday -> "休"
-    SystemCalendarSpecialDayKind.MakeupWorkday -> "班"
+private fun kindLabel(kind: CalendarDayKind): String = when (kind) {
+    CalendarDayKind.HOLIDAY_REST -> "休"
+    CalendarDayKind.MAKEUP_WORKDAY -> "班"
+    else -> ""
 }
 
 private val CHINESE_PUBLIC_HOLIDAY_NAMES = listOf(
@@ -107,5 +79,3 @@ private val CHINESE_PUBLIC_HOLIDAY_NAMES = listOf(
     "中秋节",
     "国庆节"
 )
-
-private val MAKEUP_SOURCE_DAY_PATTERN = Regex("补\\s*(?:上班|课)?\\s*(?:周|星期)\\s*([一二三四五六日天1-7])")
