@@ -109,6 +109,55 @@ class HolidayCalendarRepositoryTest {
     }
 
     @Test
+    fun resolveExpandsMultiDayIcsEventAndWorksWithoutSystemPermission() = runBlocking {
+        val source = HolidayCalendarSourceEntity("custom", "自定义", "https://example.com/a.ics", false, true)
+        val start = LocalDate.of(2026, 10, 1)
+        val end = LocalDate.of(2026, 10, 3)
+        val dao = database.holidayCalendarDao()
+        dao.insertSourceIfMissing(source)
+        dao.insertEvents(listOf(HolidayCalendarEventEntity("custom", "multi", start, end, "国庆节放假", kind = CalendarDayKind.HOLIDAY_REST, fetchedAt = 1)))
+        val repository = HolidayCalendarRepository(
+            dao, preferences,
+            SystemCalendarScheduleReader(ZoneId.of("Asia/Shanghai"), { false }) { _, _ -> error("must not query") },
+            object : IcsCalendarFetcher { override fun fetch(source: IcsCalendarSource, etag: String?, lastModified: String?) = IcsFetchResult.NotModified }
+        )
+        assertEquals(listOf(start, start.plusDays(1), end), repository.resolveBetween(start, end).map { it.date })
+        assertTrue(repository.resolveBetween(start.plusDays(1), start.plusDays(1)).single().kind == CalendarDayKind.HOLIDAY_REST)
+    }
+
+    @Test
+    fun saveDateOverrideExpandsInclusiveRange() = runBlocking {
+        val repository = HolidayCalendarRepository(
+            database.holidayCalendarDao(), preferences,
+            SystemCalendarScheduleReader(ZoneId.systemDefault(), { false }) { _, _ -> emptyList() },
+            object : IcsCalendarFetcher { override fun fetch(source: IcsCalendarSource, etag: String?, lastModified: String?) = IcsFetchResult.NotModified }
+        )
+        val start = LocalDate.of(2026, 8, 1)
+        repository.saveDateOverride(start, start.plusDays(2), CalendarDayKind.REGULAR_WORKDAY, "补课")
+        assertEquals(3, database.holidayCalendarDao().observeDayOverridesBetween(start, start.plusDays(2)).first().size)
+    }
+
+    @Test
+    fun successfulSyncOnlyReplacesCurrentSource() = runBlocking {
+        val dao = database.holidayCalendarDao()
+        dao.insertSourceIfMissing(HolidayCalendarSourceEntity("one", "一", "https://example.com/one.ics", false, true))
+        dao.insertSourceIfMissing(HolidayCalendarSourceEntity("two", "二", "https://example.com/two.ics", false, true))
+        dao.insertEvents(listOf(HolidayCalendarEventEntity("two", "old", LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 1), "旧", kind = CalendarDayKind.HOLIDAY_REST, fetchedAt = 1)))
+        val repository = HolidayCalendarRepository(
+            dao, preferences,
+            SystemCalendarScheduleReader(ZoneId.systemDefault(), { false }) { _, _ -> emptyList() },
+            object : IcsCalendarFetcher {
+                override fun fetch(source: IcsCalendarSource, etag: String?, lastModified: String?) = IcsFetchResult.Success(
+                    listOf(IcsCalendarEvent("new", LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 2), "新", null, CalendarDayKind.HOLIDAY_REST, null, null)), null, null
+                )
+            }
+        )
+        repository.syncSource("one")
+        assertEquals(1, dao.findEventsForSource("one").size)
+        assertEquals(1, dao.findEventsForSource("two").size)
+    }
+
+    @Test
     fun initializeSeedsOnceAndDoesNotOverwriteExistingSource() = runBlocking {
         val dao = database.holidayCalendarDao()
         dao.insertSourceIfMissing(HolidayCalendarSourceEntity(HolidayCalendarRepository.BUILTIN_SOURCE_ID, "用户名称", "https://example.com/user.ics", true, false))

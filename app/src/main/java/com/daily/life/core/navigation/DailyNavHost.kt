@@ -4,12 +4,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -46,6 +50,7 @@ import com.daily.life.feature.timetable.PdfTimetableParser
 import com.daily.life.feature.timetable.RoomTimetableRepository
 import com.daily.life.feature.timetable.TimetableScreen
 import com.daily.life.feature.timetable.TimetableViewModel
+import kotlinx.coroutines.launch
 
 @Composable
 fun DailyNavHost(
@@ -53,8 +58,18 @@ fun DailyNavHost(
     rootState: DailyRootState
 ) {
     val application = LocalContext.current.applicationContext as DailyApplication
-    LaunchedEffect(Unit) {
-        application.container.holidayCalendarRepository.syncAllEnabledSources()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val coroutineScope = rememberCoroutineScope()
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                coroutineScope.launch {
+                    application.container.holidayCalendarRepository.syncIfStale()
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     Scaffold(

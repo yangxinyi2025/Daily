@@ -7,8 +7,11 @@ import com.daily.life.core.database.HolidayCalendarDao
 import com.daily.life.core.datastore.DailyPreferences
 import java.time.Instant
 import java.time.LocalDate
+import java.time.Duration
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 object CalendarDayRuleMerger {
     fun merge(
@@ -140,10 +143,15 @@ class HolidayCalendarRepository(
         if (endDate.isBefore(startDate)) return emptyList()
         val sources = dao.observeSources().first()
         val sourceById = sources.associateBy { it.id }
-        val cachedDays = dao.findEventsBetween(startDate, endDate).mapNotNull { event ->
-            val source = sourceById[event.sourceId] ?: return@mapNotNull null
-            if (!source.enabled) return@mapNotNull null
-            event
+        val cachedDays = dao.findEventsBetween(startDate, endDate).flatMap { event ->
+            val source = sourceById[event.sourceId] ?: return@flatMap emptyList()
+            if (!source.enabled) return@flatMap emptyList()
+            val firstDate = maxOf(startDate, event.startDate)
+            val lastDate = minOf(endDate, event.endDateInclusive)
+            if (lastDate.isBefore(firstDate)) return@flatMap emptyList()
+            generateSequence(firstDate) { it.plusDays(1).takeIf { next -> !next.isAfter(lastDate) } }
+                .map { date -> event.copy(startDate = date, endDateInclusive = date) }
+                .toList()
         }
         val systemDays = runCatching { systemCalendarReader.readBetween(startDate, endDate) }.getOrDefault(emptyList())
         val overrides = dao.observeDayOverridesBetween(startDate, endDate).first()
@@ -158,11 +166,13 @@ class HolidayCalendarRepository(
         val source = dao.observeSources().first().firstOrNull { it.id == sourceId }
             ?: return SyncSourceResult.Failed(sourceId, "日历来源不存在", retryable = false)
         val result = try {
-            icsClient.fetch(
-                IcsCalendarSource(source.id, source.name, source.url, source.builtIn),
-                source.etag,
-                source.lastModified
-            )
+            withContext(Dispatchers.IO) {
+                icsClient.fetch(
+                    IcsCalendarSource(source.id, source.name, source.url, source.builtIn),
+                    source.etag,
+                    source.lastModified
+                )
+            }
         } catch (error: Exception) {
             IcsFetchResult.Failure(error.message ?: "同步失败", retryable = true)
         }
@@ -237,6 +247,13 @@ class HolidayCalendarRepository(
 
     suspend fun clearDateOverrides(dates: List<LocalDate>) {
         if (dates.isNotEmpty()) dao.deleteDayOverrides(dates)
+    }
+
+    suspend fun syncIfStale() {
+        val lastSync = preferences.holidayLastSyncAt.first()
+        if (lastSync == null || Duration.between(lastSync, now()).toHours() >= 24) {
+            syncAllEnabledSources()
+        }
     }
 
     companion object {
