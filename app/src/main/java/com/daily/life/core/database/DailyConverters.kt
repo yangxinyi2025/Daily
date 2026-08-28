@@ -1,6 +1,8 @@
 package com.daily.life.core.database
 
 import androidx.room.TypeConverter
+import com.daily.life.core.calendar.CalendarDayKind
+import com.daily.life.core.calendar.CalendarRuleSource
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
@@ -72,4 +74,16 @@ class DailyConverters {
     @TypeConverter
     fun toTransactionDirection(value: String?): TransactionDirection? =
         value?.let(TransactionDirection::valueOf)
+
+    @TypeConverter
+    fun fromCalendarDayKind(value: CalendarDayKind?): String? = value?.name
+
+    @TypeConverter
+    fun toCalendarDayKind(value: String?): CalendarDayKind? = value?.let(CalendarDayKind::valueOf)
+
+    @TypeConverter
+    fun fromCalendarRuleSource(value: CalendarRuleSource?): String? = value?.name
+
+    @TypeConverter
+    fun toCalendarRuleSource(value: String?): CalendarRuleSource? = value?.let(CalendarRuleSource::valueOf)
 }

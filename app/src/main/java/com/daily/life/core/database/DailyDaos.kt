@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
+import java.time.LocalDate
 import java.time.YearMonth
 
 @Dao
@@ -67,6 +68,57 @@ interface SemesterCalendarAdjustmentDao {
 
     @Query("DELETE FROM semester_calendar_adjustments WHERE semesterId = :semesterId")
     suspend fun deleteBySemester(semesterId: Long)
+}
+
+@Dao
+interface HolidayCalendarDao {
+    @Query("SELECT * FROM holiday_calendar_sources ORDER BY builtIn DESC, name, id")
+    fun observeSources(): Flow<List<HolidayCalendarSourceEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertSource(entity: HolidayCalendarSourceEntity)
+
+    @Query("DELETE FROM holiday_calendar_sources WHERE id = :id AND builtIn = 0")
+    suspend fun deleteCustomSource(id: String)
+
+    @Query(
+        """
+        SELECT * FROM holiday_calendar_events
+        WHERE endDateInclusive >= :start
+          AND startDate <= :end
+        ORDER BY startDate, endDateInclusive, sourceId, eventKey
+        """
+    )
+    suspend fun findEventsBetween(start: LocalDate, end: LocalDate): List<HolidayCalendarEventEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertEvents(rows: List<HolidayCalendarEventEntity>)
+
+    @Query("DELETE FROM holiday_calendar_events WHERE sourceId = :sourceId")
+    suspend fun deleteEventsForSource(sourceId: String)
+
+    @Transaction
+    suspend fun replaceEventsForSource(sourceId: String, events: List<HolidayCalendarEventEntity>) {
+        deleteEventsForSource(sourceId)
+        if (events.isNotEmpty()) {
+            insertEvents(events)
+        }
+    }
+
+    @Query(
+        """
+        SELECT * FROM calendar_day_overrides
+        WHERE date BETWEEN :start AND :end
+        ORDER BY date
+        """
+    )
+    fun observeDayOverridesBetween(start: LocalDate, end: LocalDate): Flow<List<CalendarDayOverrideEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertDayOverrides(rows: List<CalendarDayOverrideEntity>)
+
+    @Query("DELETE FROM calendar_day_overrides WHERE date IN (:dates)")
+    suspend fun deleteDayOverrides(dates: List<LocalDate>)
 }
 
 @Dao

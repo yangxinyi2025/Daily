@@ -13,6 +13,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SemesterEntity::class,
         SemesterPeriodEntity::class,
         SemesterCalendarAdjustmentEntity::class,
+        HolidayCalendarSourceEntity::class,
+        HolidayCalendarEventEntity::class,
+        CalendarDayOverrideEntity::class,
         CourseEntity::class,
         CourseWeekEntity::class,
         ScheduleEventEntity::class,
@@ -25,7 +28,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ImportLogEntity::class,
         CalendarSyncLinkEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 @TypeConverters(DailyConverters::class)
@@ -41,6 +44,7 @@ abstract class DailyDatabase : RoomDatabase() {
     abstract fun budgetDao(): BudgetDao
     abstract fun importLogDao(): ImportLogDao
     abstract fun calendarSyncLinkDao(): CalendarSyncLinkDao
+    abstract fun holidayCalendarDao(): HolidayCalendarDao
 
     companion object {
         private const val DATABASE_NAME = "daily.db"
@@ -162,6 +166,69 @@ abstract class DailyDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `holiday_calendar_sources` (
+                        `id` TEXT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `url` TEXT NOT NULL,
+                        `builtIn` INTEGER NOT NULL,
+                        `enabled` INTEGER NOT NULL,
+                        `lastSuccessfulSyncAt` INTEGER,
+                        `etag` TEXT,
+                        `lastModified` TEXT,
+                        `lastError` TEXT,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_holiday_calendar_sources_url` ON `holiday_calendar_sources` (`url`)"
+                )
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `holiday_calendar_events` (
+                        `sourceId` TEXT NOT NULL,
+                        `eventKey` TEXT NOT NULL,
+                        `startDate` TEXT NOT NULL,
+                        `endDateInclusive` TEXT NOT NULL,
+                        `summary` TEXT,
+                        `description` TEXT,
+                        `kind` TEXT NOT NULL,
+                        `sourceDayOfWeek` INTEGER,
+                        `sourceDate` TEXT,
+                        `fetchedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`sourceId`, `eventKey`),
+                        FOREIGN KEY(`sourceId`) REFERENCES `holiday_calendar_sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_holiday_calendar_events_sourceId` ON `holiday_calendar_events` (`sourceId`)"
+                )
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_holiday_calendar_events_startDate_endDateInclusive` ON `holiday_calendar_events` (`startDate`, `endDateInclusive`)"
+                )
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `calendar_day_overrides` (
+                        `date` TEXT NOT NULL,
+                        `targetKind` TEXT NOT NULL,
+                        `note` TEXT,
+                        `createdAt` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`date`)
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_calendar_day_overrides_updatedAt` ON `calendar_day_overrides` (`updatedAt`)"
+                )
+            }
+        }
+
         fun build(context: Context): DailyDatabase =
             Room.databaseBuilder(
                 context.applicationContext,
@@ -174,7 +241,8 @@ abstract class DailyDatabase : RoomDatabase() {
                 MIGRATION_4_5,
                 MIGRATION_5_6,
                 MIGRATION_6_7,
-                MIGRATION_7_8
+                MIGRATION_7_8,
+                MIGRATION_8_9
             ).build()
 
         fun buildInMemory(context: Context): DailyDatabase =

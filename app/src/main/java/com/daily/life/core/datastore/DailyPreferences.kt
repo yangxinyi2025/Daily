@@ -58,6 +58,15 @@ class DailyPreferences private constructor(
     val syncStatus: Flow<String> =
         dataStore.data.map { preferences -> preferences[SYNC_STATUS] ?: "仅使用本地数据" }
 
+    val holidaySyncStatus: Flow<String?> =
+        dataStore.data.map { preferences -> preferences[HOLIDAY_SYNC_STATUS] }
+
+    val holidayLastSyncAt: Flow<Instant?> =
+        dataStore.data.map { preferences -> preferences[HOLIDAY_LAST_SYNC_AT]?.let(Instant::ofEpochMilli) }
+
+    val holidaySyncError: Flow<String?> =
+        dataStore.data.map { preferences -> preferences[HOLIDAY_SYNC_ERROR] }
+
     suspend fun setSemesterStartDate(value: LocalDate?) {
         dataStore.edit { preferences ->
             if (value == null) {
@@ -143,6 +152,27 @@ class DailyPreferences private constructor(
         dataStore.edit { preferences -> preferences[SYNC_STATUS] = value }
     }
 
+    suspend fun setHolidaySyncStatus(value: String?) {
+        dataStore.edit { preferences ->
+            if (value.isNullOrBlank()) preferences.remove(HOLIDAY_SYNC_STATUS)
+            else preferences[HOLIDAY_SYNC_STATUS] = value
+        }
+    }
+
+    suspend fun setHolidayLastSyncAt(value: Instant?) {
+        dataStore.edit { preferences ->
+            if (value == null) preferences.remove(HOLIDAY_LAST_SYNC_AT)
+            else preferences[HOLIDAY_LAST_SYNC_AT] = value.toEpochMilli()
+        }
+    }
+
+    suspend fun setHolidaySyncError(value: String?) {
+        dataStore.edit { preferences ->
+            if (value.isNullOrBlank()) preferences.remove(HOLIDAY_SYNC_ERROR)
+            else preferences[HOLIDAY_SYNC_ERROR] = value
+        }
+    }
+
     companion object {
         private val SEMESTER_START_DATE = stringPreferencesKey("semester_start_date")
         private val CURRENT_SEMESTER_ID = longPreferencesKey("current_semester_id")
@@ -154,6 +184,9 @@ class DailyPreferences private constructor(
         private val AUTO_SYNC_ENABLED = booleanPreferencesKey("auto_sync_enabled")
         private val LAST_SYNC_AT = longPreferencesKey("last_sync_at")
         private val SYNC_STATUS = stringPreferencesKey("sync_status")
+        private val HOLIDAY_SYNC_STATUS = stringPreferencesKey("holiday_sync_status")
+        private val HOLIDAY_LAST_SYNC_AT = longPreferencesKey("holiday_last_sync_at")
+        private val HOLIDAY_SYNC_ERROR = stringPreferencesKey("holiday_sync_error")
 
         const val DEFAULT_MENSTRUAL_CYCLE_DAYS = 30
         const val MIN_MENSTRUAL_CYCLE_DAYS = 15

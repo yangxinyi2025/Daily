@@ -6,6 +6,7 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.Relation
+import com.daily.life.core.calendar.CalendarDayKind
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
@@ -59,6 +60,63 @@ data class SemesterCalendarAdjustmentEntity(
     val sourceDayOfWeek: Int,
     val sourceDate: LocalDate? = null,
     val sourceLabel: String? = null,
+    val updatedAt: Long
+)
+
+@Entity(
+    tableName = "holiday_calendar_sources",
+    indices = [Index(value = ["url"], unique = true)]
+)
+data class HolidayCalendarSourceEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val url: String,
+    val builtIn: Boolean,
+    val enabled: Boolean,
+    val lastSuccessfulSyncAt: Long? = null,
+    val etag: String? = null,
+    val lastModified: String? = null,
+    val lastError: String? = null
+)
+
+@Entity(
+    tableName = "holiday_calendar_events",
+    primaryKeys = ["sourceId", "eventKey"],
+    foreignKeys = [
+        ForeignKey(
+            entity = HolidayCalendarSourceEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["sourceId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index(value = ["sourceId"]),
+        Index(value = ["startDate", "endDateInclusive"])
+    ]
+)
+data class HolidayCalendarEventEntity(
+    val sourceId: String,
+    val eventKey: String,
+    val startDate: LocalDate,
+    val endDateInclusive: LocalDate,
+    val summary: String? = null,
+    val description: String? = null,
+    val kind: CalendarDayKind,
+    val sourceDayOfWeek: Int? = null,
+    val sourceDate: LocalDate? = null,
+    val fetchedAt: Long
+)
+
+@Entity(
+    tableName = "calendar_day_overrides",
+    indices = [Index(value = ["updatedAt"])]
+)
+data class CalendarDayOverrideEntity(
+    @PrimaryKey val date: LocalDate,
+    val targetKind: CalendarDayKind,
+    val note: String? = null,
+    val createdAt: Long,
     val updatedAt: Long
 )
 
