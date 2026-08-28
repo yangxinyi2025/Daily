@@ -123,6 +123,80 @@ class IcsCalendarClientTest {
     }
 
     @Test
+    fun fetchTurnsBrokenHolidayFeedIntoFailure() {
+        val client = IcsCalendarClient(
+            okHttpClient = okHttpClient { chain ->
+                Response.Builder()
+                    .request(chain.request())
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body(
+                        """
+                        BEGIN:VCALENDAR
+                        BEGIN:VEVENT
+                        UID:broken
+                        DTSTART;VALUE=DATE:2026-10-01
+                        DTEND;VALUE=DATE:20261008
+                        SUMMARY:国庆节放假
+                        END:VEVENT
+                        END:VCALENDAR
+                        """.trimIndent().toResponseBody()
+                    )
+                    .build()
+            },
+            zone = zone
+        )
+
+        val result = client.fetch(
+            source = IcsCalendarSource(
+                id = "builtin",
+                name = "Built-in",
+                url = "https://example.com/china.ics",
+                builtIn = true
+            )
+        )
+
+        val failure = result as IcsFetchResult.Failure
+        assertFalse(failure.retryable)
+        assertTrue(failure.message.contains("parse", ignoreCase = true))
+    }
+
+    @Test
+    fun fetchAcceptsValidEmptyCalendar() {
+        val client = IcsCalendarClient(
+            okHttpClient = okHttpClient { chain ->
+                Response.Builder()
+                    .request(chain.request())
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body(
+                        """
+                        BEGIN:VCALENDAR
+                        VERSION:2.0
+                        END:VCALENDAR
+                        """.trimIndent().toResponseBody()
+                    )
+                    .build()
+            },
+            zone = zone
+        )
+
+        val result = client.fetch(
+            source = IcsCalendarSource(
+                id = "builtin",
+                name = "Built-in",
+                url = "https://example.com/china.ics",
+                builtIn = true
+            )
+        )
+
+        val success = result as IcsFetchResult.Success
+        assertTrue(success.events.isEmpty())
+    }
+
+    @Test
     fun fetchRejectsNonHttpsUrlsBeforeNetworkAccess() {
         var called = false
         val client = IcsCalendarClient(

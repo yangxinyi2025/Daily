@@ -24,6 +24,10 @@ data class IcsCalendarEvent(
     val sourceDate: LocalDate?
 )
 
+class IcsCalendarParseException(
+    message: String
+) : IllegalArgumentException(message)
+
 fun parseIcsCalendar(
     text: String,
     source: IcsCalendarSource,
@@ -31,19 +35,41 @@ fun parseIcsCalendar(
 ): List<IcsCalendarEvent> {
     val events = mutableListOf<IcsCalendarEvent>()
     var currentEventLines: MutableList<String>? = null
+    var sawCalendarStart = false
+    var sawCalendarEnd = false
+    var sawEvent = false
+    var malformedEventCount = 0
 
     for (line in unfoldIcsLines(text)) {
         when (line) {
-            "BEGIN:VEVENT" -> currentEventLines = mutableListOf()
+            "BEGIN:VCALENDAR" -> sawCalendarStart = true
+            "END:VCALENDAR" -> sawCalendarEnd = true
+            "BEGIN:VEVENT" -> {
+                if (currentEventLines != null) {
+                    throw IcsCalendarParseException("Malformed ICS feed: nested VEVENT blocks are not supported")
+                }
+                sawEvent = true
+                currentEventLines = mutableListOf()
+            }
             "END:VEVENT" -> {
-                val parsed = currentEventLines?.let { parseIcsEvent(it, source, zone) }
-                if (parsed != null) {
-                    events += parsed
+                val eventLines = currentEventLines
+                    ?: throw IcsCalendarParseException("Malformed ICS feed: END:VEVENT without BEGIN:VEVENT")
+                when (val parsed = parseIcsEvent(eventLines, source, zone)) {
+                    is IcsEventParseResult.Parsed -> events += parsed.event
+                    IcsEventParseResult.Skipped -> Unit
+                    is IcsEventParseResult.Malformed -> malformedEventCount += 1
                 }
                 currentEventLines = null
             }
             else -> currentEventLines?.add(line)
         }
+    }
+
+    if (!sawCalendarStart || !sawCalendarEnd || currentEventLines != null) {
+        throw IcsCalendarParseException("Malformed ICS feed: missing calendar or event terminator")
+    }
+    if (events.isEmpty() && sawEvent && malformedEventCount > 0) {
+        throw IcsCalendarParseException("Unable to parse ICS feed into holiday events")
     }
 
     return events
@@ -109,18 +135,26 @@ private data class IcsDateValue(
     val isAllDay: Boolean
 )
 
+private sealed interface IcsEventParseResult {
+    data class Parsed(val event: IcsCalendarEvent) : IcsEventParseResult
+    data object Skipped : IcsEventParseResult
+    data class Malformed(val reason: String) : IcsEventParseResult
+}
+
 private fun parseIcsEvent(
     lines: List<String>,
     source: IcsCalendarSource,
     defaultZone: ZoneId
-): IcsCalendarEvent? {
+) : IcsEventParseResult {
     val properties = parseProperties(lines)
-    val startProperty = properties["DTSTART"] ?: return null
-    val start = parseDateValue(startProperty, defaultZone) ?: return null
+    val startProperty = properties["DTSTART"] ?: return IcsEventParseResult.Malformed("Missing DTSTART")
+    val start = parseDateValue(startProperty, defaultZone)
+        ?: return IcsEventParseResult.Malformed("Invalid DTSTART")
     val endProperty = properties["DTEND"]
     val endExclusiveDate = when {
         endProperty != null -> {
-            val end = parseDateValue(endProperty, defaultZone) ?: return null
+            val end = parseDateValue(endProperty, defaultZone)
+                ?: return IcsEventParseResult.Malformed("Invalid DTEND")
             if (start.isAllDay && end.isAllDay) {
                 end.date
             } else {
@@ -130,11 +164,14 @@ private fun parseIcsEvent(
         start.isAllDay -> start.date.plusDays(1)
         else -> start.date.plusDays(1)
     }
-    if (!endExclusiveDate.isAfter(start.date)) return null
+    if (!endExclusiveDate.isAfter(start.date)) {
+        return IcsEventParseResult.Malformed("DTEND must be after DTSTART")
+    }
 
     val title = properties["SUMMARY"]?.value?.let(::unescapeIcsText)
     val description = properties["DESCRIPTION"]?.value?.let(::unescapeIcsText)
-    val classification = classifyChineseSpecialDay(title, description, start.date) ?: return null
+    val classification = classifyChineseSpecialDay(title, description, start.date)
+        ?: return IcsEventParseResult.Skipped
     val uid = properties["UID"]?.value?.trim().orEmpty()
     val eventKey = uid.ifBlank {
         buildString {
@@ -148,15 +185,17 @@ private fun parseIcsEvent(
         }
     }
 
-    return IcsCalendarEvent(
-        eventKey = eventKey,
-        startDate = start.date,
-        endExclusiveDate = endExclusiveDate,
-        title = title,
-        description = description,
-        kind = classification.kind,
-        sourceDayOfWeek = classification.sourceDayOfWeek,
-        sourceDate = classification.sourceDate
+    return IcsEventParseResult.Parsed(
+        IcsCalendarEvent(
+            eventKey = eventKey,
+            startDate = start.date,
+            endExclusiveDate = endExclusiveDate,
+            title = title,
+            description = description,
+            kind = classification.kind,
+            sourceDayOfWeek = classification.sourceDayOfWeek,
+            sourceDate = classification.sourceDate
+        )
     )
 }
 
@@ -225,12 +264,28 @@ private fun unfoldIcsLines(text: String): List<String> {
 }
 
 private fun unescapeIcsText(value: String): String =
-    value
-        .replace("\\\\", "\\")
-        .replace("\\n", "\n")
-        .replace("\\N", "\n")
-        .replace("\\,", ",")
-        .replace("\\;", ";")
+    buildString(value.length) {
+        var index = 0
+        while (index < value.length) {
+            val current = value[index]
+            if (current == '\\' && index + 1 < value.length) {
+                when (val next = value[index + 1]) {
+                    '\\' -> append('\\')
+                    'n', 'N' -> append('\n')
+                    ',' -> append(',')
+                    ';' -> append(';')
+                    else -> {
+                        append('\\')
+                        append(next)
+                    }
+                }
+                index += 2
+            } else {
+                append(current)
+                index += 1
+            }
+        }
+    }
 
 private val DATE_FORMATTER: DateTimeFormatter = DateTimeFormatter.BASIC_ISO_DATE
 private val UTC_DATE_TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmssX")

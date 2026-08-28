@@ -70,6 +70,8 @@ class IcsCalendarClient(
                     }
                 }
             }
+        } catch (error: IcsCalendarParseException) {
+            IcsFetchResult.Failure(error.message ?: "ICS parse failure", retryable = false)
         } catch (error: SocketTimeoutException) {
             IcsFetchResult.Failure(error.message ?: "timeout", retryable = true)
         } catch (error: IOException) {

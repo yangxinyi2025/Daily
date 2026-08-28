@@ -4,6 +4,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -93,6 +94,29 @@ class IcsCalendarParserTest {
     }
 
     @Test
+    fun keepsLiteralBackslashBeforeNAsPlainText() {
+        val events = parseIcsCalendar(
+            """
+            BEGIN:VCALENDAR
+            BEGIN:VEVENT
+            UID:literal-backslash
+            DTSTART;VALUE=DATE:20261010
+            DTEND;VALUE=DATE:20261011
+            SUMMARY:调休上班\\n通知
+            DESCRIPTION:保留\\N和\\n字面量
+            END:VEVENT
+            END:VCALENDAR
+            """.trimIndent(),
+            source,
+            zone
+        )
+
+        val event = events.single()
+        assertEquals("调休上班\\n通知", event.title)
+        assertEquals("保留\\N和\\n字面量", event.description)
+    }
+
+    @Test
     fun skipsMalformedEventWithoutDroppingValidOnes() {
         val events = parseIcsCalendar(
             """
@@ -120,6 +144,48 @@ class IcsCalendarParserTest {
     }
 
     @Test
+    fun throwsWhenFeedHasOnlyMalformedHolidayEvents() {
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            parseIcsCalendar(
+                """
+                BEGIN:VCALENDAR
+                BEGIN:VEVENT
+                UID:broken
+                DTSTART;VALUE=DATE:2026-10-01
+                DTEND;VALUE=DATE:20261008
+                SUMMARY:国庆节放假
+                END:VEVENT
+                END:VCALENDAR
+                """.trimIndent(),
+                source,
+                zone
+            )
+        }
+
+        assertTrue(error.message.orEmpty().contains("parse"))
+    }
+
+    @Test
+    fun throwsWhenFeedStructureIsMalformed() {
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            parseIcsCalendar(
+                """
+                BEGIN:VCALENDAR
+                BEGIN:VEVENT
+                UID:broken
+                DTSTART;VALUE=DATE:20261001
+                DTEND;VALUE=DATE:20261008
+                SUMMARY:国庆节放假
+                """.trimIndent(),
+                source,
+                zone
+            )
+        }
+
+        assertTrue(error.message.orEmpty().contains("Malformed"))
+    }
+
+    @Test
     fun ignoresEventsWithoutRecognizedHolidayMeaning() {
         val events = parseIcsCalendar(
             """
@@ -130,6 +196,22 @@ class IcsCalendarParserTest {
             DTEND;VALUE=DATE:20261004
             SUMMARY:朋友聚会
             END:VEVENT
+            END:VCALENDAR
+            """.trimIndent(),
+            source,
+            zone
+        )
+
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun acceptsValidEmptyCalendar() {
+        val events = parseIcsCalendar(
+            """
+            BEGIN:VCALENDAR
+            VERSION:2.0
+            PRODID:-//Daily Life//Holiday Feed//EN
             END:VCALENDAR
             """.trimIndent(),
             source,
