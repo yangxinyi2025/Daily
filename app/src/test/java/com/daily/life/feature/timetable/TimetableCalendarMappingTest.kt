@@ -58,15 +58,15 @@ class TimetableCalendarMappingTest {
     }
 
     @Test
-    fun unconfirmedWeekendMakeupUsesTheAdjacentWeekdayCourse() {
+    fun unconfirmedWeekendMakeupDoesNotChooseACourseForTheUser() {
         val actualDate = LocalDate.of(2026, 9, 19)
         val makeup = specialDay(actualDate, SystemCalendarSpecialDayKind.MakeupWorkday)
 
         val slot = mapWeekToScheduleSlots(semesterStart, 1, listOf(makeup), emptyMap())
             .single { it.actualDate == actualDate }
 
-        assertEquals(5, slot.courseDayOfWeek)
-        assertFalse(slot.needsMakeupConfirmation)
+        assertEquals(null, slot.courseDayOfWeek)
+        assertTrue(slot.needsMakeupConfirmation)
     }
 
     @Test
@@ -121,7 +121,7 @@ class TimetableCalendarMappingTest {
     }
 
     @Test
-    fun unifiedHolidayRuleSuppressesCourseAndMakeupUsesSourceWeekday() {
+    fun unifiedHolidayRuleSuppressesCourseAndMakeupUsesTheUserSelection() {
         val holidayDate = LocalDate.of(2026, 9, 17)
         val makeupDate = LocalDate.of(2026, 9, 19)
         val rules = listOf(
@@ -129,41 +129,52 @@ class TimetableCalendarMappingTest {
             rule(makeupDate, CalendarDayKind.MAKEUP_WORKDAY, sourceDayOfWeek = 5)
         )
 
-        val slots = mapWeekToScheduleSlotsWithRules(semesterStart, 1, rules, emptyMap())
+        val slots = mapWeekToScheduleSlotsWithRules(
+            semesterStart,
+            1,
+            rules,
+            confirmedAdjustments = mapOf(makeupDate to 4)
+        )
         assertEquals(null, slots.single { it.actualDate == holidayDate }.courseDayOfWeek)
-        assertEquals(5, slots.single { it.actualDate == makeupDate }.courseDayOfWeek)
+        assertEquals(4, slots.single { it.actualDate == makeupDate }.courseDayOfWeek)
         assertEquals(
-            listOf(LocalDate.of(2026, 9, 18), makeupDate),
-            courseOccurrenceDatesWithRules(semesterStart, 1, 5, rules, emptyMap())
+            listOf(makeupDate),
+            courseOccurrenceDatesWithRules(
+                semesterStart,
+                1,
+                4,
+                rules,
+                confirmedAdjustments = mapOf(makeupDate to 4)
+            )
         )
     }
 
     @Test
-    fun weekendMakeupWithoutAnExplicitSourceUsesTheAdjacentWeekdayCourse() {
+    fun weekendMakeupWithoutAnExplicitSourceWaitsForUserSelection() {
         val actualDate = LocalDate.of(2026, 9, 19)
         val rules = listOf(rule(actualDate, CalendarDayKind.MAKEUP_WORKDAY))
         val slot = mapWeekToScheduleSlotsWithRules(semesterStart, 1, rules, emptyMap())
             .single { it.actualDate == actualDate }
-        assertEquals(5, slot.courseDayOfWeek)
-        assertFalse(slot.needsMakeupConfirmation)
+        assertEquals(null, slot.courseDayOfWeek)
+        assertTrue(slot.needsMakeupConfirmation)
         assertEquals(
-            listOf(LocalDate.of(2026, 9, 18), actualDate),
+            listOf(LocalDate.of(2026, 9, 18)),
             courseOccurrenceDatesWithRules(semesterStart, 1, 5, rules, emptyMap())
         )
     }
 
     @Test
-    fun sundayMakeupWithoutAnExplicitSourceUsesTheFollowingMondayCourse() {
+    fun sundayMakeupWithoutAnExplicitSourceWaitsForUserSelection() {
         val actualDate = LocalDate.of(2026, 9, 20)
         val rules = listOf(rule(actualDate, CalendarDayKind.MAKEUP_WORKDAY))
 
         val slot = mapWeekToScheduleSlotsWithRules(semesterStart, 1, rules, emptyMap())
             .single { it.actualDate == actualDate }
 
-        assertEquals(1, slot.courseDayOfWeek)
-        assertFalse(slot.needsMakeupConfirmation)
+        assertEquals(null, slot.courseDayOfWeek)
+        assertTrue(slot.needsMakeupConfirmation)
         assertEquals(
-            listOf(semesterStart, actualDate),
+            listOf(semesterStart),
             courseOccurrenceDatesWithRules(semesterStart, 1, 1, rules, emptyMap())
         )
     }

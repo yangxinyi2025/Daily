@@ -33,8 +33,8 @@ internal fun mapWeekToScheduleSlotsWithRules(
             ClassOverride.FOLLOW_CALENDAR, null -> when (rule?.kind) {
                 CalendarDayKind.HOLIDAY_REST -> TimetableScheduleSlot(actualDate, selectedWeek, null, true, false)
                 CalendarDayKind.MAKEUP_WORKDAY -> {
-                    val source = resolveSourceDayOfWeek(actualDate, rule.sourceDayOfWeek, confirmedAdjustments)
-                    TimetableScheduleSlot(actualDate, selectedWeek, source, false, false)
+                    val source = resolveSourceDayOfWeek(actualDate, confirmedAdjustments)
+                    TimetableScheduleSlot(actualDate, selectedWeek, source, false, source == null)
                 }
                 else -> TimetableScheduleSlot(actualDate, selectedWeek, actualDate.dayOfWeek.value, false, false)
             }
@@ -61,7 +61,7 @@ internal fun courseOccurrenceDatesWithRules(
                 ClassOverride.FOLLOW_CALENDAR, null -> when (rulesByDate[date]?.kind) {
                     CalendarDayKind.HOLIDAY_REST -> false
                     CalendarDayKind.MAKEUP_WORKDAY -> {
-                        val source = resolveSourceDayOfWeek(date, rulesByDate[date]?.sourceDayOfWeek, confirmedAdjustments)
+                        val source = resolveSourceDayOfWeek(date, confirmedAdjustments)
                         source == courseDayOfWeek
                     }
                     else -> date.dayOfWeek.value == courseDayOfWeek
@@ -96,7 +96,7 @@ internal fun mapWeekToScheduleSlots(
                     week = selectedWeek,
                     courseDayOfWeek = sourceDay,
                     isHoliday = false,
-                    needsMakeupConfirmation = false
+                    needsMakeupConfirmation = sourceDay == null
                 )
             }
             null -> TimetableScheduleSlot(
@@ -144,18 +144,9 @@ internal fun courseOccurrenceDates(
 private fun resolvedSourceDayOfWeek(
     specialDay: SystemCalendarSpecialDay,
     confirmedAdjustments: Map<LocalDate, Int>
-): Int = resolveSourceDayOfWeek(specialDay.date, specialDay.sourceDayOfWeek, confirmedAdjustments)
-
-internal fun defaultMakeupSourceDayOfWeek(actualDate: LocalDate): Int = when (actualDate.dayOfWeek) {
-    java.time.DayOfWeek.SATURDAY -> java.time.DayOfWeek.FRIDAY.value
-    java.time.DayOfWeek.SUNDAY -> java.time.DayOfWeek.MONDAY.value
-    else -> actualDate.dayOfWeek.value
-}
+): Int? = resolveSourceDayOfWeek(specialDay.date, confirmedAdjustments)
 
 private fun resolveSourceDayOfWeek(
     actualDate: LocalDate,
-    sourceDayOfWeek: Int?,
     confirmedAdjustments: Map<LocalDate, Int>
-): Int = confirmedAdjustments[actualDate]?.takeIf { it in 1..7 }
-    ?: sourceDayOfWeek?.takeIf { it in 1..7 }
-    ?: defaultMakeupSourceDayOfWeek(actualDate)
+): Int? = confirmedAdjustments[actualDate]?.takeIf { it in 1..7 }
