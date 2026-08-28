@@ -229,8 +229,6 @@ fun SettingsScreen(
                 Button(
                     onClick = {
                         onAddHolidaySource(holidaySourceName, holidaySourceUrl)
-                        holidaySourceName = ""
-                        holidaySourceUrl = ""
                     }
                 ) {
                     Text("添加订阅")

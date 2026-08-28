@@ -12,6 +12,8 @@ import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 object CalendarDayRuleMerger {
@@ -129,6 +131,8 @@ class HolidayCalendarRepository(
     private val icsClient: IcsCalendarFetcher,
     private val now: () -> Instant = { Instant.now() }
 ) {
+    private val syncMutex = Mutex()
+
     fun observeSources(): Flow<List<HolidayCalendarSourceEntity>> = dao.observeSources()
 
     suspend fun observeSourcesSnapshot(): List<HolidayCalendarSourceEntity> = dao.observeSources().first()
@@ -170,10 +174,12 @@ class HolidayCalendarRepository(
     }
 
     suspend fun syncSource(sourceId: String): SyncSourceResult {
-        initialize()
-        val result = syncSourceInternal(sourceId)
-        persistSyncSummary(listOf(result))
-        return result
+        return syncMutex.withLock {
+            initialize()
+            val result = syncSourceInternal(sourceId)
+            persistSyncSummary(listOf(result))
+            result
+        }
     }
 
     private suspend fun syncSourceInternal(sourceId: String): SyncSourceResult {
@@ -223,8 +229,10 @@ class HolidayCalendarRepository(
     }
 
     suspend fun syncAllEnabledSources(): SyncSummary {
-        initialize()
-        return syncSources(dao.observeSources().first().filter { it.enabled }.map { it.id })
+        return syncMutex.withLock {
+            initialize()
+            syncSources(dao.observeSources().first().filter { it.enabled }.map { it.id })
+        }
     }
 
     suspend fun addCustomSource(name: String, url: String): HolidayCalendarSourceEntity {
@@ -273,22 +281,19 @@ class HolidayCalendarRepository(
     }
 
     suspend fun syncIfStale() {
-        initialize()
-        val sources = dao.observeSources().first()
-        val reference = now()
-        val sourceNeedsRefresh = sources.any { source ->
-            source.enabled && (
-                source.lastSuccessfulSyncAt == null ||
-                    Duration.between(Instant.ofEpochMilli(source.lastSuccessfulSyncAt), reference).toHours() >= 24
-                )
-        }
-        if (sourceNeedsRefresh) {
-            syncSources(sources.filter { source ->
+        syncMutex.withLock {
+            initialize()
+            val sources = dao.observeSources().first()
+            val reference = now()
+            val staleSourceIds = sources.filter { source ->
                 source.enabled && (
                     source.lastSuccessfulSyncAt == null ||
                         Duration.between(Instant.ofEpochMilli(source.lastSuccessfulSyncAt), reference).toHours() >= 24
                     )
-            }.map { it.id })
+            }.map { it.id }
+            if (staleSourceIds.isNotEmpty()) {
+                syncSources(staleSourceIds)
+            }
         }
     }
 

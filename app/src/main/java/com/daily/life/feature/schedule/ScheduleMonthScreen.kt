@@ -350,6 +350,21 @@ private fun ScheduleCalendarRuleSummary(
     var startDateText by rememberSaveable(state.selectedDate) { mutableStateOf(state.selectedDate.toString()) }
     var endDateText by rememberSaveable(state.selectedDate) { mutableStateOf(state.selectedDate.toString()) }
     var noteText by rememberSaveable(state.selectedDate) { mutableStateOf(selectedCalendarRule?.label.orEmpty()) }
+    var overrideError by rememberSaveable(state.selectedDate) { mutableStateOf<String?>(null) }
+    fun submitOverride(kind: CalendarDayKind) {
+        runCatching {
+            LocalDate.parse(startDateText) to LocalDate.parse(endDateText)
+        }.onSuccess { (startDate, endDate) ->
+            if (endDate.isBefore(startDate)) {
+                overrideError = "结束日期不能早于开始日期"
+            } else {
+                overrideError = null
+                onSaveCalendarDayOverride(startDate, endDate, kind, noteText)
+            }
+        }.onFailure {
+            overrideError = "请输入有效的日期"
+        }
+    }
     val currentRule = selectedCalendarRule ?: ScheduleCalendarRuleUi(
         date = state.selectedDate,
         kind = if (state.selectedDate.dayOfWeek.value in 6..7) CalendarDayKind.REGULAR_REST_DAY else CalendarDayKind.REGULAR_WORKDAY,
@@ -397,31 +412,31 @@ private fun ScheduleCalendarRuleSummary(
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("备注（可选）") }
             )
+            overrideError?.let { error ->
+                Text(error, color = SkyWarm, fontSize = 13.sp)
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(
-                    onClick = {
-                        onSaveCalendarDayOverride(
-                            LocalDate.parse(startDateText),
-                            LocalDate.parse(endDateText),
-                            CalendarDayKind.HOLIDAY_REST,
-                            noteText
-                        )
-                    }
+                    onClick = { submitOverride(CalendarDayKind.HOLIDAY_REST) }
                 ) { Text("设为休息日") }
                 OutlinedButton(
-                    onClick = {
-                        onSaveCalendarDayOverride(
-                            LocalDate.parse(startDateText),
-                            LocalDate.parse(endDateText),
-                            CalendarDayKind.REGULAR_WORKDAY,
-                            noteText
-                        )
-                    }
+                    onClick = { submitOverride(CalendarDayKind.REGULAR_WORKDAY) }
                 ) { Text("设为工作日") }
             }
             OutlinedButton(
                 onClick = {
-                    onClearCalendarDayOverrides(calendarOverrideDates(LocalDate.parse(startDateText), LocalDate.parse(endDateText)))
+                    runCatching {
+                        LocalDate.parse(startDateText) to LocalDate.parse(endDateText)
+                    }.onSuccess { (startDate, endDate) ->
+                        if (endDate.isBefore(startDate)) {
+                            overrideError = "结束日期不能早于开始日期"
+                        } else {
+                            overrideError = null
+                            onClearCalendarDayOverrides(calendarOverrideDates(startDate, endDate))
+                        }
+                    }.onFailure {
+                        overrideError = "请输入有效的日期"
+                    }
                 }
             ) {
                 Text("恢复自动判断")

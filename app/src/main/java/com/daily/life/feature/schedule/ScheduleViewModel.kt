@@ -182,9 +182,14 @@ class ScheduleViewModel(
     ) {
         val holidayRepository = holidayCalendarRepository ?: return
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
-            holidayRepository.saveDateOverride(startDate, endDate, kind, note?.trim().orEmpty().ifBlank { null })
-            refreshCalendarRulesInternal(selectedDate.value)
-            _state.update { it.copy(statusMessage = "日期状态已更新") }
+            runCatching {
+                holidayRepository.saveDateOverride(startDate, endDate, kind, note?.trim().orEmpty().ifBlank { null })
+                refreshCalendarRulesInternal(selectedDate.value)
+            }.onSuccess {
+                _state.update { it.copy(statusMessage = "日期状态已更新") }
+            }.onFailure { error ->
+                _state.update { it.copy(statusMessage = error.message ?: "日期状态无效") }
+            }
         }
     }
 
@@ -204,8 +209,9 @@ class ScheduleViewModel(
     private suspend fun refreshCalendarRulesInternal(anchorDate: LocalDate) {
         val holidayRepository = holidayCalendarRepository ?: return
         calendarRefreshMutex.withLock {
-            val monthStart = anchorDate.withDayOfMonth(1)
-            val monthEnd = anchorDate.withDayOfMonth(anchorDate.lengthOfMonth())
+        val firstDay = anchorDate.withDayOfMonth(1)
+        val monthStart = firstDay.minusDays((firstDay.dayOfWeek.value - 1).toLong())
+        val monthEnd = monthStart.plusDays(41)
             holidayRepository.initialize()
             val sourceNameMap = holidayRepository.observeSourcesSnapshot().associate { it.id to it.name }
             val rules = holidayRepository.resolveBetween(monthStart, monthEnd).map { rule ->
