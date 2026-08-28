@@ -258,9 +258,14 @@ class HolidayCalendarRepository(
     suspend fun syncIfStale() {
         initialize()
         val sources = dao.observeSources().first()
-        val lastSync = preferences.holidayLastSyncAt.first()
-        val sourceNeedsFirstSync = sources.any { it.enabled && it.lastSuccessfulSyncAt == null }
-        if (sourceNeedsFirstSync || lastSync == null || Duration.between(lastSync, now()).toHours() >= 24) {
+        val reference = now()
+        val sourceNeedsRefresh = sources.any { source ->
+            source.enabled && (
+                source.lastSuccessfulSyncAt == null ||
+                    Duration.between(Instant.ofEpochMilli(source.lastSuccessfulSyncAt), reference).toHours() >= 24
+                )
+        }
+        if (sourceNeedsRefresh) {
             syncAllEnabledSources()
         }
     }

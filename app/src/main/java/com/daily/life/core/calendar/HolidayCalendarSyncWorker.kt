@@ -7,22 +7,23 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import java.util.concurrent.TimeUnit
+import androidx.work.workDataOf
 
 class HolidayCalendarSyncWorker(
     appContext: Context,
     workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
     override suspend fun doWork(): Result {
-        return execute(provider?.invoke(applicationContext))
+        return execute { provider?.invoke(applicationContext)?.syncAllEnabledSources() }
     }
 
     companion object {
-        internal suspend fun execute(repository: HolidayCalendarRepository?): Result {
+        internal suspend fun execute(sync: suspend () -> SyncSummary?): Result {
             return try {
-                val summary = repository?.syncAllEnabledSources()
+                val summary = sync()
                 if (summary?.retryableFailure == true) Result.retry() else Result.success()
-            } catch (_: Exception) {
-                Result.retry()
+            } catch (error: Exception) {
+                Result.failure(workDataOf("error" to (error.message ?: error.javaClass.simpleName)))
             }
         }
 

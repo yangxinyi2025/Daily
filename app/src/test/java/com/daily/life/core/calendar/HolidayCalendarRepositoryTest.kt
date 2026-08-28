@@ -8,7 +8,9 @@ import com.daily.life.core.database.HolidayCalendarSourceEntity
 import com.daily.life.core.datastore.DailyPreferences
 import java.io.File
 import java.time.LocalDate
+import java.time.Instant
 import java.time.ZoneId
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -155,6 +157,36 @@ class HolidayCalendarRepositoryTest {
         repository.syncSource("one")
         assertEquals(1, dao.findEventsForSource("one").size)
         assertEquals(1, dao.findEventsForSource("two").size)
+    }
+
+    @Test
+    fun staleReenabledSourceIsRefreshedEvenWhenGlobalStateIsRecent() = runBlocking {
+        val reference = Instant.parse("2026-08-28T08:00:00Z")
+        val dao = database.holidayCalendarDao()
+        dao.insertSourceIfMissing(
+            HolidayCalendarSourceEntity(
+                id = "reenabled",
+                name = "重新启用",
+                url = "https://example.com/re-enabled.ics",
+                builtIn = false,
+                enabled = true,
+                lastSuccessfulSyncAt = reference.minusSeconds(25 * 60 * 60).toEpochMilli()
+            )
+        )
+        val fetchCount = AtomicInteger(0)
+        val repository = HolidayCalendarRepository(
+            dao, preferences,
+            SystemCalendarScheduleReader(ZoneId.systemDefault(), { false }) { _, _ -> emptyList() },
+            object : IcsCalendarFetcher {
+                override fun fetch(source: IcsCalendarSource, etag: String?, lastModified: String?): IcsFetchResult {
+                    fetchCount.incrementAndGet()
+                    return IcsFetchResult.NotModified
+                }
+            },
+            now = { reference }
+        )
+        repository.syncIfStale()
+        assertEquals(2, fetchCount.get())
     }
 
     @Test
