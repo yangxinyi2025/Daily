@@ -18,6 +18,31 @@ class IcsCalendarParserTest {
     private val zone = ZoneId.of("Asia/Shanghai")
 
     @Test
+    fun holidayWordingAndPublicHolidayNameWinOverAmbiguousMakeupText() {
+        assertEquals(
+            SystemCalendarSpecialDayKind.Holiday,
+            systemCalendarSpecialDayKindFor("国庆放假（调休安排）", null)
+        )
+        assertEquals(
+            SystemCalendarSpecialDayKind.Holiday,
+            systemCalendarSpecialDayKindFor("国庆节调休安排", null)
+        )
+    }
+
+    @Test
+    fun bareMakeupTextDoesNotCreateAWorkday() {
+        assertNull(systemCalendarSpecialDayKindFor("国庆调休安排", null))
+        assertEquals(
+            SystemCalendarSpecialDayKind.MakeupWorkday,
+            systemCalendarSpecialDayKindFor("国庆补班", null)
+        )
+        assertEquals(
+            SystemCalendarSpecialDayKind.MakeupWorkday,
+            systemCalendarSpecialDayKindFor("调休上班", null)
+        )
+    }
+
+    @Test
     fun parsesAllDayExclusiveEndAndChineseKinds() {
         val events = parseIcsCalendar(
             """

@@ -91,12 +91,12 @@ object CalendarDayRuleMerger {
         primary: List<CalendarDayRule>,
         secondary: List<CalendarDayRule>
     ): CalendarDayRule? {
-        val candidates = primary.ifEmpty { secondary }
+        val candidates = primary + secondary
         if (candidates.isEmpty()) return null
-        val selectedKind = if (candidates.any { it.kind == CalendarDayKind.MAKEUP_WORKDAY }) {
-            CalendarDayKind.MAKEUP_WORKDAY
-        } else {
-            candidates.first().kind
+        val selectedKind = when {
+            candidates.any { it.kind == CalendarDayKind.HOLIDAY_REST } -> CalendarDayKind.HOLIDAY_REST
+            candidates.any { it.kind == CalendarDayKind.MAKEUP_WORKDAY } -> CalendarDayKind.MAKEUP_WORKDAY
+            else -> candidates.first().kind
         }
         val selected = candidates.filter { it.kind == selectedKind }
         return selected.first().copy(

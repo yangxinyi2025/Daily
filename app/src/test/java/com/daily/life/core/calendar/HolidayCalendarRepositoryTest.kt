@@ -64,7 +64,7 @@ class HolidayCalendarRepositoryTest {
     }
 
     @Test
-    fun icsBeatsSystemCalendarAndMakeupWinsSameLayer() {
+    fun holidayWinsWhenNonManualSourcesConflictOnTheSameDate() {
         val date = LocalDate.of(2026, 5, 2)
         val result = CalendarDayRuleMerger.merge(
             date,
@@ -73,8 +73,7 @@ class HolidayCalendarRepositoryTest {
             systemDays = listOf(SystemCalendarSpecialDay(date, SystemCalendarSpecialDayKind.Holiday, null, null, "放假")),
             overrides = emptyList()
         )
-        assertEquals(CalendarDayKind.MAKEUP_WORKDAY, result.single().kind)
-        assertEquals(CalendarRuleSource.BUILTIN_ICS, result.single().source)
+        assertEquals(CalendarDayKind.HOLIDAY_REST, result.single().kind)
     }
 
     @Test
