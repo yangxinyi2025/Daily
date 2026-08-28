@@ -3,6 +3,9 @@ package com.daily.life.core
 import android.content.Context
 import com.daily.life.core.database.DailyDatabase
 import com.daily.life.core.datastore.DailyPreferences
+import com.daily.life.core.calendar.HolidayCalendarRepository
+import com.daily.life.core.calendar.IcsCalendarClient
+import com.daily.life.core.calendar.SystemCalendarScheduleReader
 import com.daily.life.core.security.AndroidSecretStore
 import com.daily.life.core.security.SecretStore
 import com.daily.life.feature.bill.BillRepository
@@ -13,6 +16,7 @@ interface AppContainer {
     val secretStore: SecretStore
     val repositories: RepositoryFactories
     val adapters: AdapterFactories
+    val holidayCalendarRepository: HolidayCalendarRepository
 }
 
 class DefaultAppContainer(private val context: Context) : AppContainer {
@@ -26,6 +30,15 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val secretStore: SecretStore by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         AndroidSecretStore(context)
+    }
+
+    override val holidayCalendarRepository: HolidayCalendarRepository by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        HolidayCalendarRepository(
+            dao = database.holidayCalendarDao(),
+            preferences = preferences,
+            systemCalendarReader = SystemCalendarScheduleReader.from(context),
+            icsClient = IcsCalendarClient()
+        )
     }
 
     override val repositories: RepositoryFactories = RepositoryFactories(

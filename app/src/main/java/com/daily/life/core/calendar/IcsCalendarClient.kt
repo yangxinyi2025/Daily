@@ -23,6 +23,14 @@ sealed interface IcsFetchResult {
     ) : IcsFetchResult
 }
 
+interface IcsCalendarFetcher {
+    fun fetch(
+        source: IcsCalendarSource,
+        etag: String? = null,
+        lastModified: String? = null
+    ): IcsFetchResult
+}
+
 class IcsCalendarClient(
     private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -30,11 +38,11 @@ class IcsCalendarClient(
         .callTimeout(20, TimeUnit.SECONDS)
         .build(),
     private val zone: ZoneId = ZoneId.systemDefault()
-) {
-    fun fetch(
+ ) : IcsCalendarFetcher {
+    override fun fetch(
         source: IcsCalendarSource,
-        etag: String? = null,
-        lastModified: String? = null
+        etag: String?,
+        lastModified: String?
     ): IcsFetchResult {
         val url = source.url.toHttpUrlOrNull()
             ?: return IcsFetchResult.Failure(message = "Invalid ICS URL", retryable = false)

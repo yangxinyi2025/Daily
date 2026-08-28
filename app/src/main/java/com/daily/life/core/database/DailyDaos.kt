@@ -101,6 +101,9 @@ interface HolidayCalendarDao {
     )
     suspend fun findEventsBetween(start: LocalDate, end: LocalDate): List<HolidayCalendarEventEntity>
 
+    @Query("SELECT * FROM holiday_calendar_events WHERE sourceId = :sourceId ORDER BY startDate, endDateInclusive, eventKey")
+    suspend fun findEventsForSource(sourceId: String): List<HolidayCalendarEventEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEvents(rows: List<HolidayCalendarEventEntity>)
 
