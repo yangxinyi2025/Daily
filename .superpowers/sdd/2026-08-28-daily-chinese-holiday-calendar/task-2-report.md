@@ -10,6 +10,8 @@ Implemented the persistence foundation for normalized holiday calendar rules wit
 
 The Room schema now advances from version 8 to 9 with a non-destructive `MIGRATION_8_9` that creates only the new holiday tables and indexes. Existing `SemesterCalendarAdjustmentEntity` rows are preserved unchanged, so previously confirmed semester adjustments survive the migration exactly as required.
 
+Fix round 1 tightened the DAO replacement contract and migration verification. `replaceEventsForSource(sourceId, events)` now rejects mismatched rows before deleting anything, so the transaction cannot wipe one source's cache and then insert another source's events. The migration test now exercises an actual Room open on a synthesized version-8 database, which validates the declared version-9 schema rather than only checking hand-written SQL.
+
 ## Changed Files
 
 - `app/src/main/java/com/daily/life/core/calendar/CalendarDayRuleModels.kt`
@@ -49,6 +51,22 @@ Verified coverage from this command:
 - existing `semester_calendar_adjustments` data survives
 - prior migration tests still pass
 
+3. Fix-round focused verification after independent review:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests com.daily.life.core.database.HolidayCalendarDaoTest --tests com.daily.life.core.database.HolidayCalendarMigrationTest --tests com.daily.life.core.database.DailyDatabaseMigrationTest --console=plain
+```
+
+Result: `BUILD SUCCESSFUL in 57s`
+
+Additional coverage from this command:
+
+- `replaceEventsForSource` rejects rows whose `sourceId` does not match the replacement target
+- a rejected replacement leaves the source's previous cached rows intact
+- `findEventsBetween` includes single-day events exactly on the query boundary
+- `findEventsBetween` includes multi-day events that end on the start boundary or start on the end boundary
+- migration verification now succeeds through an actual Room open and schema validation path
+
 ## Self-Review
 
 - Checked `git diff --check`; no patch-format or whitespace errors were reported.
@@ -58,5 +76,6 @@ Verified coverage from this command:
 ## Tradeoffs And Remaining Risks
 
 - `DailyPreferences` now stores only lightweight holiday sync display state (`status`, `last sync at`, `error`) because the approved plan keeps source rows and event caches in Room. If Task 5 needs additional lightweight UI state, it should extend these keys rather than duplicate Room data.
-- The DAO query ordering for `findEventsBetween` is chronological by normalized date range. Current tests assert data retention semantics instead of a stronger ordering contract so later repository code can adapt presentation needs without rewriting persistence.
+- `replaceEventsForSource` now fails fast on mixed-source input instead of silently filtering it. I kept that stricter behavior because it preserves transactional safety and surfaces a caller bug immediately; silent filtering would hide upstream corruption while still mutating stored data.
+- The DAO query ordering for `findEventsBetween` is chronological by normalized date range. The new overlap test locks inclusive range semantics, but presentation-level ordering beyond that still belongs to downstream repository/UI code.
 - This task intentionally does not seed the built-in ICS source, fetch ICS data, or merge precedence layers. That behavior remains for downstream tasks and is not validated here.

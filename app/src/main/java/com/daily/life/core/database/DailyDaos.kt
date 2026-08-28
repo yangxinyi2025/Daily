@@ -99,6 +99,9 @@ interface HolidayCalendarDao {
 
     @Transaction
     suspend fun replaceEventsForSource(sourceId: String, events: List<HolidayCalendarEventEntity>) {
+        require(events.all { it.sourceId == sourceId }) {
+            "replaceEventsForSource only accepts rows for sourceId=$sourceId"
+        }
         deleteEventsForSource(sourceId)
         if (events.isNotEmpty()) {
             insertEvents(events)

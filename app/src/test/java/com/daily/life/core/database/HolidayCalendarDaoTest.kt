@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -91,6 +92,119 @@ class HolidayCalendarDaoTest {
         assertEquals(
             mapOf("a-2" to sourceA.id, "b-1" to sourceB.id),
             saved.associate { row -> row.eventKey to row.sourceId }
+        )
+    }
+
+    @Test
+    fun replacingEventsRejectsRowsFromAnotherSourceAndKeepsExistingRows() = runTest {
+        val dao = database.holidayCalendarDao()
+        val sourceA = HolidayCalendarSourceEntity(
+            id = "builtin-cn",
+            name = "Built-in",
+            url = "content://builtin/cn",
+            builtIn = true,
+            enabled = true
+        )
+        val sourceB = HolidayCalendarSourceEntity(
+            id = "custom-1",
+            name = "Custom",
+            url = "https://example.com/calendar.ics",
+            builtIn = false,
+            enabled = true
+        )
+        dao.upsertSource(sourceA)
+        dao.upsertSource(sourceB)
+        dao.replaceEventsForSource(
+            sourceA.id,
+            listOf(
+                event(
+                    sourceId = sourceA.id,
+                    eventKey = "a-1",
+                    startDate = LocalDate.of(2026, 10, 1),
+                    endDateInclusive = LocalDate.of(2026, 10, 1),
+                    label = "国庆"
+                )
+            )
+        )
+
+        val error = runCatching {
+            dao.replaceEventsForSource(
+                sourceA.id,
+                listOf(
+                    event(
+                        sourceId = sourceB.id,
+                        eventKey = "b-foreign",
+                        startDate = LocalDate.of(2026, 10, 2),
+                        endDateInclusive = LocalDate.of(2026, 10, 2),
+                        label = "错误来源"
+                    )
+                )
+            )
+        }.exceptionOrNull()
+
+        val saved = dao.findEventsBetween(
+            start = LocalDate.of(2026, 10, 1),
+            end = LocalDate.of(2026, 10, 3)
+        )
+
+        assertTrue(error is IllegalArgumentException)
+        assertEquals(listOf("a-1"), saved.map(HolidayCalendarEventEntity::eventKey))
+        assertEquals(listOf(sourceA.id), saved.map(HolidayCalendarEventEntity::sourceId))
+    }
+
+    @Test
+    fun findingEventsBetweenUsesInclusiveOverlapForSingleAndMultiDayRows() = runTest {
+        val dao = database.holidayCalendarDao()
+        val source = HolidayCalendarSourceEntity(
+            id = "builtin-cn",
+            name = "Built-in",
+            url = "content://builtin/cn",
+            builtIn = true,
+            enabled = true
+        )
+        dao.upsertSource(source)
+        dao.replaceEventsForSource(
+            source.id,
+            listOf(
+                event(
+                    sourceId = source.id,
+                    eventKey = "single-boundary",
+                    startDate = LocalDate.of(2026, 10, 3),
+                    endDateInclusive = LocalDate.of(2026, 10, 3),
+                    label = "单日边界"
+                ),
+                event(
+                    sourceId = source.id,
+                    eventKey = "multi-end-boundary",
+                    startDate = LocalDate.of(2026, 10, 1),
+                    endDateInclusive = LocalDate.of(2026, 10, 3),
+                    label = "跨日结束边界"
+                ),
+                event(
+                    sourceId = source.id,
+                    eventKey = "multi-start-boundary",
+                    startDate = LocalDate.of(2026, 10, 3),
+                    endDateInclusive = LocalDate.of(2026, 10, 5),
+                    label = "跨日开始边界"
+                ),
+                event(
+                    sourceId = source.id,
+                    eventKey = "outside",
+                    startDate = LocalDate.of(2026, 10, 4),
+                    endDateInclusive = LocalDate.of(2026, 10, 4),
+                    label = "范围外"
+                )
+            )
+        )
+
+        val saved = dao.findEventsBetween(
+            start = LocalDate.of(2026, 10, 3),
+            end = LocalDate.of(2026, 10, 3)
+        )
+
+        assertEquals(
+            listOf("multi-end-boundary", "single-boundary", "multi-start-boundary"),
+            saved.map(HolidayCalendarEventEntity::eventKey)
         )
     }
 
