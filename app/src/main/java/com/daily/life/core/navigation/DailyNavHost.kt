@@ -130,7 +130,8 @@ fun DailyNavHost(
                                 database = container.database,
                                 gateway = SystemCalendarGateway(AndroidCalendarProviderClient(application))
                             ),
-                            calendarScheduleReader = calendarReader
+                            calendarScheduleReader = calendarReader,
+                            holidayCalendarRepository = container.holidayCalendarRepository
                         ),
                         parser = PdfTimetableParser(application::initializePdfBox),
                         calendarReader = calendarReader,

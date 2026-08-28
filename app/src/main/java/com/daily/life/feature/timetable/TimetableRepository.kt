@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.daily.life.core.ReminderScheduler
 import com.daily.life.core.calendar.CalendarReminderSyncer
 import com.daily.life.core.calendar.CalendarGatewayResult
+import com.daily.life.core.calendar.HolidayCalendarRepository
 import com.daily.life.core.calendar.SystemCalendarScheduleReader
 import com.daily.life.core.database.CourseReminderMode
 import com.daily.life.core.database.CourseEntity
@@ -60,6 +61,7 @@ class RoomTimetableRepository(
     private val reminderScheduler: ReminderScheduler,
     private val calendarReminderSyncer: CalendarReminderSyncer? = null,
     private val calendarScheduleReader: SystemCalendarScheduleReader? = null,
+    private val holidayCalendarRepository: HolidayCalendarRepository? = null,
     private val clock: Clock = Clock.systemDefaultZone()
 ) : TimetableRepository {
     private val semesterDao = database.semesterDao()
@@ -272,6 +274,18 @@ class RoomTimetableRepository(
         val now = clock.instant()
         val adjustmentMap = calendarAdjustmentDao.findBySemester(semesterId)
             .associate { it.actualDate to it.sourceDayOfWeek }
+        val classOverrideMap = classOverrideDao.findBySemester(semesterId)
+            .mapNotNull { row ->
+                runCatching { row.actualDate to ClassOverride.valueOf(row.overrideKind) }.getOrNull()
+            }
+            .toMap()
+        val unifiedRules = holidayCalendarRepository?.let { repository ->
+            repository.initialize()
+            repository.resolveBetween(
+                semester.startDate,
+                semester.endDate ?: semester.startDate.plusWeeks(DEFAULT_SEMESTER_WEEKS.toLong()).minusDays(1)
+            )
+        }.orEmpty()
         val specialDays = calendarScheduleReader
             ?.takeIf { it.hasReadPermission() }
             ?.readBetween(
@@ -290,13 +304,25 @@ class RoomTimetableRepository(
             weeks.forEach { courseWeek ->
                 val start = resolvedPeriodTimes.first { it.period == course.startPeriod }.startTime
                 val end = resolvedPeriodTimes.first { it.period == course.endPeriod }.endTime
-                courseOccurrenceDates(
-                    semesterStartDate = semester.startDate,
-                    week = courseWeek.week,
-                    courseDayOfWeek = course.dayOfWeek,
-                    specialDays = specialDays,
-                    confirmedAdjustments = adjustmentMap
-                ).forEach { date ->
+                val occurrenceDates = if (unifiedRules.isNotEmpty()) {
+                    courseOccurrenceDatesWithRules(
+                        semesterStartDate = semester.startDate,
+                        week = courseWeek.week,
+                        courseDayOfWeek = course.dayOfWeek,
+                        calendarRules = unifiedRules,
+                        confirmedAdjustments = adjustmentMap,
+                        classOverrides = classOverrideMap
+                    )
+                } else {
+                    courseOccurrenceDates(
+                        semesterStartDate = semester.startDate,
+                        week = courseWeek.week,
+                        courseDayOfWeek = course.dayOfWeek,
+                        specialDays = specialDays,
+                        confirmedAdjustments = adjustmentMap
+                    )
+                }
+                occurrenceDates.forEach { date ->
                     val startAt = date.atTime(start).atZone(clock.zone).toInstant()
                     if (startAt.isAfter(now)) {
                         results += syncer.syncCourseOccurrence(
