@@ -66,7 +66,7 @@ class HolidayCalendarRepositoryTest {
         val result = CalendarDayRuleMerger.merge(
             date,
             date,
-            cachedIcsDays = listOf(event("builtin", date, CalendarDayKind.MAKEUP_WORKDAY, "补周六", sourceDayOfWeek = 6)),
+            cachedIcsDays = listOf(event(HolidayCalendarRepository.BUILTIN_SOURCE_ID, date, CalendarDayKind.MAKEUP_WORKDAY, "补周六", sourceDayOfWeek = 6)),
             systemDays = listOf(SystemCalendarSpecialDay(date, SystemCalendarSpecialDayKind.Holiday, null, null, "放假")),
             overrides = emptyList()
         )

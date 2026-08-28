@@ -18,11 +18,12 @@ class HolidayCalendarSyncWorker(
 
     companion object {
         internal suspend fun execute(repository: HolidayCalendarRepository?): Result {
-            return runCatching { repository?.syncAllEnabledSources() }
-            .fold(
-                onSuccess = { Result.success() },
-                onFailure = { Result.success() }
-            )
+            return try {
+                val summary = repository?.syncAllEnabledSources()
+                if (summary?.retryableFailure == true) Result.retry() else Result.success()
+            } catch (_: Exception) {
+                Result.retry()
+            }
         }
 
         private var provider: ((Context) -> HolidayCalendarRepository?)? = null

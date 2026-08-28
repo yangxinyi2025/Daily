@@ -17,7 +17,7 @@ class CalendarDayRuleMergerTest {
             endDate = date,
             cachedIcsDays = listOf(
                 event(
-                    sourceId = "builtin",
+                    sourceId = HolidayCalendarRepository.BUILTIN_SOURCE_ID,
                     date = date,
                     kind = CalendarDayKind.HOLIDAY_REST,
                     summary = "国庆节"
@@ -96,13 +96,13 @@ class CalendarDayRuleMergerTest {
             endDate = date,
             cachedIcsDays = listOf(
                 event(
-                    sourceId = "builtin",
+                    sourceId = HolidayCalendarRepository.BUILTIN_SOURCE_ID,
                     date = date,
                     kind = CalendarDayKind.HOLIDAY_REST,
                     summary = "节日"
                 ),
                 event(
-                    sourceId = "builtin",
+                    sourceId = HolidayCalendarRepository.BUILTIN_SOURCE_ID,
                     date = date,
                     kind = CalendarDayKind.MAKEUP_WORKDAY,
                     summary = "补班"
@@ -113,7 +113,7 @@ class CalendarDayRuleMergerTest {
         )
 
         assertEquals(CalendarDayKind.MAKEUP_WORKDAY, merged.single().kind)
-        assertEquals("builtin", merged.single().sourceId)
+        assertEquals(HolidayCalendarRepository.BUILTIN_SOURCE_ID, merged.single().sourceId)
         assertEquals("节日 / 补班", merged.single().label)
     }
 
@@ -144,7 +144,7 @@ class CalendarDayRuleMergerTest {
             endDate = date,
             cachedIcsDays = listOf(
                 event(
-                    sourceId = "builtin",
+                    sourceId = HolidayCalendarRepository.BUILTIN_SOURCE_ID,
                     date = date,
                     kind = CalendarDayKind.HOLIDAY_REST,
                     summary = "国庆假期"
@@ -162,7 +162,7 @@ class CalendarDayRuleMergerTest {
 
         assertEquals(1, merged.size)
         assertEquals(CalendarDayKind.HOLIDAY_REST, merged.single().kind)
-        assertEquals("builtin,custom", merged.single().sourceId)
+        assertEquals("${HolidayCalendarRepository.BUILTIN_SOURCE_ID},custom", merged.single().sourceId)
         assertEquals("国庆假期 / 自定义说明", merged.single().label)
     }
 

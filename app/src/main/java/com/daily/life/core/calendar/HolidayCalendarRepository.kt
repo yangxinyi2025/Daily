@@ -58,7 +58,11 @@ object CalendarDayRuleMerger {
                         date = date,
                         kind = day.kind,
                         source = sourceKinds[day.sourceId]
-                            ?: if (day.sourceId == "builtin") CalendarRuleSource.BUILTIN_ICS else CalendarRuleSource.CUSTOM_ICS,
+                            ?: if (day.sourceId == HolidayCalendarRepository.BUILTIN_SOURCE_ID) {
+                                CalendarRuleSource.BUILTIN_ICS
+                            } else {
+                                CalendarRuleSource.CUSTOM_ICS
+                            },
                         sourceId = day.sourceId,
                         label = day.summary,
                         sourceDayOfWeek = day.sourceDayOfWeek,
@@ -113,7 +117,8 @@ data class SyncSummary(
     val succeeded: Int,
     val failed: Int,
     val usedCache: Int,
-    val message: String
+    val message: String,
+    val retryableFailure: Boolean = false
 )
 
 class HolidayCalendarRepository(
@@ -233,7 +238,8 @@ class HolidayCalendarRepository(
                     is SyncSourceResult.UsedCache -> "${result.sourceId}: 使用缓存（${result.message}）"
                     is SyncSourceResult.Failed -> "${result.sourceId}: ${result.message}"
                 }
-            }
+            },
+            retryableFailure = results.any { it is SyncSourceResult.Failed && it.retryable }
         )
     }
 
@@ -250,8 +256,11 @@ class HolidayCalendarRepository(
     }
 
     suspend fun syncIfStale() {
+        initialize()
+        val sources = dao.observeSources().first()
         val lastSync = preferences.holidayLastSyncAt.first()
-        if (lastSync == null || Duration.between(lastSync, now()).toHours() >= 24) {
+        val sourceNeedsFirstSync = sources.any { it.enabled && it.lastSuccessfulSyncAt == null }
+        if (sourceNeedsFirstSync || lastSync == null || Duration.between(lastSync, now()).toHours() >= 24) {
             syncAllEnabledSources()
         }
     }
