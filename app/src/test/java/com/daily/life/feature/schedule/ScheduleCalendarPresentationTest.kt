@@ -1,5 +1,8 @@
 package com.daily.life.feature.schedule
 
+import com.daily.life.core.calendar.CalendarDayKind
+import com.daily.life.core.calendar.CalendarDayRule
+import com.daily.life.core.calendar.CalendarRuleSource
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -57,6 +60,55 @@ class ScheduleCalendarPresentationTest {
                 ScheduleDashboardSection.Editor
             ),
             scheduleDashboardSectionOrder(showEditor = true)
+        )
+    }
+
+    @Test
+    fun calendarDayRulesMapToDistinctExistingBadgesAndManualMarker() {
+        val updatedAt = Instant.parse("2026-08-28T08:00:00Z").toEpochMilli()
+        assertEquals(
+            ScheduleCalendarBadge.RestDay,
+            badgeForCalendarRule(
+                CalendarDayRule(
+                    date = LocalDate.of(2026, 8, 1),
+                    kind = CalendarDayKind.REGULAR_REST_DAY,
+                    source = CalendarRuleSource.WEEKEND_DEFAULT,
+                    updatedAt = updatedAt
+                )
+            )
+        )
+        assertEquals(
+            ScheduleCalendarBadge.Holiday,
+            badgeForCalendarRule(
+                CalendarDayRule(
+                    date = LocalDate.of(2026, 10, 1),
+                    kind = CalendarDayKind.HOLIDAY_REST,
+                    source = CalendarRuleSource.BUILTIN_ICS,
+                    updatedAt = updatedAt
+                )
+            )
+        )
+        assertEquals(
+            ScheduleCalendarBadge.AdjustedWorkday,
+            badgeForCalendarRule(
+                CalendarDayRule(
+                    date = LocalDate.of(2026, 10, 10),
+                    kind = CalendarDayKind.MAKEUP_WORKDAY,
+                    source = CalendarRuleSource.CUSTOM_ICS,
+                    updatedAt = updatedAt
+                )
+            )
+        )
+        assertEquals(
+            "改",
+            manualMarkerForCalendarRule(
+                CalendarDayRule(
+                    date = LocalDate.of(2026, 8, 3),
+                    kind = CalendarDayKind.REGULAR_WORKDAY,
+                    source = CalendarRuleSource.MANUAL,
+                    updatedAt = updatedAt
+                )
+            )
         )
     }
 }

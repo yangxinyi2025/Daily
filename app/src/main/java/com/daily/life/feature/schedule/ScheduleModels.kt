@@ -1,5 +1,7 @@
 package com.daily.life.feature.schedule
 
+import com.daily.life.core.calendar.CalendarDayKind
+import com.daily.life.core.calendar.CalendarRuleSource
 import com.daily.life.core.database.ReminderMode
 import com.daily.life.core.database.ScheduleEventEntity
 import java.time.Instant
@@ -92,9 +94,24 @@ data class ScheduleState(
     val viewMode: ScheduleViewMode = ScheduleViewMode.MONTH,
     val selectedDate: LocalDate = LocalDate.now(),
     val events: List<ScheduleEvent> = emptyList(),
+    val calendarRules: List<ScheduleCalendarRuleUi> = emptyList(),
+    val selectedCalendarRule: ScheduleCalendarRuleUi? = null,
+    val holidayLastSyncAt: Instant? = null,
     val editor: ScheduleEditorState? = null,
     val statusMessage: String? = null,
     val calendarEventIdToEdit: Long? = null
+)
+
+data class ScheduleCalendarRuleUi(
+    val date: LocalDate,
+    val kind: CalendarDayKind,
+    val source: CalendarRuleSource,
+    val sourceName: String,
+    val sourceLabel: String,
+    val label: String? = null,
+    val badge: ScheduleCalendarBadge? = null,
+    val manualMarker: String? = null,
+    val updatedAt: Instant
 )
 
 internal fun ReminderMode.displayLabel(): String = when (this) {

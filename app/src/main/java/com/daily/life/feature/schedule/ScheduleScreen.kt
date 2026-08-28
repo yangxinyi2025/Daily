@@ -56,6 +56,9 @@ fun ScheduleScreen(
     onSaveEditor: () -> Unit,
     onDismissEditor: () -> Unit,
     onEditorChange: (ScheduleEditorState) -> Unit,
+    onSaveCalendarDayOverride: (java.time.LocalDate, java.time.LocalDate, com.daily.life.core.calendar.CalendarDayKind, String?) -> Unit,
+    onClearCalendarDayOverrides: (List<java.time.LocalDate>) -> Unit,
+    onRefreshCalendarRules: () -> Unit,
     onCalendarEventEditorOpened: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -172,6 +175,9 @@ fun ScheduleScreen(
             onCalendarEventEditorOpened()
         }
     }
+    LaunchedEffect(resumeVersion) {
+        onRefreshCalendarRules()
+    }
     if (state.viewMode == ScheduleViewMode.MONTH) {
         ScheduleMonthScreen(
             state = state,
@@ -184,7 +190,9 @@ fun ScheduleScreen(
             onSaveEditor = saveEditorWithCalendarPermission,
             onDismissEditor = onDismissEditor,
             onEditorChange = onEditorChange,
-            canReadSystemCalendar = canReadSystemCalendar
+            onSaveCalendarDayOverride = onSaveCalendarDayOverride,
+            onClearCalendarDayOverrides = onClearCalendarDayOverrides,
+            onRefreshCalendarRules = onRefreshCalendarRules
         )
         return
     }

@@ -170,7 +170,9 @@ fun DailyNavHost(
                                 database = container.database,
                                 gateway = SystemCalendarGateway(AndroidCalendarProviderClient(application))
                             )
-                        )
+                        ),
+                        holidayCalendarRepository = container.holidayCalendarRepository,
+                        preferences = container.preferences
                     )
                 }
                 val scheduleState by scheduleViewModel.state.collectAsState()
@@ -185,6 +187,9 @@ fun DailyNavHost(
                     onSaveEditor = scheduleViewModel::saveEditor,
                     onDismissEditor = scheduleViewModel::dismissEditor,
                     onEditorChange = scheduleViewModel::replaceEditor,
+                    onSaveCalendarDayOverride = scheduleViewModel::saveCalendarDayOverride,
+                    onClearCalendarDayOverrides = scheduleViewModel::clearCalendarDayOverrides,
+                    onRefreshCalendarRules = scheduleViewModel::refreshCalendarRules,
                     onCalendarEventEditorOpened = scheduleViewModel::consumeCalendarEventEditorRequest
                 )
             }
@@ -258,7 +263,8 @@ fun DailyNavHost(
                             semesterDao = container.database.semesterDao(),
                             preferences = container.preferences
                         ),
-                        preferences = container.preferences
+                        preferences = container.preferences,
+                        holidayCalendarRepository = container.holidayCalendarRepository
                     )
                 }
                 val settingsState by settingsViewModel.state.collectAsState()
@@ -266,7 +272,11 @@ fun DailyNavHost(
                     state = settingsState,
                     onSemesterStartDateChange = settingsViewModel::updateSemesterStartDate,
                     onTargetWeightChange = settingsViewModel::updateTargetWeightJin,
-                    onMonthlyBudgetChange = settingsViewModel::updateMonthlyBudgetCents
+                    onMonthlyBudgetChange = settingsViewModel::updateMonthlyBudgetCents,
+                    onAddHolidaySource = settingsViewModel::addHolidaySource,
+                    onToggleHolidaySource = settingsViewModel::toggleHolidaySource,
+                    onDeleteHolidaySource = settingsViewModel::deleteHolidaySource,
+                    onSyncHolidaySources = settingsViewModel::syncHolidaySources
                 )
             }
         }

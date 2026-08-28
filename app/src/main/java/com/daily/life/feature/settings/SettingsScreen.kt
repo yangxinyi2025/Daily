@@ -8,6 +8,7 @@ import android.os.PowerManager
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -17,6 +18,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -25,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
@@ -37,7 +41,10 @@ import com.daily.life.core.system.backgroundRuntimeSettingsAction
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.roundToLong
 
@@ -46,11 +53,17 @@ fun SettingsScreen(
     state: SettingsState,
     onSemesterStartDateChange: (LocalDate) -> Unit,
     onTargetWeightChange: (Double?) -> Unit,
-    onMonthlyBudgetChange: (Long?) -> Unit
+    onMonthlyBudgetChange: (Long?) -> Unit,
+    onAddHolidaySource: (String, String) -> Unit,
+    onToggleHolidaySource: (String, Boolean) -> Unit,
+    onDeleteHolidaySource: (String) -> Unit,
+    onSyncHolidaySources: () -> Unit
 ) {
     var semesterStartDateText by rememberSaveable { mutableStateOf(state.semesterStartDate?.toString().orEmpty()) }
     var targetWeightText by rememberSaveable { mutableStateOf(state.targetWeightJin?.toString().orEmpty()) }
     var monthlyBudgetText by rememberSaveable { mutableStateOf(state.monthlyBudgetCents?.let(::formatBudgetInput).orEmpty()) }
+    var holidaySourceName by rememberSaveable { mutableStateOf("") }
+    var holidaySourceUrl by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(state.semesterStartDate) {
         semesterStartDateText = state.semesterStartDate?.toString().orEmpty()
@@ -134,6 +147,100 @@ fun SettingsScreen(
             )
         }
 
+        DailyCard {
+            Text(text = "中国节假日", style = MaterialTheme.typography.titleLarge)
+            state.holidaySyncStatus?.let { status ->
+                Text(
+                    text = "同步状态：$status",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            state.holidayLastSyncAt?.let { syncedAt ->
+                Text(
+                    text = "最近同步：${formatInstant(syncedAt)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            state.holidayError?.let { error ->
+                Text(
+                    text = error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+            state.holidaySources.forEach { source ->
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = source.name,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = source.url,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Switch(
+                            checked = source.enabled,
+                            onCheckedChange = { checked -> onToggleHolidaySource(source.id, checked) }
+                        )
+                        Text(
+                            text = if (source.enabled) "已启用" else "已停用",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        if (!source.builtIn) {
+                            OutlinedButton(onClick = { onDeleteHolidaySource(source.id) }) {
+                                Text("删除")
+                            }
+                        }
+                    }
+                    source.lastSuccessfulSyncAt?.let { sourceSyncAt ->
+                        Text(
+                            text = "来源同步：${formatInstant(sourceSyncAt)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    source.error?.let { sourceError ->
+                        Text(
+                            text = sourceError,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = holidaySourceName,
+                onValueChange = { holidaySourceName = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("订阅名称") }
+            )
+            OutlinedTextField(
+                value = holidaySourceUrl,
+                onValueChange = { holidaySourceUrl = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("HTTPS 订阅地址") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(
+                    onClick = {
+                        onAddHolidaySource(holidaySourceName, holidaySourceUrl)
+                        holidaySourceName = ""
+                        holidaySourceUrl = ""
+                    }
+                ) {
+                    Text("添加订阅")
+                }
+                OutlinedButton(onClick = onSyncHolidaySources) {
+                    Text("立即同步")
+                }
+            }
+        }
+
         BackgroundRuntimeSettingsCard()
 
     }
@@ -207,3 +314,6 @@ private fun formatBudgetInput(value: Long): String = (value / 100.0).toString()
 
 private fun formatCurrency(cents: Long): String =
     String.format(Locale.US, "¥%,.2f", cents / 100.0)
+
+private fun formatInstant(value: Instant): String =
+    value.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))

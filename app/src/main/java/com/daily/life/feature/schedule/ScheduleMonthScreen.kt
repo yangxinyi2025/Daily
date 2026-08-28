@@ -40,19 +40,21 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -60,6 +62,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.daily.life.R
+import com.daily.life.core.calendar.CalendarDayKind
+import com.daily.life.core.designsystem.DailyDatePickerField
 import com.daily.life.core.designsystem.SkyAccent
 import com.daily.life.core.designsystem.SkyBackground
 import com.daily.life.core.designsystem.SkyCoolBorder
@@ -70,8 +74,10 @@ import com.daily.life.core.designsystem.SkyPurpleSurface
 import com.daily.life.core.designsystem.SkySecondary
 import com.daily.life.core.designsystem.SkySurface
 import com.daily.life.core.designsystem.SkyWarm
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @Composable
 internal fun ScheduleMonthScreen(
@@ -85,15 +91,20 @@ internal fun ScheduleMonthScreen(
     onSaveEditor: () -> Unit,
     onDismissEditor: () -> Unit,
     onEditorChange: (ScheduleEditorState) -> Unit,
-    canReadSystemCalendar: Boolean
+    onSaveCalendarDayOverride: (LocalDate, LocalDate, CalendarDayKind, String?) -> Unit,
+    onClearCalendarDayOverrides: (List<LocalDate>) -> Unit,
+    onRefreshCalendarRules: () -> Unit
 ) {
     val zone = remember { ZoneId.systemDefault() }
     val calendarDays = remember(state.selectedDate) { monthCalendarDays(state.selectedDate) }
-    val calendarBadges = rememberSystemCalendarBadges(state.selectedDate, canReadSystemCalendar)
+    val calendarRules = remember(state.calendarRules) { state.calendarRules.associateBy { it.date } }
     val eventDates = remember(state.events) { state.events.map { it.eventAt.atZone(zone).toLocalDate() } }
     val selectedEvents = state.events
         .filter { it.eventAt.atZone(zone).toLocalDate() == state.selectedDate }
         .sortedBy { it.eventAt }
+    LaunchedEffect(state.selectedDate.month, state.selectedDate.year) {
+        onRefreshCalendarRules()
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(SkyBackground),
@@ -105,7 +116,7 @@ internal fun ScheduleMonthScreen(
             ScheduleMonthCard(
                 state = state,
                 days = calendarDays,
-                badges = calendarBadges,
+                rules = calendarRules,
                 eventDates = eventDates,
                 onDateSelected = onDateSelected,
                 onPreviousMonth = { onDateSelected(state.selectedDate.minusMonths(1).withDayOfMonth(1)) },
@@ -115,11 +126,14 @@ internal fun ScheduleMonthScreen(
         item {
             ScheduleSelectedDayCard(
                 state = state,
+                selectedCalendarRule = state.selectedCalendarRule,
                 events = selectedEvents,
                 zone = zone,
                 onCreate = onCreate,
                 onEdit = onEdit,
-                onDelete = onDelete
+                onDelete = onDelete,
+                onSaveCalendarDayOverride = onSaveCalendarDayOverride,
+                onClearCalendarDayOverrides = onClearCalendarDayOverrides
             )
         }
         item { ScheduleQuickCreate(onCreate = onCreate, onQuickCreate = onQuickCreate) }
@@ -138,23 +152,6 @@ internal fun ScheduleMonthScreen(
         }
         state.statusMessage?.let { message -> item { Text(message, color = SkySecondary, fontSize = 14.sp) } }
     }
-}
-
-@Composable
-private fun rememberSystemCalendarBadges(
-    month: LocalDate,
-    canReadSystemCalendar: Boolean
-): Map<LocalDate, ScheduleCalendarBadge> {
-    val context = LocalContext.current
-    val reader = remember(context) { SystemCalendarDayBadgeReader.from(context) }
-    val badges by produceState(
-        initialValue = emptyMap(),
-        key1 = month,
-        key2 = canReadSystemCalendar
-    ) {
-        value = if (canReadSystemCalendar) reader.readMonth(month) else emptyMap()
-    }
-    return badges
 }
 
 @Composable
@@ -177,7 +174,7 @@ private fun SchedulePageHeader(onCreate: () -> Unit) {
 private fun ScheduleMonthCard(
     state: ScheduleState,
     days: List<LocalDate>,
-    badges: Map<LocalDate, ScheduleCalendarBadge>,
+    rules: Map<LocalDate, ScheduleCalendarRuleUi>,
     eventDates: List<LocalDate>,
     onDateSelected: (LocalDate) -> Unit,
     onPreviousMonth: () -> Unit,
@@ -213,7 +210,7 @@ private fun ScheduleMonthCard(
                         date = date,
                         isOutsideMonth = date.month != state.selectedDate.month,
                         isSelected = date == state.selectedDate,
-                        badge = badges[date],
+                        rule = rules[date],
                         hasEvent = eventDatesForCalendar(date, eventDates).isNotEmpty(),
                         onClick = { onDateSelected(date) },
                         modifier = Modifier.weight(1f)
@@ -221,12 +218,16 @@ private fun ScheduleMonthCard(
                 }
             }
         }
-        if (badges.isNotEmpty()) {
+        if (rules.values.any { it.badge != null || it.manualMarker != null }) {
             Row(modifier = Modifier.fillMaxWidth().padding(top = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                 Spacer(Modifier.weight(1f))
+                ScheduleBadgeLegend(ScheduleCalendarBadge.RestDay, "周末")
+                Spacer(Modifier.width(20.dp))
                 ScheduleBadgeLegend(ScheduleCalendarBadge.Holiday, "节假日")
                 Spacer(Modifier.width(20.dp))
                 ScheduleBadgeLegend(ScheduleCalendarBadge.AdjustedWorkday, "调休")
+                Spacer(Modifier.width(12.dp))
+                Text("改 = 手动", color = SkyMutedText, fontSize = 12.sp)
                 Spacer(Modifier.weight(1f))
             }
         }
@@ -245,7 +246,7 @@ private fun ScheduleCalendarDay(
     date: LocalDate,
     isOutsideMonth: Boolean,
     isSelected: Boolean,
-    badge: ScheduleCalendarBadge?,
+    rule: ScheduleCalendarRuleUi?,
     hasEvent: Boolean,
     onClick: () -> Unit,
     modifier: Modifier
@@ -261,12 +262,23 @@ private fun ScheduleCalendarDay(
                 Text(date.dayOfMonth.toString(), color = textColor, fontSize = 16.sp, lineHeight = 20.sp, fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal)
             }
         }
-        when {
-            badge != null -> ScheduleBadge(
+        rule?.badge?.let { badge ->
+            ScheduleBadge(
                 badge = badge,
                 modifier = Modifier.align(Alignment.TopEnd).offset(x = 3.dp, y = (-3).dp)
             )
-            hasEvent -> Box(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 1.dp).size(4.dp).background(SkyAccent, CircleShape))
+        }
+        rule?.manualMarker?.let { marker ->
+            Text(
+                text = marker,
+                color = SkyAccent,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.BottomEnd).offset(x = 1.dp, y = (-2).dp)
+            )
+        }
+        if (hasEvent) {
+            Box(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 1.dp).size(4.dp).background(SkyAccent, CircleShape))
         }
     }
 }
@@ -276,7 +288,11 @@ private fun ScheduleBadge(badge: ScheduleCalendarBadge, modifier: Modifier = Mod
     Surface(
         modifier = modifier.size(12.dp),
         shape = CircleShape,
-        color = if (badge == ScheduleCalendarBadge.Holiday) SkyWarm.copy(alpha = 0.82f) else Color(0xFF8FB6FA)
+        color = when (badge) {
+            ScheduleCalendarBadge.RestDay -> SkyCoolBorder
+            ScheduleCalendarBadge.Holiday -> SkyWarm.copy(alpha = 0.82f)
+            ScheduleCalendarBadge.AdjustedWorkday -> Color(0xFF8FB6FA)
+        }
     ) {
         Box(contentAlignment = Alignment.Center) { Text(badge.label, color = Color.White, fontSize = 7.sp, lineHeight = 8.sp, fontWeight = FontWeight.Bold) }
     }
@@ -291,13 +307,22 @@ private fun ScheduleBadgeLegend(badge: ScheduleCalendarBadge, text: String) {
 @Composable
 private fun ScheduleSelectedDayCard(
     state: ScheduleState,
+    selectedCalendarRule: ScheduleCalendarRuleUi?,
     events: List<ScheduleEvent>,
     zone: ZoneId,
     onCreate: () -> Unit,
     onEdit: (ScheduleEvent) -> Unit,
-    onDelete: (Long) -> Unit
+    onDelete: (Long) -> Unit,
+    onSaveCalendarDayOverride: (LocalDate, LocalDate, CalendarDayKind, String?) -> Unit,
+    onClearCalendarDayOverrides: (List<LocalDate>) -> Unit
 ) {
     ScheduleReferenceCard(modifier = if (events.isEmpty()) Modifier.height(124.dp) else Modifier) {
+        ScheduleCalendarRuleSummary(
+            state = state,
+            selectedCalendarRule = selectedCalendarRule,
+            onSaveCalendarDayOverride = onSaveCalendarDayOverride,
+            onClearCalendarDayOverrides = onClearCalendarDayOverrides
+        )
         if (events.isEmpty()) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 Image(
@@ -310,6 +335,97 @@ private fun ScheduleSelectedDayCard(
             }
         } else {
             ScheduleEventsDayCard(state, events, zone, onEdit, onDelete)
+        }
+    }
+}
+
+@Composable
+private fun ScheduleCalendarRuleSummary(
+    state: ScheduleState,
+    selectedCalendarRule: ScheduleCalendarRuleUi?,
+    onSaveCalendarDayOverride: (LocalDate, LocalDate, CalendarDayKind, String?) -> Unit,
+    onClearCalendarDayOverrides: (List<LocalDate>) -> Unit
+) {
+    var editingOverride by rememberSaveable(state.selectedDate) { mutableStateOf(false) }
+    var startDateText by rememberSaveable(state.selectedDate) { mutableStateOf(state.selectedDate.toString()) }
+    var endDateText by rememberSaveable(state.selectedDate) { mutableStateOf(state.selectedDate.toString()) }
+    var noteText by rememberSaveable(state.selectedDate) { mutableStateOf(selectedCalendarRule?.label.orEmpty()) }
+    val currentRule = selectedCalendarRule ?: ScheduleCalendarRuleUi(
+        date = state.selectedDate,
+        kind = if (state.selectedDate.dayOfWeek.value in 6..7) CalendarDayKind.REGULAR_REST_DAY else CalendarDayKind.REGULAR_WORKDAY,
+        source = com.daily.life.core.calendar.CalendarRuleSource.WEEKEND_DEFAULT,
+        sourceName = "周末默认",
+        sourceLabel = "周末默认",
+        updatedAt = Instant.EPOCH
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            "${state.selectedDate.monthValue}月${state.selectedDate.dayOfMonth}日 · ${state.selectedDate.dayOfWeek.chineseLabel()}",
+            color = SkyInk,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text("状态：${calendarDayKindLabel(currentRule.kind)}", color = SkyMutedText, fontSize = 14.sp)
+        Text("来源：${currentRule.sourceName}", color = SkyMutedText, fontSize = 14.sp)
+        currentRule.label?.takeIf(String::isNotBlank)?.let {
+            Text("说明：$it", color = SkyMutedText, fontSize = 14.sp)
+        }
+        state.holidayLastSyncAt?.let {
+            Text("最近同步：${formatCalendarInstant(it)}", color = SkyMutedText, fontSize = 14.sp)
+        }
+        Text(
+            text = if (editingOverride) "收起修改" else "修改这一天",
+            color = SkyAccent,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.clickable { editingOverride = !editingOverride }
+        )
+        if (editingOverride) {
+            DailyDatePickerField(
+                value = startDateText,
+                label = "开始日期",
+                onDateSelected = { startDateText = it.toString() }
+            )
+            DailyDatePickerField(
+                value = endDateText,
+                label = "结束日期",
+                onDateSelected = { endDateText = it.toString() }
+            )
+            OutlinedTextField(
+                value = noteText,
+                onValueChange = { noteText = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("备注（可选）") }
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        onSaveCalendarDayOverride(
+                            LocalDate.parse(startDateText),
+                            LocalDate.parse(endDateText),
+                            CalendarDayKind.HOLIDAY_REST,
+                            noteText
+                        )
+                    }
+                ) { Text("设为休息日") }
+                OutlinedButton(
+                    onClick = {
+                        onSaveCalendarDayOverride(
+                            LocalDate.parse(startDateText),
+                            LocalDate.parse(endDateText),
+                            CalendarDayKind.REGULAR_WORKDAY,
+                            noteText
+                        )
+                    }
+                ) { Text("设为工作日") }
+            }
+            OutlinedButton(
+                onClick = {
+                    onClearCalendarDayOverrides(calendarOverrideDates(LocalDate.parse(startDateText), LocalDate.parse(endDateText)))
+                }
+            ) {
+                Text("恢复自动判断")
+            }
         }
     }
 }
@@ -335,7 +451,6 @@ private fun ScheduleEmptyDayCard(state: ScheduleState, onCreate: () -> Unit) {
 @Composable
 private fun ScheduleEventsDayCard(state: ScheduleState, events: List<ScheduleEvent>, zone: ZoneId, onEdit: (ScheduleEvent) -> Unit, onDelete: (Long) -> Unit) {
     Column {
-        Text("${state.selectedDate.monthValue}月${state.selectedDate.dayOfMonth}日 · ${state.selectedDate.dayOfWeek.chineseLabel()}", color = SkyInk, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
         events.forEach { event ->
             val time = event.eventAt.atZone(zone).toLocalTime().toString().take(5)
             Row(modifier = Modifier.fillMaxWidth().padding(top = 10.dp).clickable { onEdit(event) }, verticalAlignment = Alignment.CenterVertically) {
@@ -416,3 +531,13 @@ private fun java.time.DayOfWeek.chineseLabel(): String = when (this) {
     java.time.DayOfWeek.SATURDAY -> "周六"
     java.time.DayOfWeek.SUNDAY -> "周日"
 }
+
+private fun calendarOverrideDates(start: LocalDate, end: LocalDate): List<LocalDate> {
+    if (end.isBefore(start)) return emptyList()
+    return generateSequence(start) { current ->
+        current.plusDays(1).takeIf { next -> !next.isAfter(end) }
+    }.toList()
+}
+
+private fun formatCalendarInstant(value: Instant): String =
+    value.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))

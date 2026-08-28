@@ -2,6 +2,11 @@ package com.daily.life.feature.schedule
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.daily.life.core.calendar.CalendarDayKind
+import com.daily.life.core.calendar.CalendarDayRule
+import com.daily.life.core.calendar.CalendarRuleSource
+import com.daily.life.core.calendar.HolidayCalendarRepository
+import com.daily.life.core.datastore.DailyPreferences
 import com.daily.life.core.database.ReminderMode
 import com.daily.life.core.notification.ReminderScheduleStatus
 import java.time.Clock
@@ -11,19 +16,24 @@ import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class ScheduleViewModel(
     private val repository: ScheduleRepository,
+    private val holidayCalendarRepository: HolidayCalendarRepository? = null,
+    private val preferences: DailyPreferences? = null,
     private val clock: Clock = Clock.systemDefaultZone(),
     coroutineScope: CoroutineScope? = null
 ) : ViewModel() {
     private val scope = coroutineScope ?: viewModelScope
+    private val calendarRefreshMutex = Mutex()
     private val viewMode = MutableStateFlow(ScheduleViewMode.MONTH)
     private val selectedDate = MutableStateFlow(LocalDate.now(clock))
     private val _state = MutableStateFlow(
@@ -40,6 +50,17 @@ class ScheduleViewModel(
                 .flatMapLatest { query -> repository.observeBetween(query.start(clock.zone), query.end(clock.zone)) }
                 .collect { events -> _state.update { it.copy(events = events) } }
         }
+        holidayCalendarRepository?.let { holidayRepository ->
+            scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                holidayRepository.initialize()
+                refreshCalendarRulesInternal(selectedDate.value)
+            }
+        }
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            (preferences?.holidayLastSyncAt ?: flowOf(null)).collect { syncedAt ->
+                _state.update { current -> current.copy(holidayLastSyncAt = syncedAt) }
+            }
+        }
     }
 
     fun setViewMode(mode: ScheduleViewMode) {
@@ -49,7 +70,17 @@ class ScheduleViewModel(
 
     fun selectDate(date: LocalDate) {
         selectedDate.value = date
-        _state.update { it.copy(selectedDate = date) }
+        _state.update { current ->
+            current.copy(
+                selectedDate = date,
+                selectedCalendarRule = current.calendarRules.firstOrNull { it.date == date }
+            )
+        }
+        if (holidayCalendarRepository != null) {
+            scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                refreshCalendarRulesInternal(date)
+            }
+        }
     }
 
     fun startCreate(action: ScheduleQuickAction? = null) {
@@ -136,8 +167,88 @@ class ScheduleViewModel(
         _state.update { it.copy(calendarEventIdToEdit = null) }
     }
 
+    fun refreshCalendarRules() {
+        val date = selectedDate.value
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            refreshCalendarRulesInternal(date)
+        }
+    }
+
+    fun saveCalendarDayOverride(
+        startDate: LocalDate,
+        endDate: LocalDate,
+        kind: CalendarDayKind,
+        note: String?
+    ) {
+        val holidayRepository = holidayCalendarRepository ?: return
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            holidayRepository.saveDateOverride(startDate, endDate, kind, note?.trim().orEmpty().ifBlank { null })
+            refreshCalendarRulesInternal(selectedDate.value)
+            _state.update { it.copy(statusMessage = "日期状态已更新") }
+        }
+    }
+
+    fun clearCalendarDayOverrides(dates: List<LocalDate>) {
+        val holidayRepository = holidayCalendarRepository ?: return
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            holidayRepository.clearDateOverrides(dates.distinct())
+            refreshCalendarRulesInternal(selectedDate.value)
+            _state.update { it.copy(statusMessage = "已恢复自动判断") }
+        }
+    }
+
     private fun updateEditor(update: ScheduleEditorState.() -> ScheduleEditorState) {
         _state.update { current -> current.editor?.let { current.copy(editor = it.update()) } ?: current }
+    }
+
+    private suspend fun refreshCalendarRulesInternal(anchorDate: LocalDate) {
+        val holidayRepository = holidayCalendarRepository ?: return
+        calendarRefreshMutex.withLock {
+            val monthStart = anchorDate.withDayOfMonth(1)
+            val monthEnd = anchorDate.withDayOfMonth(anchorDate.lengthOfMonth())
+            holidayRepository.initialize()
+            val sourceNameMap = holidayRepository.observeSourcesSnapshot().associate { it.id to it.name }
+            val rules = holidayRepository.resolveBetween(monthStart, monthEnd).map { rule ->
+                rule.toUiModel(sourceNameMap)
+            }
+            _state.update { current ->
+                current.copy(
+                    calendarRules = rules,
+                    selectedCalendarRule = rules.firstOrNull { it.date == current.selectedDate }
+                )
+            }
+        }
+    }
+
+    private fun CalendarDayRule.toUiModel(sourceNameMap: Map<String, String>): ScheduleCalendarRuleUi {
+        val resolvedSourceName = resolveSourceName(sourceNameMap)
+        return ScheduleCalendarRuleUi(
+            date = date,
+            kind = kind,
+            source = source,
+            sourceName = resolvedSourceName,
+            sourceLabel = when (source) {
+                CalendarRuleSource.MANUAL -> "手动修正"
+                else -> resolvedSourceName
+            },
+            label = label,
+            badge = badgeForCalendarRule(this),
+            manualMarker = manualMarkerForCalendarRule(this),
+            updatedAt = Instant.ofEpochMilli(updatedAt)
+        )
+    }
+
+    private fun CalendarDayRule.resolveSourceName(sourceNameMap: Map<String, String>): String {
+        val ids = sourceId?.split(",")?.map(String::trim)?.filter(String::isNotEmpty).orEmpty()
+        return when (source) {
+            CalendarRuleSource.WEEKEND_DEFAULT -> "周末默认"
+            CalendarRuleSource.SYSTEM_CALENDAR -> "系统日历"
+            CalendarRuleSource.MANUAL -> "手动修正"
+            CalendarRuleSource.BUILTIN_ICS,
+            CalendarRuleSource.CUSTOM_ICS -> ids.mapNotNull { sourceNameMap[it] }.distinct().joinToString(" / ").ifBlank {
+                if (source == CalendarRuleSource.BUILTIN_ICS) "内置节假日订阅" else "自定义节假日订阅"
+            }
+        }
     }
 
     private data class ScheduleQuery(

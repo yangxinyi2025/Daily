@@ -8,6 +8,7 @@ import com.daily.life.core.datastore.DailyPreferences
 import java.time.Instant
 import java.time.LocalDate
 import java.time.Duration
+import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
@@ -130,6 +131,8 @@ class HolidayCalendarRepository(
 ) {
     fun observeSources(): Flow<List<HolidayCalendarSourceEntity>> = dao.observeSources()
 
+    suspend fun observeSourcesSnapshot(): List<HolidayCalendarSourceEntity> = dao.observeSources().first()
+
     suspend fun initialize() {
         if (dao.observeSources().first().none { it.id == BUILTIN_SOURCE_ID }) {
             dao.insertSourceIfMissing(
@@ -222,6 +225,39 @@ class HolidayCalendarRepository(
     suspend fun syncAllEnabledSources(): SyncSummary {
         initialize()
         return syncSources(dao.observeSources().first().filter { it.enabled }.map { it.id })
+    }
+
+    suspend fun addCustomSource(name: String, url: String): HolidayCalendarSourceEntity {
+        initialize()
+        val normalizedName = name.trim()
+        val normalizedUrl = url.trim()
+        require(normalizedName.isNotEmpty()) { "请输入订阅名称" }
+        require(normalizedUrl.isNotEmpty()) { "请输入 HTTPS 订阅地址" }
+        require(normalizedUrl.startsWith("https://", ignoreCase = true)) { "仅支持 HTTPS 订阅地址" }
+        val existing = dao.observeSources().first()
+        require(existing.none { it.url.equals(normalizedUrl, ignoreCase = true) }) { "该订阅地址已存在" }
+        val entity = HolidayCalendarSourceEntity(
+            id = "custom-${UUID.randomUUID()}",
+            name = normalizedName,
+            url = normalizedUrl,
+            builtIn = false,
+            enabled = true
+        )
+        dao.upsertSource(entity)
+        return entity
+    }
+
+    suspend fun setSourceEnabled(id: String, enabled: Boolean) {
+        initialize()
+        val source = dao.observeSources().first().firstOrNull { it.id == id } ?: return
+        dao.upsertSource(source.copy(enabled = enabled))
+    }
+
+    suspend fun deleteSource(id: String) {
+        initialize()
+        val source = dao.observeSources().first().firstOrNull { it.id == id } ?: return
+        if (source.builtIn) return
+        dao.deleteCustomSource(id)
     }
 
     suspend fun saveDateOverride(startDate: LocalDate, endDate: LocalDate, kind: CalendarDayKind, note: String?) {

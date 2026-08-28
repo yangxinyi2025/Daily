@@ -2,13 +2,17 @@ package com.daily.life.feature.schedule
 
 import com.daily.life.core.calendar.SystemCalendarScheduleEvent
 import com.daily.life.core.calendar.SystemCalendarSpecialDayKind
+import com.daily.life.core.calendar.CalendarDayKind
+import com.daily.life.core.calendar.CalendarDayRule
+import com.daily.life.core.calendar.CalendarRuleSource
 import com.daily.life.core.calendar.mergeSystemCalendarSpecialDays
 import com.daily.life.core.calendar.parseSystemCalendarSpecialDay
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
-internal enum class ScheduleCalendarBadge(val label: String) {
+enum class ScheduleCalendarBadge(val label: String) {
+    RestDay("周"),
     Holiday("休"),
     AdjustedWorkday("班")
 }
@@ -82,4 +86,21 @@ internal fun systemCalendarBadgesFor(
             }
         )
     }
+}
+
+internal fun badgeForCalendarRule(rule: CalendarDayRule): ScheduleCalendarBadge? = when (rule.kind) {
+    CalendarDayKind.REGULAR_WORKDAY -> null
+    CalendarDayKind.REGULAR_REST_DAY -> ScheduleCalendarBadge.RestDay
+    CalendarDayKind.HOLIDAY_REST -> ScheduleCalendarBadge.Holiday
+    CalendarDayKind.MAKEUP_WORKDAY -> ScheduleCalendarBadge.AdjustedWorkday
+}
+
+internal fun manualMarkerForCalendarRule(rule: CalendarDayRule): String? =
+    if (rule.source == CalendarRuleSource.MANUAL) "改" else null
+
+internal fun calendarDayKindLabel(kind: CalendarDayKind): String = when (kind) {
+    CalendarDayKind.REGULAR_WORKDAY -> "工作日"
+    CalendarDayKind.REGULAR_REST_DAY -> "周末休息"
+    CalendarDayKind.HOLIDAY_REST -> "节假日休息"
+    CalendarDayKind.MAKEUP_WORKDAY -> "调休上班"
 }
