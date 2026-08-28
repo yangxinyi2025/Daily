@@ -28,7 +28,7 @@ internal fun mapWeekToScheduleSlotsWithRules(
         val actualDate = weekStart.plusDays(offset)
         val rule = rulesByDate[actualDate]
         when (classOverrides[actualDate]) {
-            ClassOverride.NO_CLASS -> TimetableScheduleSlot(actualDate, selectedWeek, null, true, false)
+            ClassOverride.NO_CLASS -> TimetableScheduleSlot(actualDate, selectedWeek, null, false, false)
             ClassOverride.HAS_CLASS -> TimetableScheduleSlot(actualDate, selectedWeek, actualDate.dayOfWeek.value, false, false)
             ClassOverride.FOLLOW_CALENDAR, null -> when (rule?.kind) {
                 CalendarDayKind.HOLIDAY_REST -> TimetableScheduleSlot(actualDate, selectedWeek, null, true, false)

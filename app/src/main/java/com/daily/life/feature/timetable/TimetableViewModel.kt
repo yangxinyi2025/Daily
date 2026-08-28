@@ -97,7 +97,9 @@ class TimetableViewModel(
                     specialDays = query.calendarSpecialDays,
                     confirmedAdjustments = adjustments.associate { it.actualDate to it.sourceDayOfWeek },
                     holidayRules = rules,
-                    classOverrides = overrides.associate { it.actualDate to runCatching { ClassOverride.valueOf(it.overrideKind) }.getOrDefault(ClassOverride.FOLLOW_CALENDAR) },
+                    classOverrides = overrides.mapNotNull { row ->
+                        runCatching { row.actualDate to ClassOverride.valueOf(row.overrideKind) }.getOrNull()
+                    }.toMap(),
                     calendarReadWarning = query.calendarReadWarning
                 )
             }

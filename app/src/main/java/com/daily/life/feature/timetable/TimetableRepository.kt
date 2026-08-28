@@ -167,6 +167,12 @@ class RoomTimetableRepository(
         require(preparedCourses.isNotEmpty()) { "没有可导入的课程" }
         require(validateSemesterPeriodTimes(periodTimes) == null) { "节次时间不正确" }
         require(calendarAdjustments.all { it.sourceDayOfWeek in 1..7 }) { "调休补课来源星期不正确" }
+        val effectiveEndDate = semester.endDate
+            ?: semester.startDate.plusWeeks(DEFAULT_SEMESTER_WEEKS.toLong()).minusDays(1)
+        require(classOverrides.all { override ->
+            !override.actualDate.isBefore(semester.startDate) &&
+                !override.actualDate.isAfter(effectiveEndDate)
+        }) { "课程覆盖日期必须在学期范围内" }
 
         if (replaceExisting) {
             val existingSemester = semesterDao.findByName(semester.name)
