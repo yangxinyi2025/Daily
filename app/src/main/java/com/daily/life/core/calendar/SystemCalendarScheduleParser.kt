@@ -56,7 +56,7 @@ internal fun mergeSystemCalendarSpecialDays(
 ): List<SystemCalendarSpecialDay> = days
     .groupBy(SystemCalendarSpecialDay::date)
     .mapNotNull { (_, sameDate) ->
-        sameDate.firstOrNull { it.kind == SystemCalendarSpecialDayKind.MakeupWorkday }
+        sameDate.firstOrNull { it.kind == SystemCalendarSpecialDayKind.Holiday }
             ?: sameDate.firstOrNull()
     }
     .sortedBy(SystemCalendarSpecialDay::date)

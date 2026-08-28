@@ -1,11 +1,8 @@
 package com.daily.life.feature.settings
 
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
-import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,7 +33,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.daily.life.core.designsystem.DailyCard
 import com.daily.life.core.designsystem.DailyDatePickerField
-import com.daily.life.core.system.backgroundRuntimeSettingsAction
+import com.daily.life.core.system.openAppDetailsSettings
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -288,11 +285,7 @@ private fun Context.isIgnoringBatteryOptimizations(): Boolean {
 }
 
 private fun Context.openBackgroundRuntimeSettings() {
-    val packageUri = Uri.parse("package:$packageName")
-    when (backgroundRuntimeSettingsAction(Build.VERSION.SDK_INT)) {
-        com.daily.life.core.system.BackgroundRuntimeSettingsAction.APP_DETAILS ->
-            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri))
-    }
+    openAppDetailsSettings()
 }
 
 private fun parseBudgetInput(value: String): Long? =

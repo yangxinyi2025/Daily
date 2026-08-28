@@ -46,7 +46,7 @@ class ScheduleCalendarPresentationTest {
         )
 
         assertEquals(ScheduleCalendarBadge.Holiday, badges[LocalDate.of(2026, 10, 1)])
-        assertEquals(ScheduleCalendarBadge.AdjustedWorkday, badges[LocalDate.of(2026, 10, 11)])
+        assertEquals(ScheduleCalendarBadge.Holiday, badges[LocalDate.of(2026, 10, 11)])
         assertNull(badges[LocalDate.of(2026, 10, 2)])
     }
 
@@ -109,5 +109,13 @@ class ScheduleCalendarPresentationTest {
                 )
             )
         )
+    }
+
+    @Test
+    fun manualCalendarCorrectionUsesClearActionsAndMakeupWorkday() {
+        assertEquals("修正日期状态", calendarOverrideToggleLabel(editing = false))
+        assertEquals("收起日期修正", calendarOverrideToggleLabel(editing = true))
+        assertEquals(CalendarDayKind.MAKEUP_WORKDAY, manualCalendarWorkdayKind)
+        assertEquals("恢复系统日历", restoreSystemCalendarLabel)
     }
 }

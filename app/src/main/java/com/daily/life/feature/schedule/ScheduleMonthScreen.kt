@@ -385,13 +385,9 @@ private fun ScheduleCalendarRuleSummary(
         state.holidayLastSyncAt?.let {
             Text("最近同步：${formatCalendarInstant(it)}", color = SkyMutedText, fontSize = 14.sp)
         }
-        Text(
-            text = if (editingOverride) "收起修改" else "修改这一天",
-            color = SkyAccent,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.clickable { editingOverride = !editingOverride }
-        )
+        OutlinedButton(onClick = { editingOverride = !editingOverride }) {
+            Text(calendarOverrideToggleLabel(editingOverride))
+        }
         if (editingOverride) {
             DailyDatePickerField(
                 value = startDateText,
@@ -417,8 +413,8 @@ private fun ScheduleCalendarRuleSummary(
                     onClick = { submitOverride(CalendarDayKind.HOLIDAY_REST) }
                 ) { Text("设为休息日") }
                 OutlinedButton(
-                    onClick = { submitOverride(CalendarDayKind.REGULAR_WORKDAY) }
-                ) { Text("设为工作日") }
+                    onClick = { submitOverride(manualCalendarWorkdayKind) }
+                ) { Text("设为调休上班") }
             }
             OutlinedButton(
                 onClick = {
@@ -436,11 +432,18 @@ private fun ScheduleCalendarRuleSummary(
                     }
                 }
             ) {
-                Text("恢复自动判断")
+                Text(restoreSystemCalendarLabel)
             }
         }
     }
 }
+
+internal fun calendarOverrideToggleLabel(editing: Boolean): String =
+    if (editing) "收起日期修正" else "修正日期状态"
+
+internal val manualCalendarWorkdayKind = CalendarDayKind.MAKEUP_WORKDAY
+
+internal const val restoreSystemCalendarLabel = "恢复系统日历"
 
 @Composable
 private fun ScheduleEmptyDayCard(state: ScheduleState, onCreate: () -> Unit) {

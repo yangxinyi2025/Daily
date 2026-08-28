@@ -67,6 +67,9 @@ class DailyPreferences private constructor(
     val holidaySyncError: Flow<String?> =
         dataStore.data.map { preferences -> preferences[HOLIDAY_SYNC_ERROR] }
 
+    val backgroundRuntimeGuideAcknowledged: Flow<Boolean> =
+        dataStore.data.map { preferences -> preferences[BACKGROUND_RUNTIME_GUIDE_ACKNOWLEDGED] ?: false }
+
     suspend fun setSemesterStartDate(value: LocalDate?) {
         dataStore.edit { preferences ->
             if (value == null) {
@@ -173,6 +176,12 @@ class DailyPreferences private constructor(
         }
     }
 
+    suspend fun setBackgroundRuntimeGuideAcknowledged() {
+        dataStore.edit { preferences ->
+            preferences[BACKGROUND_RUNTIME_GUIDE_ACKNOWLEDGED] = true
+        }
+    }
+
     companion object {
         private val SEMESTER_START_DATE = stringPreferencesKey("semester_start_date")
         private val CURRENT_SEMESTER_ID = longPreferencesKey("current_semester_id")
@@ -187,6 +196,8 @@ class DailyPreferences private constructor(
         private val HOLIDAY_SYNC_STATUS = stringPreferencesKey("holiday_sync_status")
         private val HOLIDAY_LAST_SYNC_AT = longPreferencesKey("holiday_last_sync_at")
         private val HOLIDAY_SYNC_ERROR = stringPreferencesKey("holiday_sync_error")
+        private val BACKGROUND_RUNTIME_GUIDE_ACKNOWLEDGED =
+            booleanPreferencesKey("background_runtime_guide_acknowledged")
 
         const val DEFAULT_MENSTRUAL_CYCLE_DAYS = 30
         const val MIN_MENSTRUAL_CYCLE_DAYS = 15

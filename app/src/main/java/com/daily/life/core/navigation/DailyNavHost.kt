@@ -7,7 +7,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -46,20 +49,29 @@ import com.daily.life.core.calendar.CalendarReminderSyncer
 import com.daily.life.core.calendar.SystemCalendarGateway
 import com.daily.life.core.calendar.SystemCalendarScheduleReader
 import com.daily.life.core.notification.AndroidReminderScheduler
+import com.daily.life.core.system.BackgroundRuntimeGuideDialog
+import com.daily.life.core.system.openAppDetailsSettings
 import com.daily.life.feature.timetable.PdfTimetableParser
 import com.daily.life.feature.timetable.RoomTimetableRepository
 import com.daily.life.feature.timetable.TimetableScreen
 import com.daily.life.feature.timetable.TimetableViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.map
 
 @Composable
 fun DailyNavHost(
     navController: NavHostController,
     rootState: DailyRootState
 ) {
-    val application = LocalContext.current.applicationContext as DailyApplication
+    val context = LocalContext.current
+    val application = context.applicationContext as DailyApplication
     val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
+    val backgroundRuntimeGuideAcknowledged by application.container.preferences
+        .backgroundRuntimeGuideAcknowledged
+        .map { value -> value as Boolean? }
+        .collectAsState(initial = null)
+    var backgroundRuntimeGuideDismissed by rememberSaveable { mutableStateOf(false) }
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -283,6 +295,23 @@ fun DailyNavHost(
                 )
             }
         }
+    }
+    if (backgroundRuntimeGuideAcknowledged == false && !backgroundRuntimeGuideDismissed) {
+        BackgroundRuntimeGuideDialog(
+            onOpenSettings = {
+                backgroundRuntimeGuideDismissed = true
+                coroutineScope.launch {
+                    application.container.preferences.setBackgroundRuntimeGuideAcknowledged()
+                    context.openAppDetailsSettings()
+                }
+            },
+            onLater = {
+                backgroundRuntimeGuideDismissed = true
+                coroutineScope.launch {
+                    application.container.preferences.setBackgroundRuntimeGuideAcknowledged()
+                }
+            }
+        )
     }
 }
 

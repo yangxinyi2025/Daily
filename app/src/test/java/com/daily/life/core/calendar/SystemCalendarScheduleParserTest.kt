@@ -77,7 +77,7 @@ class SystemCalendarScheduleParserTest {
             event(
                 start = "2026-10-10T00:00:00Z",
                 end = "2026-10-11T00:00:00Z",
-                title = "调休补10月9日"
+                title = "调休上班（补10月9日）"
             ),
             zone
         ).single()
@@ -87,7 +87,7 @@ class SystemCalendarScheduleParserTest {
     }
 
     @Test
-    fun makeupWorkdayWinsWhenHolidayAndMakeupOverlap() {
+    fun holidayWinsWhenHolidayAndMakeupOverlap() {
         val days = mergeSystemCalendarSpecialDays(
             listOf(
                 SystemCalendarSpecialDay(
@@ -107,8 +107,8 @@ class SystemCalendarScheduleParserTest {
             )
         )
 
-        assertEquals(SystemCalendarSpecialDayKind.MakeupWorkday, days.single().kind)
-        assertEquals(5, days.single().sourceDayOfWeek)
+        assertEquals(SystemCalendarSpecialDayKind.Holiday, days.single().kind)
+        assertNull(days.single().sourceDayOfWeek)
     }
 
     @Test
