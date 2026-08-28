@@ -12,6 +12,8 @@ The Room schema now advances from version 8 to 9 with a non-destructive `MIGRATI
 
 Fix round 1 tightened the DAO replacement contract and migration verification. `replaceEventsForSource(sourceId, events)` now rejects mismatched rows before deleting anything, so the transaction cannot wipe one source's cache and then insert another source's events. The migration test now exercises an actual Room open on a synthesized version-8 database, which validates the declared version-9 schema rather than only checking hand-written SQL.
 
+Fix round 2 hardened source metadata updates. `upsertSource` no longer uses `INSERT OR REPLACE`; it now performs transactional update-or-insert semantics so changing `enabled`, `etag`, or sync metadata on an existing source row does not delete the parent row and cascade away cached holiday events.
+
 ## Changed Files
 
 - `app/src/main/java/com/daily/life/core/calendar/CalendarDayRuleModels.kt`
@@ -67,6 +69,19 @@ Additional coverage from this command:
 - `findEventsBetween` includes multi-day events that end on the start boundary or start on the end boundary
 - migration verification now succeeds through an actual Room open and schema validation path
 
+4. Fix-round regression verification for non-destructive source upsert:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests com.daily.life.core.database.HolidayCalendarDaoTest --tests com.daily.life.core.database.HolidayCalendarMigrationTest --tests com.daily.life.core.database.DailyDatabaseMigrationTest --console=plain
+```
+
+Result: `BUILD SUCCESSFUL in 1m 5s`
+
+Additional coverage from this command:
+
+- updating an existing `HolidayCalendarSourceEntity` by the same `id` keeps previously cached events
+- source metadata changes no longer trigger foreign-key cascade deletion through `REPLACE`
+
 ## Self-Review
 
 - Checked `git diff --check`; no patch-format or whitespace errors were reported.
@@ -77,5 +92,6 @@ Additional coverage from this command:
 
 - `DailyPreferences` now stores only lightweight holiday sync display state (`status`, `last sync at`, `error`) because the approved plan keeps source rows and event caches in Room. If Task 5 needs additional lightweight UI state, it should extend these keys rather than duplicate Room data.
 - `replaceEventsForSource` now fails fast on mixed-source input instead of silently filtering it. I kept that stricter behavior because it preserves transactional safety and surfaces a caller bug immediately; silent filtering would hide upstream corruption while still mutating stored data.
+- `upsertSource` now uses explicit update-or-insert steps instead of `REPLACE`. I chose that over a destructive conflict strategy because preserving child rows is part of the persistence contract, and this approach stays compatible with the current Room version without relying on newer generated upsert behavior.
 - The DAO query ordering for `findEventsBetween` is chronological by normalized date range. The new overlap test locks inclusive range semantics, but presentation-level ordering beyond that still belongs to downstream repository/UI code.
 - This task intentionally does not seed the built-in ICS source, fetch ICS data, or merge precedence layers. That behavior remains for downstream tasks and is not validated here.

@@ -75,8 +75,18 @@ interface HolidayCalendarDao {
     @Query("SELECT * FROM holiday_calendar_sources ORDER BY builtIn DESC, name, id")
     fun observeSources(): Flow<List<HolidayCalendarSourceEntity>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsertSource(entity: HolidayCalendarSourceEntity)
+    @Update
+    suspend fun updateSource(entity: HolidayCalendarSourceEntity): Int
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertSourceIfMissing(entity: HolidayCalendarSourceEntity): Long
+
+    @Transaction
+    suspend fun upsertSource(entity: HolidayCalendarSourceEntity) {
+        if (updateSource(entity) == 0) {
+            insertSourceIfMissing(entity)
+        }
+    }
 
     @Query("DELETE FROM holiday_calendar_sources WHERE id = :id AND builtIn = 0")
     suspend fun deleteCustomSource(id: String)

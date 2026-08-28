@@ -153,6 +153,48 @@ class HolidayCalendarDaoTest {
     }
 
     @Test
+    fun updatingExistingSourceMetadataKeepsItsCachedEvents() = runTest {
+        val dao = database.holidayCalendarDao()
+        val source = HolidayCalendarSourceEntity(
+            id = "builtin-cn",
+            name = "Built-in",
+            url = "content://builtin/cn",
+            builtIn = true,
+            enabled = true
+        )
+        dao.upsertSource(source)
+        dao.replaceEventsForSource(
+            source.id,
+            listOf(
+                event(
+                    sourceId = source.id,
+                    eventKey = "keep-me",
+                    startDate = LocalDate.of(2026, 10, 1),
+                    endDateInclusive = LocalDate.of(2026, 10, 1),
+                    label = "国庆"
+                )
+            )
+        )
+
+        dao.upsertSource(
+            source.copy(
+                enabled = false,
+                etag = "\"etag-2\"",
+                lastSuccessfulSyncAt = 2L,
+                lastError = "network"
+            )
+        )
+
+        val saved = dao.findEventsBetween(
+            start = LocalDate.of(2026, 10, 1),
+            end = LocalDate.of(2026, 10, 1)
+        )
+
+        assertEquals(listOf("keep-me"), saved.map(HolidayCalendarEventEntity::eventKey))
+        assertEquals(listOf(source.id), saved.map(HolidayCalendarEventEntity::sourceId))
+    }
+
+    @Test
     fun findingEventsBetweenUsesInclusiveOverlapForSingleAndMultiDayRows() = runTest {
         val dao = database.holidayCalendarDao()
         val source = HolidayCalendarSourceEntity(
