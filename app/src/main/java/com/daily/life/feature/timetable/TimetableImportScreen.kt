@@ -40,7 +40,8 @@ fun TimetableImportScreen(
     onReplaceExistingChange: (Boolean) -> Unit,
     onCancel: () -> Unit,
     onConfirm: () -> Unit,
-    onMakeupSourceChange: (LocalDate, Int?) -> Unit
+    onMakeupSourceChange: (LocalDate, Int?) -> Unit,
+    onClassOverrideChange: (LocalDate, ClassOverride) -> Unit = { _, _ -> }
 ) {
     Column(
         modifier = Modifier
@@ -114,6 +115,18 @@ fun TimetableImportScreen(
                             options = choice.options,
                             onSelected = { day -> onMakeupSourceChange(choice.actualDate, day) }
                         )
+                    }
+                }
+                state.classOverrideChoices.forEach { choice ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("${choice.actualDate.format(IMPORT_DATE_FORMATTER)} · 课程覆盖", modifier = Modifier.weight(1f))
+                        ClassOverridePicker(choice.override) { selected ->
+                            onClassOverrideChange(choice.actualDate, selected)
+                        }
                     }
                 }
                 state.calendarReadWarning?.let { warning ->
@@ -238,6 +251,44 @@ private fun MakeupSourcePicker(
                     onClick = {
                         expanded = false
                         onSelected(day)
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ClassOverridePicker(
+    selected: ClassOverride,
+    onSelected: (ClassOverride) -> Unit
+) {
+    var expanded by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    Box {
+        OutlinedButton(onClick = { expanded = true }) {
+            Text(
+                when (selected) {
+                    ClassOverride.FOLLOW_CALENDAR -> "跟随日历"
+                    ClassOverride.HAS_CLASS -> "有课"
+                    ClassOverride.NO_CLASS -> "无课"
+                }
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            ClassOverride.values().forEach { option ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            when (option) {
+                                ClassOverride.FOLLOW_CALENDAR -> "跟随日历"
+                                ClassOverride.HAS_CLASS -> "有课"
+                                ClassOverride.NO_CLASS -> "无课"
+                            }
+                        )
+                    },
+                    onClick = {
+                        expanded = false
+                        onSelected(option)
                     }
                 )
             }

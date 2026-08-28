@@ -2,6 +2,9 @@ package com.daily.life.feature.timetable
 
 import com.daily.life.core.calendar.SystemCalendarSpecialDay
 import com.daily.life.core.calendar.SystemCalendarSpecialDayKind
+import com.daily.life.core.calendar.CalendarDayKind
+import com.daily.life.core.calendar.CalendarDayRule
+import com.daily.life.core.calendar.CalendarRuleSource
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -117,6 +120,62 @@ class TimetableCalendarMappingTest {
         )
     }
 
+    @Test
+    fun unifiedHolidayRuleSuppressesCourseAndMakeupUsesSourceWeekday() {
+        val holidayDate = LocalDate.of(2026, 9, 17)
+        val makeupDate = LocalDate.of(2026, 9, 19)
+        val rules = listOf(
+            rule(holidayDate, CalendarDayKind.HOLIDAY_REST),
+            rule(makeupDate, CalendarDayKind.MAKEUP_WORKDAY, sourceDayOfWeek = 5)
+        )
+
+        val slots = mapWeekToScheduleSlotsWithRules(semesterStart, 1, rules, emptyMap())
+        assertEquals(null, slots.single { it.actualDate == holidayDate }.courseDayOfWeek)
+        assertEquals(5, slots.single { it.actualDate == makeupDate }.courseDayOfWeek)
+        assertEquals(
+            listOf(LocalDate.of(2026, 9, 18), makeupDate),
+            courseOccurrenceDatesWithRules(semesterStart, 1, 5, rules, emptyMap())
+        )
+    }
+
+    @Test
+    fun unknownUnifiedMakeupDoesNotCopyCourseUntilConfirmed() {
+        val actualDate = LocalDate.of(2026, 9, 19)
+        val rules = listOf(rule(actualDate, CalendarDayKind.MAKEUP_WORKDAY))
+        val slot = mapWeekToScheduleSlotsWithRules(semesterStart, 1, rules, emptyMap())
+            .single { it.actualDate == actualDate }
+        assertTrue(slot.needsMakeupConfirmation)
+        assertEquals(
+            listOf(LocalDate.of(2026, 9, 18)),
+            courseOccurrenceDatesWithRules(semesterStart, 1, 5, rules, emptyMap())
+        )
+    }
+
+    @Test
+    fun classOverridesWinOverUnifiedCalendarRule() {
+        val holidayDate = LocalDate.of(2026, 9, 17)
+        val rules = listOf(rule(holidayDate, CalendarDayKind.HOLIDAY_REST))
+        val slots = mapWeekToScheduleSlotsWithRules(
+            semesterStart,
+            1,
+            rules,
+            emptyMap(),
+            mapOf(holidayDate to ClassOverride.HAS_CLASS)
+        )
+        assertEquals(4, slots.single { it.actualDate == holidayDate }.courseDayOfWeek)
+        assertEquals(
+            listOf(holidayDate),
+            courseOccurrenceDatesWithRules(
+                semesterStart,
+                1,
+                4,
+                rules,
+                emptyMap(),
+                mapOf(holidayDate to ClassOverride.HAS_CLASS)
+            )
+        )
+    }
+
     private fun specialDay(date: LocalDate, kind: SystemCalendarSpecialDayKind) = SystemCalendarSpecialDay(
         date = date,
         kind = kind,
@@ -131,5 +190,13 @@ class TimetableCalendarMappingTest {
         sourceDayOfWeek = null,
         sourceDate = null,
         label = "调休上班"
+    )
+
+    private fun rule(date: LocalDate, kind: CalendarDayKind, sourceDayOfWeek: Int? = null) = CalendarDayRule(
+        date = date,
+        kind = kind,
+        source = CalendarRuleSource.BUILTIN_ICS,
+        sourceDayOfWeek = sourceDayOfWeek,
+        updatedAt = 1L
     )
 }

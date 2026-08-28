@@ -2,10 +2,14 @@ package com.daily.life.feature.timetable
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.daily.life.core.calendar.CalendarDayRule
+import com.daily.life.core.calendar.CalendarDayKind
+import com.daily.life.core.calendar.HolidayCalendarRepository
 import com.daily.life.core.calendar.SystemCalendarScheduleReader
 import com.daily.life.core.calendar.SystemCalendarSpecialDay
 import com.daily.life.core.database.CourseEntity
 import com.daily.life.core.database.SemesterEntity
+import com.daily.life.core.database.SemesterClassOverrideEntity
 import java.io.InputStream
 import java.time.Clock
 import java.time.LocalDate
@@ -33,6 +37,7 @@ class TimetableViewModel(
     private val clock: Clock = Clock.systemDefaultZone(),
     private val parserDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val calendarReader: SystemCalendarScheduleReader? = null,
+    private val holidayCalendarRepository: HolidayCalendarRepository? = null,
     coroutineScope: CoroutineScope? = null
 ) : ViewModel() {
     private val scope = coroutineScope ?: viewModelScope
@@ -41,6 +46,8 @@ class TimetableViewModel(
     private val periodEditor = MutableStateFlow(TimetablePeriodEditorState())
     private val calendarSpecialDays = MutableStateFlow<List<SystemCalendarSpecialDay>>(emptyList())
     private val calendarReadWarning = MutableStateFlow<String?>(null)
+    private val holidayCalendarRules = MutableStateFlow<List<CalendarDayRule>>(emptyList())
+    private val classOverrides = MutableStateFlow<Map<LocalDate, ClassOverride>>(emptyMap())
     private var previewCourses: List<TimetablePreviewCourse> = emptyList()
 
     private val query: Flow<Query> = combine(
@@ -76,8 +83,10 @@ class TimetableViewModel(
             combine(
                 repository.observeCourses(semester.id, query.week),
                 repository.observePeriodTimes(semester.id),
-                repository.observeCalendarAdjustments(semester.id)
-            ) { courses, periodTimes, adjustments ->
+                repository.observeCalendarAdjustments(semester.id),
+                repository.observeClassOverrides(semester.id),
+                holidayCalendarRules
+            ) { courses, periodTimes, adjustments, overrides, rules ->
                 createState(
                     semester = semester,
                     week = query.week,
@@ -87,6 +96,8 @@ class TimetableViewModel(
                     editor = query.periodEditor,
                     specialDays = query.calendarSpecialDays,
                     confirmedAdjustments = adjustments.associate { it.actualDate to it.sourceDayOfWeek },
+                    holidayRules = rules,
+                    classOverrides = overrides.associate { it.actualDate to runCatching { ClassOverride.valueOf(it.overrideKind) }.getOrDefault(ClassOverride.FOLLOW_CALENDAR) },
                     calendarReadWarning = query.calendarReadWarning
                 )
             }
@@ -106,6 +117,7 @@ class TimetableViewModel(
                     currentDate()
                 )
                 refreshCalendarDays(semester.startDate, semester.endDate)
+                refreshHolidayCalendarRules(semester.startDate, semester.endDate)
             }
         }
     }
@@ -208,6 +220,16 @@ class TimetableViewModel(
         updateImportState(importState.value.copy(calendarAdjustmentChoices = choices))
     }
 
+    fun updateClassOverride(actualDate: LocalDate, override: ClassOverride) {
+        val current = importState.value.classOverrideChoices.filterNot { it.actualDate == actualDate }
+        updateImportState(
+            importState.value.copy(
+                classOverrideChoices = if (override == ClassOverride.FOLLOW_CALENDAR) current
+                else current + TimetableClassOverrideState(actualDate, override)
+            )
+        )
+    }
+
     fun updateReplaceExisting(replaceExisting: Boolean) {
         updateImportState(importState.value.copy(replaceExisting = replaceExisting))
     }
@@ -304,7 +326,10 @@ class TimetableViewModel(
                     periodTimes = importing.periodTimes.map {
                         SemesterPeriodTime(it.period, LocalTime.parse(it.start), LocalTime.parse(it.end))
                     },
-                    calendarAdjustments = importing.calendarAdjustmentChoices.toAdjustmentInputs()
+                    calendarAdjustments = importing.calendarAdjustmentChoices.toAdjustmentInputs(),
+                    classOverrides = importing.classOverrideChoices.map {
+                        SemesterClassOverrideInput(it.actualDate, it.override)
+                    }
                 )
             }.onSuccess {
                 previewCourses = emptyList()
@@ -329,6 +354,8 @@ class TimetableViewModel(
         editor: TimetablePeriodEditorState,
         specialDays: List<SystemCalendarSpecialDay> = emptyList(),
         confirmedAdjustments: Map<LocalDate, Int> = emptyMap(),
+        holidayRules: List<CalendarDayRule> = emptyList(),
+        classOverrides: Map<LocalDate, ClassOverride> = emptyMap(),
         calendarReadWarning: String? = null
     ): TimetableState {
         val currentWeek = semester?.let {
@@ -337,19 +364,22 @@ class TimetableViewModel(
         val coursesByDay = courses.groupBy(CourseEntity::dayOfWeek)
         val visibleDays = semester?.let { timetableDaysForWeek(it.startDate, week) }
             ?.mapIndexed { index, day ->
-                val slot = mapWeekToScheduleSlots(
-                    semesterStartDate = semester.startDate,
-                    selectedWeek = week,
-                    specialDays = specialDays,
-                    confirmedAdjustments = confirmedAdjustments
-                )[index]
+                val slot = if (holidayRules.isNotEmpty()) {
+                    mapWeekToScheduleSlotsWithRules(semester.startDate, week, holidayRules, confirmedAdjustments, classOverrides)[index]
+                } else {
+                    mapWeekToScheduleSlots(semester.startDate, week, specialDays, confirmedAdjustments)[index]
+                }
                 day.copy(
                     courses = slot.courseDayOfWeek?.let(coursesByDay::get).orEmpty().map(::toCourseUiState)
                 )
             }
             .orEmpty()
         val needsMakeupConfirmation = semester?.let {
-            mapWeekToScheduleSlots(it.startDate, week, specialDays, confirmedAdjustments)
+            if (holidayRules.isNotEmpty()) {
+                mapWeekToScheduleSlotsWithRules(it.startDate, week, holidayRules, confirmedAdjustments, classOverrides)
+            } else {
+                mapWeekToScheduleSlots(it.startDate, week, specialDays, confirmedAdjustments)
+            }
                 .any(TimetableScheduleSlot::needsMakeupConfirmation)
         } == true
         return TimetableState(
@@ -364,6 +394,7 @@ class TimetableViewModel(
             importState = importing,
             periodEditor = editor,
             calendarSpecialDays = specialDays,
+            classOverrides = classOverrides,
             calendarAdjustmentWarning = when {
                 needsMakeupConfirmation -> "检测到调休日期，请重新导入课表确认补课来源。"
                 else -> calendarReadWarning
@@ -374,6 +405,10 @@ class TimetableViewModel(
 
     private fun refreshImportCalendarDays() {
         val startDate = parseDate(importState.value.semesterStartDate) ?: return
+        refreshHolidayCalendarRules(
+            startDate,
+            startDate.plusWeeks(DEFAULT_IMPORT_SEMESTER_WEEKS.toLong()).minusDays(1)
+        )
         scope.launch {
             refreshCalendarDays(
                 startDate = startDate,
@@ -395,13 +430,56 @@ class TimetableViewModel(
             if (updateImportState) {
                 val current = importState.value
                 val choices = buildTimetableAdjustmentChoices(days, current.calendarAdjustmentChoices)
+                val overrideDates = days.map { it.date }.distinct()
+                val classChoices = overrideDates.map { date ->
+                    current.classOverrideChoices.firstOrNull { it.actualDate == date }
+                        ?: TimetableClassOverrideState(date)
+                }
                 updateImportState(
                     current.copy(
                         calendarSpecialDays = days,
                         calendarAdjustmentChoices = choices,
+                        classOverrideChoices = classChoices,
                         calendarReadWarning = calendarReadWarning.value
                     )
                 )
+            }
+        }
+    }
+
+    private fun refreshHolidayCalendarRules(startDate: LocalDate, endDate: LocalDate?) {
+        val repository = holidayCalendarRepository ?: return
+        scope.launch {
+            repository.initialize()
+            val rules = repository.resolveBetween(
+                startDate,
+                endDate ?: startDate.plusWeeks(DEFAULT_IMPORT_SEMESTER_WEEKS.toLong()).minusDays(1)
+            )
+            holidayCalendarRules.value = rules
+            if (importState.value.isOpen) {
+                val current = importState.value
+                val specialDays = rules.filter { it.kind == CalendarDayKind.HOLIDAY_REST || it.kind == CalendarDayKind.MAKEUP_WORKDAY }
+                    .map { rule ->
+                        SystemCalendarSpecialDay(
+                            date = rule.date,
+                            kind = if (rule.kind == CalendarDayKind.HOLIDAY_REST) {
+                                com.daily.life.core.calendar.SystemCalendarSpecialDayKind.Holiday
+                            } else {
+                                com.daily.life.core.calendar.SystemCalendarSpecialDayKind.MakeupWorkday
+                            },
+                            sourceDayOfWeek = rule.sourceDayOfWeek,
+                            sourceDate = rule.sourceDate,
+                            label = rule.label.orEmpty()
+                        )
+                    }
+                val mergedDays = (current.calendarSpecialDays + specialDays).distinctBy { it.date to it.kind }
+                val choices = buildTimetableAdjustmentChoices(mergedDays, current.calendarAdjustmentChoices)
+                val overrideDates = mergedDays.map { it.date }.distinct()
+                val classChoices = overrideDates.map { date ->
+                    current.classOverrideChoices.firstOrNull { it.actualDate == date }
+                        ?: TimetableClassOverrideState(date)
+                }
+                updateImportState(current.copy(calendarSpecialDays = mergedDays, calendarAdjustmentChoices = choices, classOverrideChoices = classChoices))
             }
         }
     }

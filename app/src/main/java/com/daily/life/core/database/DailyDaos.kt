@@ -71,6 +71,21 @@ interface SemesterCalendarAdjustmentDao {
 }
 
 @Dao
+interface SemesterClassOverrideDao {
+    @Query("SELECT * FROM semester_class_overrides WHERE semesterId = :semesterId ORDER BY actualDate")
+    fun observeBySemester(semesterId: Long): Flow<List<SemesterClassOverrideEntity>>
+
+    @Query("SELECT * FROM semester_class_overrides WHERE semesterId = :semesterId ORDER BY actualDate")
+    suspend fun findBySemester(semesterId: Long): List<SemesterClassOverrideEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(entities: List<SemesterClassOverrideEntity>)
+
+    @Query("DELETE FROM semester_class_overrides WHERE semesterId = :semesterId")
+    suspend fun deleteBySemester(semesterId: Long)
+}
+
+@Dao
 interface HolidayCalendarDao {
     @Query("SELECT * FROM holiday_calendar_sources ORDER BY builtIn DESC, name, id")
     fun observeSources(): Flow<List<HolidayCalendarSourceEntity>>

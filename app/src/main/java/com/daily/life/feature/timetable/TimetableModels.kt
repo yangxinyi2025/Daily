@@ -3,6 +3,17 @@ package com.daily.life.feature.timetable
 import com.daily.life.core.calendar.SystemCalendarSpecialDay
 import java.time.LocalDate
 
+enum class ClassOverride {
+    FOLLOW_CALENDAR,
+    HAS_CLASS,
+    NO_CLASS
+}
+
+data class SemesterClassOverrideInput(
+    val actualDate: LocalDate,
+    val override: ClassOverride
+)
+
 enum class WeekParity {
     ODD,
     EVEN
@@ -66,6 +77,11 @@ data class TimetableAdjustmentChoiceState(
     val isRequired: Boolean = true
 )
 
+data class TimetableClassOverrideState(
+    val actualDate: LocalDate,
+    val override: ClassOverride = ClassOverride.FOLLOW_CALENDAR
+)
+
 data class TimetableCourseUiState(
     val id: String,
     val courseName: String,
@@ -124,6 +140,7 @@ data class TimetableImportState(
     val periodTimesDetectedFromPdf: Boolean = false,
     val calendarSpecialDays: List<SystemCalendarSpecialDay> = emptyList(),
     val calendarAdjustmentChoices: List<TimetableAdjustmentChoiceState> = emptyList(),
+    val classOverrideChoices: List<TimetableClassOverrideState> = emptyList(),
     val calendarReadWarning: String? = null,
     val replaceExisting: Boolean = true,
     val canConfirm: Boolean = false,
@@ -148,6 +165,7 @@ data class TimetableState(
     val importState: TimetableImportState = TimetableImportState(),
     val periodEditor: TimetablePeriodEditorState = TimetablePeriodEditorState(),
     val calendarSpecialDays: List<SystemCalendarSpecialDay> = emptyList(),
+    val classOverrides: Map<LocalDate, ClassOverride> = emptyMap(),
     val calendarAdjustmentWarning: String? = null,
     val isEmpty: Boolean = true
 )

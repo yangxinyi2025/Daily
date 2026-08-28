@@ -134,6 +134,32 @@ class TimetableRepositoryTest {
     }
 
     @Test
+    fun confirmImportPersistsSemesterClassOverrides() = runTest {
+        val repository = RoomTimetableRepository(
+            database = database,
+            preferences = preferences,
+            reminderScheduler = NoOpReminderScheduler,
+            clock = fixedClock()
+        )
+        val actualDate = LocalDate.of(2026, 9, 19)
+        val semesterId = repository.confirmImport(
+            preview = TimetableParseResult(
+                courses = listOf(previewCourse("数据库", 5, 1, 2, "1周", setOf(1))),
+                warnings = emptyList(),
+                unsupportedRows = emptyList()
+            ),
+            semester = SemesterInput("2026 秋季", LocalDate.of(2026, 8, 31)),
+            replaceExisting = false,
+            classOverrides = listOf(SemesterClassOverrideInput(actualDate, ClassOverride.HAS_CLASS))
+        )
+
+        assertEquals(
+            ClassOverride.HAS_CLASS.name,
+            database.semesterClassOverrideDao().findBySemester(semesterId).single().overrideKind
+        )
+    }
+
+    @Test
     fun confirmImportUsesSystemCalendarInsteadOfDailyCourseSchedulerWhenCalendarSyncIsConfigured() = runTest {
         val scheduler = RecordingReminderScheduler(database)
         val calendarClient = RecordingCalendarClient()

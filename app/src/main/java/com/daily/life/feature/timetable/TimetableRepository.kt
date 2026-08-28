@@ -10,6 +10,7 @@ import com.daily.life.core.database.CourseEntity
 import com.daily.life.core.database.CourseWeekEntity
 import com.daily.life.core.database.DailyDatabase
 import com.daily.life.core.database.SemesterEntity
+import com.daily.life.core.database.SemesterClassOverrideEntity
 import com.daily.life.core.datastore.DailyPreferences
 import java.time.Clock
 import java.time.LocalDate
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 interface TimetableRepository {
@@ -30,6 +32,8 @@ interface TimetableRepository {
 
     fun observeCalendarAdjustments(semesterId: Long): Flow<List<com.daily.life.core.database.SemesterCalendarAdjustmentEntity>>
 
+    fun observeClassOverrides(semesterId: Long): Flow<List<SemesterClassOverrideEntity>> = flowOf(emptyList())
+
     suspend fun updatePeriodTimes(semesterId: Long, times: List<SemesterPeriodTime>)
 
     suspend fun confirmImport(
@@ -39,6 +43,15 @@ interface TimetableRepository {
         periodTimes: List<SemesterPeriodTime> = defaultSemesterPeriodTimes(),
         calendarAdjustments: List<SemesterCalendarAdjustmentInput> = emptyList()
     ): Long
+
+    suspend fun confirmImport(
+        preview: TimetableParseResult,
+        semester: SemesterInput,
+        replaceExisting: Boolean,
+        periodTimes: List<SemesterPeriodTime> = defaultSemesterPeriodTimes(),
+        calendarAdjustments: List<SemesterCalendarAdjustmentInput> = emptyList(),
+        classOverrides: List<SemesterClassOverrideInput> = emptyList()
+    ): Long = confirmImport(preview, semester, replaceExisting, periodTimes, calendarAdjustments)
 }
 
 class RoomTimetableRepository(
@@ -53,6 +66,7 @@ class RoomTimetableRepository(
     private val courseDao = database.courseDao()
     private val semesterPeriodDao = database.semesterPeriodDao()
     private val calendarAdjustmentDao = database.semesterCalendarAdjustmentDao()
+    private val classOverrideDao = database.semesterClassOverrideDao()
 
     override val currentSemester: Flow<SemesterEntity?> =
         combine(preferences.currentSemesterId, semesterDao.observeAll()) { preferredId, semesters ->
@@ -84,6 +98,9 @@ class RoomTimetableRepository(
     override fun observeCalendarAdjustments(semesterId: Long): Flow<List<com.daily.life.core.database.SemesterCalendarAdjustmentEntity>> =
         calendarAdjustmentDao.observeBySemester(semesterId)
 
+    override fun observeClassOverrides(semesterId: Long): Flow<List<SemesterClassOverrideEntity>> =
+        classOverrideDao.observeBySemester(semesterId)
+
     override suspend fun updatePeriodTimes(semesterId: Long, times: List<SemesterPeriodTime>) {
         require(validateSemesterPeriodTimes(times) == null) { "节次时间不正确" }
         calendarReminderSyncer?.let { syncer ->
@@ -111,6 +128,22 @@ class RoomTimetableRepository(
         replaceExisting: Boolean,
         periodTimes: List<SemesterPeriodTime>,
         calendarAdjustments: List<SemesterCalendarAdjustmentInput>
+    ): Long = confirmImport(
+        preview,
+        semester,
+        replaceExisting,
+        periodTimes,
+        calendarAdjustments,
+        emptyList()
+    )
+
+    override suspend fun confirmImport(
+        preview: TimetableParseResult,
+        semester: SemesterInput,
+        replaceExisting: Boolean,
+        periodTimes: List<SemesterPeriodTime>,
+        calendarAdjustments: List<SemesterCalendarAdjustmentInput>,
+        classOverrides: List<SemesterClassOverrideInput>
     ): Long {
         require(semester.name.isNotBlank()) { "学期名称不能为空" }
         require(semester.endDate == null || !semester.endDate.isBefore(semester.startDate)) {
@@ -172,6 +205,7 @@ class RoomTimetableRepository(
 
             if (replaceExisting) courseDao.deleteBySemester(id)
             if (replaceExisting) calendarAdjustmentDao.deleteBySemester(id)
+            if (replaceExisting) classOverrideDao.deleteBySemester(id)
             semesterPeriodDao.deleteBySemester(id)
             semesterPeriodDao.insertAll(periodTimes.map {
                 com.daily.life.core.database.SemesterPeriodEntity(id, it.period, it.startTime, it.endTime)
@@ -204,6 +238,14 @@ class RoomTimetableRepository(
                     sourceDayOfWeek = adjustment.sourceDayOfWeek,
                     sourceDate = adjustment.sourceDate,
                     sourceLabel = adjustment.sourceLabel,
+                    updatedAt = clock.millis()
+                )
+            })
+            classOverrideDao.upsertAll(classOverrides.map { override ->
+                SemesterClassOverrideEntity(
+                    semesterId = id,
+                    actualDate = override.actualDate,
+                    overrideKind = override.override.name,
                     updatedAt = clock.millis()
                 )
             })

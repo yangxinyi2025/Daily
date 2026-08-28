@@ -31,7 +31,7 @@ class HolidayCalendarMigrationTest {
         seedVersion8DatabaseWithCurrentRoomSchema()
 
         val migrated = Room.databaseBuilder(context, DailyDatabase::class.java, databaseName)
-            .addMigrations(DailyDatabase.MIGRATION_8_9)
+            .addMigrations(DailyDatabase.MIGRATION_8_9, DailyDatabase.MIGRATION_9_10)
             .allowMainThreadQueries()
             .build()
 
@@ -41,9 +41,11 @@ class HolidayCalendarMigrationTest {
             assertTrue(database.hasTable("holiday_calendar_sources"))
             assertTrue(database.hasTable("holiday_calendar_events"))
             assertTrue(database.hasTable("calendar_day_overrides"))
+            assertTrue(database.hasTable("semester_class_overrides"))
             assertTrue(database.hasIndex("index_holiday_calendar_events_sourceId"))
             assertTrue(database.hasIndex("index_holiday_calendar_events_startDate_endDateInclusive"))
             assertTrue(database.hasIndex("index_calendar_day_overrides_updatedAt"))
+            assertTrue(database.hasIndex("index_semester_class_overrides_semesterId"))
             migrated.semesterCalendarAdjustmentDao().findBySemester(1L).single().also { row ->
                 assertEquals(1L, row.semesterId)
                 assertEquals("2026-10-10", row.actualDate.toString())

@@ -133,7 +133,8 @@ fun DailyNavHost(
                             calendarScheduleReader = calendarReader
                         ),
                         parser = PdfTimetableParser(application::initializePdfBox),
-                        calendarReader = calendarReader
+                        calendarReader = calendarReader,
+                        holidayCalendarRepository = container.holidayCalendarRepository
                     )
                 }
                 val timetableState by timetableViewModel.state.collectAsState()
@@ -156,7 +157,8 @@ fun DailyNavHost(
                     onSavePeriodTimes = timetableViewModel::savePeriodTimes,
                     onClosePeriodEditor = timetableViewModel::closePeriodEditor,
                     onMakeupSourceChange = timetableViewModel::updateMakeupSource,
-                    onRefreshSystemCalendarDays = timetableViewModel::refreshSystemCalendarDays
+                    onRefreshSystemCalendarDays = timetableViewModel::refreshSystemCalendarDays,
+                    onClassOverrideChange = timetableViewModel::updateClassOverride
                 )
             }
             composable(DailyDestination.Schedule.route) {

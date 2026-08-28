@@ -88,6 +88,7 @@ fun TimetableScreen(
     ,onClosePeriodEditor: () -> Unit
     ,onMakeupSourceChange: (java.time.LocalDate, Int?) -> Unit
     ,onRefreshSystemCalendarDays: () -> Unit
+    ,onClassOverrideChange: (java.time.LocalDate, ClassOverride) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -170,7 +171,8 @@ fun TimetableScreen(
             onReplaceExistingChange = onReplaceExistingChange,
             onCancel = onCancelImport,
             onConfirm = confirmImportWithCalendarPermission,
-            onMakeupSourceChange = onMakeupSourceChange
+            onMakeupSourceChange = onMakeupSourceChange,
+            onClassOverrideChange = onClassOverrideChange
         )
         return
     }

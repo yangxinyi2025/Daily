@@ -2,6 +2,8 @@ package com.daily.life.feature.timetable
 
 import com.daily.life.core.calendar.SystemCalendarSpecialDay
 import com.daily.life.core.calendar.SystemCalendarSpecialDayKind
+import com.daily.life.core.calendar.CalendarDayKind
+import com.daily.life.core.calendar.CalendarDayRule
 import com.daily.life.core.calendar.mergeSystemCalendarSpecialDays
 import java.time.LocalDate
 
@@ -12,6 +14,61 @@ internal data class TimetableScheduleSlot(
     val isHoliday: Boolean,
     val needsMakeupConfirmation: Boolean
 )
+
+internal fun mapWeekToScheduleSlotsWithRules(
+    semesterStartDate: LocalDate,
+    selectedWeek: Int,
+    calendarRules: Iterable<CalendarDayRule>,
+    confirmedAdjustments: Map<LocalDate, Int>,
+    classOverrides: Map<LocalDate, ClassOverride> = emptyMap()
+): List<TimetableScheduleSlot> {
+    val weekStart = semesterStartDate.plusWeeks((selectedWeek - 1).coerceAtLeast(0).toLong())
+    val rulesByDate = calendarRules.associateBy { it.date }
+    return (0L..6L).map { offset ->
+        val actualDate = weekStart.plusDays(offset)
+        val rule = rulesByDate[actualDate]
+        when (classOverrides[actualDate]) {
+            ClassOverride.NO_CLASS -> TimetableScheduleSlot(actualDate, selectedWeek, null, true, false)
+            ClassOverride.HAS_CLASS -> TimetableScheduleSlot(actualDate, selectedWeek, actualDate.dayOfWeek.value, false, false)
+            ClassOverride.FOLLOW_CALENDAR, null -> when (rule?.kind) {
+                CalendarDayKind.HOLIDAY_REST -> TimetableScheduleSlot(actualDate, selectedWeek, null, true, false)
+                CalendarDayKind.MAKEUP_WORKDAY -> {
+                    val source = confirmedAdjustments[actualDate]?.takeIf { it in 1..7 } ?: rule.sourceDayOfWeek
+                    TimetableScheduleSlot(actualDate, selectedWeek, source, false, source == null)
+                }
+                else -> TimetableScheduleSlot(actualDate, selectedWeek, actualDate.dayOfWeek.value, false, false)
+            }
+        }
+    }
+}
+
+internal fun courseOccurrenceDatesWithRules(
+    semesterStartDate: LocalDate,
+    week: Int,
+    courseDayOfWeek: Int,
+    calendarRules: Iterable<CalendarDayRule>,
+    confirmedAdjustments: Map<LocalDate, Int>,
+    classOverrides: Map<LocalDate, ClassOverride> = emptyMap()
+): List<LocalDate> {
+    require(courseDayOfWeek in 1..7)
+    val weekStart = semesterStartDate.plusWeeks((week - 1).coerceAtLeast(0).toLong())
+    val rulesByDate = calendarRules.associateBy { it.date }
+    return (0L..6L).map { weekStart.plusDays(it) }
+        .filter { date ->
+            when (classOverrides[date]) {
+                ClassOverride.NO_CLASS -> false
+                ClassOverride.HAS_CLASS -> date.dayOfWeek.value == courseDayOfWeek
+                ClassOverride.FOLLOW_CALENDAR, null -> when (rulesByDate[date]?.kind) {
+                    CalendarDayKind.HOLIDAY_REST -> false
+                    CalendarDayKind.MAKEUP_WORKDAY -> {
+                        val source = confirmedAdjustments[date]?.takeIf { it in 1..7 } ?: rulesByDate[date]?.sourceDayOfWeek
+                        source == courseDayOfWeek
+                    }
+                    else -> date.dayOfWeek.value == courseDayOfWeek
+                }
+            }
+        }
+}
 
 internal fun mapWeekToScheduleSlots(
     semesterStartDate: LocalDate,

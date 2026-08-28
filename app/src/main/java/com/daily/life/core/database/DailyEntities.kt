@@ -64,6 +64,26 @@ data class SemesterCalendarAdjustmentEntity(
 )
 
 @Entity(
+    tableName = "semester_class_overrides",
+    primaryKeys = ["semesterId", "actualDate"],
+    foreignKeys = [
+        ForeignKey(
+            entity = SemesterEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["semesterId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["semesterId"])]
+)
+data class SemesterClassOverrideEntity(
+    val semesterId: Long,
+    val actualDate: LocalDate,
+    val overrideKind: String,
+    val updatedAt: Long
+)
+
+@Entity(
     tableName = "holiday_calendar_sources",
     indices = [Index(value = ["url"], unique = true)]
 )
