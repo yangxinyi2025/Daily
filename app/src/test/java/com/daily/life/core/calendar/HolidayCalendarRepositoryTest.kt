@@ -64,7 +64,7 @@ class HolidayCalendarRepositoryTest {
     }
 
     @Test
-    fun holidayWinsWhenNonManualSourcesConflictOnTheSameDate() {
+    fun builtInIcsMakeupWorkdayWinsOverConflictingSystemCalendarHoliday() {
         val date = LocalDate.of(2026, 5, 2)
         val result = CalendarDayRuleMerger.merge(
             date,
@@ -73,7 +73,7 @@ class HolidayCalendarRepositoryTest {
             systemDays = listOf(SystemCalendarSpecialDay(date, SystemCalendarSpecialDayKind.Holiday, null, null, "放假")),
             overrides = emptyList()
         )
-        assertEquals(CalendarDayKind.HOLIDAY_REST, result.single().kind)
+        assertEquals(CalendarDayKind.MAKEUP_WORKDAY, result.single().kind)
     }
 
     @Test
@@ -250,6 +250,45 @@ class HolidayCalendarRepositoryTest {
                     LocalDate.of(2026, 10, 1),
                     CalendarDayKind.HOLIDAY_REST,
                     "旧来源"
+                )
+            )
+        )
+        val repository = HolidayCalendarRepository(
+            dao, preferences,
+            SystemCalendarScheduleReader(ZoneId.systemDefault(), { false }) { _, _ -> emptyList() },
+            object : IcsCalendarFetcher { override fun fetch(source: IcsCalendarSource, etag: String?, lastModified: String?) = IcsFetchResult.NotModified }
+        )
+
+        repository.initialize()
+
+        val stored = dao.observeSources().first().single()
+        assertEquals(HolidayCalendarRepository.BUILTIN_ICS_URL, stored.url)
+        assertNull(stored.lastSuccessfulSyncAt)
+        assertNull(stored.etag)
+        assertEquals(0, dao.findEventsForSource(HolidayCalendarRepository.BUILTIN_SOURCE_ID).size)
+    }
+
+    @Test
+    fun initializeReplacesThePreviousYangH9FeedAndClearsItsAmbiguousCache() = runBlocking {
+        val dao = database.holidayCalendarDao()
+        dao.insertSourceIfMissing(
+            HolidayCalendarSourceEntity(
+                id = HolidayCalendarRepository.BUILTIN_SOURCE_ID,
+                name = "中国节假日（推荐）",
+                url = "https://yangh9.github.io/ChinaCalendar/cal_holiday.ics",
+                builtIn = true,
+                enabled = true,
+                lastSuccessfulSyncAt = 1L,
+                etag = "previous-etag"
+            )
+        )
+        dao.insertEvents(
+            listOf(
+                event(
+                    HolidayCalendarRepository.BUILTIN_SOURCE_ID,
+                    LocalDate.of(2026, 5, 9),
+                    CalendarDayKind.HOLIDAY_REST,
+                    "劳动节 补班"
                 )
             )
         )

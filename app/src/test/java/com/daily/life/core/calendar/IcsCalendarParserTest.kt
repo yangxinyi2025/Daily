@@ -43,6 +43,27 @@ class IcsCalendarParserTest {
     }
 
     @Test
+    fun explicitMakeupTitleWinsOverHolidayArrangementInDescription() {
+        val event = parseIcsCalendar(
+            """
+            BEGIN:VCALENDAR
+            BEGIN:VEVENT
+            UID:makeup-day
+            DTSTART:20260509T090000
+            DTEND:20260509T180000
+            SUMMARY:劳动节 补班 第1天/共1天
+            DESCRIPTION:劳动节：5月1日至5日放假调休，共5天。5月9日（周六）上班。
+            END:VEVENT
+            END:VCALENDAR
+            """.trimIndent(),
+            source,
+            zone
+        ).single()
+
+        assertEquals(CalendarDayKind.MAKEUP_WORKDAY, event.kind)
+    }
+
+    @Test
     fun parsesAllDayExclusiveEndAndChineseKinds() {
         val events = parseIcsCalendar(
             """

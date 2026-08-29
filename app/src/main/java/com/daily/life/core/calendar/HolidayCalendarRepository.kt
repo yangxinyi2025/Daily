@@ -91,15 +91,9 @@ object CalendarDayRuleMerger {
         primary: List<CalendarDayRule>,
         secondary: List<CalendarDayRule>
     ): CalendarDayRule? {
-        val candidates = primary + secondary
+        val candidates = primary.ifEmpty { secondary }
         if (candidates.isEmpty()) return null
-        val selectedKind = when {
-            candidates.any { it.kind == CalendarDayKind.HOLIDAY_REST } -> CalendarDayKind.HOLIDAY_REST
-            candidates.any { it.kind == CalendarDayKind.MAKEUP_WORKDAY } -> CalendarDayKind.MAKEUP_WORKDAY
-            else -> candidates.first().kind
-        }
-        val selected = candidates.filter { it.kind == selectedKind }
-        return selected.first().copy(
+        return candidates.first().copy(
             label = candidates.mapNotNull { it.label?.takeIf(String::isNotBlank) }
                 .distinct()
                 .joinToString(" / ")
@@ -149,7 +143,7 @@ class HolidayCalendarRepository(
                     enabled = true
                 )
             )
-        } else if (existing.builtIn && existing.url == LEGACY_BUILTIN_ICS_URL) {
+        } else if (existing.builtIn && existing.url in LEGACY_BUILTIN_ICS_URLS) {
             dao.replaceEventsForSource(BUILTIN_SOURCE_ID, emptyList())
             dao.upsertSource(
                 existing.copy(
@@ -355,6 +349,12 @@ class HolidayCalendarRepository(
     companion object {
         const val BUILTIN_SOURCE_ID = "builtin-china-public-holidays"
         const val LEGACY_BUILTIN_ICS_URL = "https://www.officeholidays.com/ics/ics_china.php"
-        const val BUILTIN_ICS_URL = "https://yangh9.github.io/ChinaCalendar/cal_holiday.ics"
+        const val PREVIOUS_BUILTIN_ICS_URL = "https://yangh9.github.io/ChinaCalendar/cal_holiday.ics"
+        const val BUILTIN_ICS_URL = "https://raw.githubusercontent.com/lanceliao/china-holiday-calender/master/holidayCal.ics"
+
+        private val LEGACY_BUILTIN_ICS_URLS = setOf(
+            LEGACY_BUILTIN_ICS_URL,
+            PREVIOUS_BUILTIN_ICS_URL
+        )
     }
 }

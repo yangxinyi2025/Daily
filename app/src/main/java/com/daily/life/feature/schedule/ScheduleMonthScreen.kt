@@ -313,7 +313,7 @@ private fun ScheduleSelectedDayCard(
     onSaveCalendarDayOverride: (LocalDate, LocalDate, CalendarDayKind, String?) -> Unit,
     onClearCalendarDayOverrides: (List<LocalDate>) -> Unit
 ) {
-    ScheduleReferenceCard(modifier = if (events.isEmpty()) Modifier.height(124.dp) else Modifier) {
+    ScheduleReferenceCard {
         ScheduleCalendarRuleSummary(
             state = state,
             selectedCalendarRule = selectedCalendarRule,
@@ -439,7 +439,7 @@ private fun ScheduleCalendarRuleSummary(
 }
 
 internal fun calendarOverrideToggleLabel(editing: Boolean): String =
-    if (editing) "收起日期修正" else "修正日期状态"
+    if (editing) "收起日期修正" else "修正当前日期状态"
 
 internal val manualCalendarWorkdayKind = CalendarDayKind.MAKEUP_WORKDAY
 

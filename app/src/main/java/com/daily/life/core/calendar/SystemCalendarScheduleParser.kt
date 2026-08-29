@@ -37,16 +37,42 @@ internal fun systemCalendarSpecialDayKindFor(
     title: String?,
     description: String?
 ): SystemCalendarSpecialDayKind? {
-    val text = normalizedCalendarText(title, description)
-    if (text.isBlank() || text.contains("课程：") || text.contains("课程:")) return null
+    val titleText = normalizedCalendarText(title, null)
+    val descriptionText = normalizedCalendarText(null, description)
+    if (
+        (titleText.isBlank() && descriptionText.isBlank()) ||
+        titleText.contains("课程：") ||
+        titleText.contains("课程:")
+    ) return null
+
+    return specialDayKindInTitle(titleText)
+        ?: specialDayKindInDescription(descriptionText)
+}
+
+private fun specialDayKindInTitle(text: String): SystemCalendarSpecialDayKind? {
+    if (text.isBlank()) return null
     return when {
+        text.contains("补班") || text.contains("调休上班") ||
+            MAKEUP_SOURCE_DAY_PATTERN.containsMatchIn(text) ->
+            SystemCalendarSpecialDayKind.MakeupWorkday
         text.contains("节假日") || text.contains("放假") || text.contains("休息") ||
             text.contains("休假") || text == "休" || text.endsWith("休") || text.contains(" 休") ||
             CHINESE_PUBLIC_HOLIDAY_NAMES.any(text::contains) ->
             SystemCalendarSpecialDayKind.Holiday
-        text.contains("补班") || text.contains("调休上班") ||
-            MAKEUP_SOURCE_DAY_PATTERN.containsMatchIn(text) ->
-            SystemCalendarSpecialDayKind.MakeupWorkday
+        else -> null
+    }
+}
+
+private fun specialDayKindInDescription(text: String): SystemCalendarSpecialDayKind? {
+    if (text.isBlank()) return null
+    val hasMakeup = text.contains("补班") || text.contains("调休上班") ||
+        MAKEUP_SOURCE_DAY_PATTERN.containsMatchIn(text)
+    val hasHoliday = text.contains("节假日") || text.contains("放假") || text.contains("休息") ||
+        text.contains("休假") || text == "休" || text.endsWith("休") || text.contains(" 休") ||
+        CHINESE_PUBLIC_HOLIDAY_NAMES.any(text::contains)
+    return when {
+        hasMakeup && !hasHoliday -> SystemCalendarSpecialDayKind.MakeupWorkday
+        hasHoliday && !hasMakeup -> SystemCalendarSpecialDayKind.Holiday
         else -> null
     }
 }
