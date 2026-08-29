@@ -307,6 +307,45 @@ class HolidayCalendarRepositoryTest {
         assertEquals(0, dao.findEventsForSource(HolidayCalendarRepository.BUILTIN_SOURCE_ID).size)
     }
 
+    @Test
+    fun initializeReplacesThePreviousRawGitHubFeedAndClearsItsCache() = runBlocking {
+        val dao = database.holidayCalendarDao()
+        dao.insertSourceIfMissing(
+            HolidayCalendarSourceEntity(
+                id = HolidayCalendarRepository.BUILTIN_SOURCE_ID,
+                name = "中国节假日（推荐）",
+                url = "https://raw.githubusercontent.com/lanceliao/china-holiday-calender/master/holidayCal.ics",
+                builtIn = true,
+                enabled = true,
+                lastSuccessfulSyncAt = 1L,
+                etag = "github-etag"
+            )
+        )
+        dao.insertEvents(
+            listOf(
+                event(
+                    HolidayCalendarRepository.BUILTIN_SOURCE_ID,
+                    LocalDate.of(2026, 5, 9),
+                    CalendarDayKind.HOLIDAY_REST,
+                    "劳动节 补班"
+                )
+            )
+        )
+        val repository = HolidayCalendarRepository(
+            dao, preferences,
+            SystemCalendarScheduleReader(ZoneId.systemDefault(), { false }) { _, _ -> emptyList() },
+            object : IcsCalendarFetcher { override fun fetch(source: IcsCalendarSource, etag: String?, lastModified: String?) = IcsFetchResult.NotModified }
+        )
+
+        repository.initialize()
+
+        val stored = dao.observeSources().first().single()
+        assertEquals(HolidayCalendarRepository.BUILTIN_ICS_URL, stored.url)
+        assertNull(stored.lastSuccessfulSyncAt)
+        assertNull(stored.etag)
+        assertEquals(0, dao.findEventsForSource(HolidayCalendarRepository.BUILTIN_SOURCE_ID).size)
+    }
+
     private fun event(sourceId: String, date: LocalDate, kind: CalendarDayKind, summary: String, sourceDayOfWeek: Int? = null) =
         HolidayCalendarEventEntity(sourceId, "$sourceId:$date:$summary", date, date, summary, kind = kind, sourceDayOfWeek = sourceDayOfWeek, fetchedAt = 1)
 }

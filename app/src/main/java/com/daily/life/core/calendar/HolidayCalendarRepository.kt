@@ -350,11 +350,13 @@ class HolidayCalendarRepository(
         const val BUILTIN_SOURCE_ID = "builtin-china-public-holidays"
         const val LEGACY_BUILTIN_ICS_URL = "https://www.officeholidays.com/ics/ics_china.php"
         const val PREVIOUS_BUILTIN_ICS_URL = "https://yangh9.github.io/ChinaCalendar/cal_holiday.ics"
-        const val BUILTIN_ICS_URL = "https://raw.githubusercontent.com/lanceliao/china-holiday-calender/master/holidayCal.ics"
+        const val PREVIOUS_RAW_GITHUB_BUILTIN_ICS_URL = "https://raw.githubusercontent.com/lanceliao/china-holiday-calender/master/holidayCal.ics"
+        const val BUILTIN_ICS_URL = "https://www.shuyz.com/githubfiles/china-holiday-calender/master/holidayCal.ics"
 
         private val LEGACY_BUILTIN_ICS_URLS = setOf(
             LEGACY_BUILTIN_ICS_URL,
-            PREVIOUS_BUILTIN_ICS_URL
+            PREVIOUS_BUILTIN_ICS_URL,
+            PREVIOUS_RAW_GITHUB_BUILTIN_ICS_URL
         )
     }
 }
