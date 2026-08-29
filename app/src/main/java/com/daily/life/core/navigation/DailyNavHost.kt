@@ -170,6 +170,7 @@ fun DailyNavHost(
                     onSavePeriodTimes = timetableViewModel::savePeriodTimes,
                     onClosePeriodEditor = timetableViewModel::closePeriodEditor,
                     onMakeupSourceChange = timetableViewModel::updateMakeupSource,
+                    onMakeupParityChange = timetableViewModel::updateMakeupParity,
                     onRefreshSystemCalendarDays = timetableViewModel::refreshSystemCalendarDays,
                     onClassOverrideChange = timetableViewModel::updateClassOverride
                 )

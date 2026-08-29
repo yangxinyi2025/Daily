@@ -26,6 +26,7 @@ class TimetableImportAdjustmentTest {
         )
 
         assertEquals(null, choices.single().selectedSourceDayOfWeek)
+        assertEquals(null, choices.single().selectedSourceWeekParity)
         assertEquals((1..7).toList(), choices.single().options)
         assertTrue(choices.single().isRequired)
         assertFalse(adjustmentChoicesAreComplete(choices))
@@ -48,6 +49,7 @@ class TimetableImportAdjustmentTest {
         )
 
         assertEquals(null, choices.single().selectedSourceDayOfWeek)
+        assertEquals(null, choices.single().selectedSourceWeekParity)
         assertFalse(adjustmentChoicesAreComplete(choices))
     }
 
@@ -57,11 +59,11 @@ class TimetableImportAdjustmentTest {
         val selected = buildTimetableAdjustmentChoices(
             listOf(specialDay(date, SystemCalendarSpecialDayKind.MakeupWorkday, null, "调休上班")),
             existing = emptyList()
-        ).map { it.copy(selectedSourceDayOfWeek = 4) }
+        ).map { it.copy(selectedSourceDayOfWeek = 4, selectedSourceWeekParity = WeekParity.EVEN) }
 
         assertTrue(adjustmentChoicesAreComplete(selected))
         assertEquals(
-            listOf(SemesterCalendarAdjustmentInput(date, 4, sourceLabel = "调休上班")),
+            listOf(SemesterCalendarAdjustmentInput(date, 4, WeekParity.EVEN, sourceLabel = "调休上班")),
             selected.toAdjustmentInputs()
         )
     }
@@ -70,7 +72,12 @@ class TimetableImportAdjustmentTest {
     fun existingUserChoiceIsPreservedWhenCalendarDataRefreshes() {
         val date = LocalDate.of(2026, 10, 10)
         val existing = listOf(
-            TimetableAdjustmentChoiceState(date, "系统补周五", selectedSourceDayOfWeek = 4)
+            TimetableAdjustmentChoiceState(
+                date,
+                "系统补周五",
+                selectedSourceDayOfWeek = 4,
+                selectedSourceWeekParity = WeekParity.ODD
+            )
         )
 
         val choices = buildTimetableAdjustmentChoices(
@@ -79,6 +86,22 @@ class TimetableImportAdjustmentTest {
         )
 
         assertEquals(4, choices.single().selectedSourceDayOfWeek)
+        assertEquals(WeekParity.ODD, choices.single().selectedSourceWeekParity)
+    }
+
+    @Test
+    fun weekdayWithoutParityCannotConfirmAnAdjustment() {
+        val date = LocalDate.of(2026, 10, 10)
+        val selected = listOf(
+            TimetableAdjustmentChoiceState(
+                actualDate = date,
+                label = "调休上班",
+                selectedSourceDayOfWeek = 5
+            )
+        )
+
+        assertFalse(adjustmentChoicesAreComplete(selected))
+        assertTrue(selected.toAdjustmentInputs().isEmpty())
     }
 
     private fun specialDay(

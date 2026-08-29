@@ -64,14 +64,21 @@ data class SemesterInput(
 data class SemesterCalendarAdjustmentInput(
     val actualDate: LocalDate,
     val sourceDayOfWeek: Int,
+    val sourceWeekParity: WeekParity,
     val sourceDate: LocalDate? = null,
     val sourceLabel: String? = null
+)
+
+data class MakeupCourseSource(
+    val dayOfWeek: Int,
+    val weekParity: WeekParity
 )
 
 data class TimetableAdjustmentChoiceState(
     val actualDate: LocalDate,
     val label: String,
     val selectedSourceDayOfWeek: Int?,
+    val selectedSourceWeekParity: WeekParity? = null,
     val sourceDate: LocalDate? = null,
     val options: List<Int> = (1..7).toList(),
     val isRequired: Boolean = true

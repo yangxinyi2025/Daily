@@ -58,6 +58,7 @@ data class SemesterCalendarAdjustmentEntity(
     val semesterId: Long,
     val actualDate: LocalDate,
     val sourceDayOfWeek: Int,
+    val sourceWeekParity: String? = null,
     val sourceDate: LocalDate? = null,
     val sourceLabel: String? = null,
     val updatedAt: Long

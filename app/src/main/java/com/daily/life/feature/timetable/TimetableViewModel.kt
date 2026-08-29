@@ -70,7 +70,7 @@ class TimetableViewModel(
                 createState(
                     semester = null,
                     week = query.week,
-                    courses = emptyList(),
+                    coursesByWeek = emptyMap(),
                     periodTimes = defaultSemesterPeriodTimes(),
                     importing = query.importState,
                     editor = query.periodEditor,
@@ -80,22 +80,41 @@ class TimetableViewModel(
                 )
             )
         } else {
-            combine(
+            val alternateWeek = sourceWeekForParity(
+                query.week,
+                if (weekParityOf(query.week) == WeekParity.ODD) WeekParity.EVEN else WeekParity.ODD
+            )
+            val coursesByWeek = combine(
                 repository.observeCourses(semester.id, query.week),
+                repository.observeCourses(semester.id, alternateWeek)
+            ) { courses, alternateCourses ->
+                mapOf(query.week to courses, alternateWeek to alternateCourses)
+            }
+            combine(
+                coursesByWeek,
                 repository.observePeriodTimes(semester.id),
                 repository.observeCalendarAdjustments(semester.id),
                 repository.observeClassOverrides(semester.id),
                 holidayCalendarRules
-            ) { courses, periodTimes, adjustments, overrides, rules ->
+            ) { coursesForWeeks, periodTimes, adjustments, overrides, rules ->
                 createState(
                     semester = semester,
                     week = query.week,
-                    courses = courses,
+                    coursesByWeek = coursesForWeeks,
                     periodTimes = periodTimes,
                     importing = query.importState,
                     editor = query.periodEditor,
                     specialDays = query.calendarSpecialDays,
-                    confirmedAdjustments = adjustments.associate { it.actualDate to it.sourceDayOfWeek },
+                    confirmedAdjustments = adjustments.mapNotNull { row ->
+                        row.sourceWeekParity?.let { parityName ->
+                            runCatching {
+                                row.actualDate to MakeupCourseSource(
+                                    row.sourceDayOfWeek,
+                                    WeekParity.valueOf(parityName)
+                                )
+                            }.getOrNull()
+                        }
+                    }.toMap(),
                     holidayRules = rules,
                     classOverrides = overrides.mapNotNull { row ->
                         runCatching { row.actualDate to ClassOverride.valueOf(row.overrideKind) }.getOrNull()
@@ -218,6 +237,13 @@ class TimetableViewModel(
     fun updateMakeupSource(actualDate: LocalDate, sourceDayOfWeek: Int?) {
         val choices = importState.value.calendarAdjustmentChoices.map { choice ->
             if (choice.actualDate == actualDate) choice.copy(selectedSourceDayOfWeek = sourceDayOfWeek) else choice
+        }
+        updateImportState(importState.value.copy(calendarAdjustmentChoices = choices))
+    }
+
+    fun updateMakeupParity(actualDate: LocalDate, sourceWeekParity: WeekParity?) {
+        val choices = importState.value.calendarAdjustmentChoices.map { choice ->
+            if (choice.actualDate == actualDate) choice.copy(selectedSourceWeekParity = sourceWeekParity) else choice
         }
         updateImportState(importState.value.copy(calendarAdjustmentChoices = choices))
     }
@@ -350,12 +376,12 @@ class TimetableViewModel(
     private fun createState(
         semester: SemesterEntity?,
         week: Int,
-        courses: List<CourseEntity>,
+        coursesByWeek: Map<Int, List<CourseEntity>>,
         periodTimes: List<SemesterPeriodTime>,
         importing: TimetableImportState,
         editor: TimetablePeriodEditorState,
         specialDays: List<SystemCalendarSpecialDay> = emptyList(),
-        confirmedAdjustments: Map<LocalDate, Int> = emptyMap(),
+        confirmedAdjustments: Map<LocalDate, MakeupCourseSource> = emptyMap(),
         holidayRules: List<CalendarDayRule> = emptyList(),
         classOverrides: Map<LocalDate, ClassOverride> = emptyMap(),
         calendarReadWarning: String? = null
@@ -363,7 +389,6 @@ class TimetableViewModel(
         val currentWeek = semester?.let {
             WeekCalculator.currentWeek(it.startDate, currentDate())
         } ?: 1
-        val coursesByDay = courses.groupBy(CourseEntity::dayOfWeek)
         val visibleDays = semester?.let { timetableDaysForWeek(it.startDate, week) }
             ?.mapIndexed { index, day ->
                 val slot = if (holidayRules.isNotEmpty()) {
@@ -372,7 +397,11 @@ class TimetableViewModel(
                     mapWeekToScheduleSlots(semester.startDate, week, specialDays, confirmedAdjustments)[index]
                 }
                 day.copy(
-                    courses = slot.courseDayOfWeek?.let(coursesByDay::get).orEmpty().map(::toCourseUiState)
+                    courses = slot.courseWeek?.let { sourceWeek ->
+                        slot.courseDayOfWeek?.let { sourceDay ->
+                            coursesByWeek[sourceWeek].orEmpty().filter { it.dayOfWeek == sourceDay }
+                        }
+                    }.orEmpty().map(::toCourseUiState)
                 )
             }
             .orEmpty()
@@ -398,7 +427,7 @@ class TimetableViewModel(
             calendarSpecialDays = specialDays,
             classOverrides = classOverrides,
             calendarAdjustmentWarning = when {
-                needsMakeupConfirmation -> "检测到调休日期，请重新导入课表确认补课来源。"
+                needsMakeupConfirmation -> "检测到调休日期，请重新导入课表确认补课星期和单双周。"
                 else -> calendarReadWarning
             },
             isEmpty = visibleDays.none { it.courses.isNotEmpty() }
@@ -544,7 +573,8 @@ class TimetableViewModel(
                         (course.weekRule.weeks.isNotEmpty() || course.weekRule.parity != null)
                 } &&
                 importPeriodTimes(value.periodTimes) != null &&
-                validateSemesterPeriodTimes(importPeriodTimes(value.periodTimes).orEmpty()) == null
+                validateSemesterPeriodTimes(importPeriodTimes(value.periodTimes).orEmpty()) == null &&
+                adjustmentChoicesAreComplete(value.calendarAdjustmentChoices)
         )
     }
 

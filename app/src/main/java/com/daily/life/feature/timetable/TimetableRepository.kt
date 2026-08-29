@@ -244,6 +244,7 @@ class RoomTimetableRepository(
                     semesterId = id,
                     actualDate = adjustment.actualDate,
                     sourceDayOfWeek = adjustment.sourceDayOfWeek,
+                    sourceWeekParity = adjustment.sourceWeekParity.name,
                     sourceDate = adjustment.sourceDate,
                     sourceLabel = adjustment.sourceLabel,
                     updatedAt = clock.millis()
@@ -279,7 +280,16 @@ class RoomTimetableRepository(
         val globalMinutes = preferences.courseReminderMinutes.first()
         val now = clock.instant()
         val adjustmentMap = calendarAdjustmentDao.findBySemester(semesterId)
-            .associate { it.actualDate to it.sourceDayOfWeek }
+            .mapNotNull { row ->
+                row.sourceWeekParity?.let { parityName ->
+                    runCatching {
+                        row.actualDate to MakeupCourseSource(
+                            dayOfWeek = row.sourceDayOfWeek,
+                            weekParity = WeekParity.valueOf(parityName)
+                        )
+                    }.getOrNull()
+                }
+            }.toMap()
         val classOverrideMap = classOverrideDao.findBySemester(semesterId)
             .mapNotNull { row ->
                 runCatching { row.actualDate to ClassOverride.valueOf(row.overrideKind) }.getOrNull()

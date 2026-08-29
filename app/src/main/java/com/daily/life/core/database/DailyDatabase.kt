@@ -29,7 +29,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ImportLogEntity::class,
         CalendarSyncLinkEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 @TypeConverters(DailyConverters::class)
@@ -251,6 +251,14 @@ abstract class DailyDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE semester_calendar_adjustments ADD COLUMN sourceWeekParity TEXT"
+                )
+            }
+        }
+
         fun build(context: Context): DailyDatabase =
             Room.databaseBuilder(
                 context.applicationContext,
@@ -265,7 +273,8 @@ abstract class DailyDatabase : RoomDatabase() {
                 MIGRATION_6_7,
                 MIGRATION_7_8,
                 MIGRATION_8_9,
-                MIGRATION_9_10
+                MIGRATION_9_10,
+                MIGRATION_10_11
             ).build()
 
         fun buildInMemory(context: Context): DailyDatabase =

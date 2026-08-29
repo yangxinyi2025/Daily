@@ -49,7 +49,7 @@ class TimetableCalendarMappingTest {
             semesterStart,
             selectedWeek = 1,
             specialDays = listOf(makeup),
-            confirmedAdjustments = mapOf(actualDate to 5)
+            confirmedAdjustments = mapOf(actualDate to MakeupCourseSource(5, WeekParity.ODD))
         ).single { it.actualDate == actualDate }
 
         assertEquals(5, slot.courseDayOfWeek)
@@ -70,7 +70,7 @@ class TimetableCalendarMappingTest {
     }
 
     @Test
-    fun sameDateMakeupOverridesHoliday() {
+    fun sameDateHolidayOverridesMakeup() {
         val actualDate = LocalDate.of(2026, 9, 19)
         val slot = mapWeekToScheduleSlots(
             semesterStart,
@@ -79,11 +79,11 @@ class TimetableCalendarMappingTest {
                 specialDay(actualDate, SystemCalendarSpecialDayKind.Holiday),
                 specialDay(actualDate, SystemCalendarSpecialDayKind.MakeupWorkday)
             ),
-            mapOf(actualDate to 5)
+            mapOf(actualDate to MakeupCourseSource(5, WeekParity.ODD))
         ).single { it.actualDate == actualDate }
 
-        assertEquals(5, slot.courseDayOfWeek)
-        assertFalse(slot.isHoliday)
+        assertEquals(null, slot.courseDayOfWeek)
+        assertTrue(slot.isHoliday)
     }
 
     @Test
@@ -98,7 +98,7 @@ class TimetableCalendarMappingTest {
                 specialDay(holidayDate, SystemCalendarSpecialDayKind.Holiday),
                 specialDay(makeupDate, SystemCalendarSpecialDayKind.MakeupWorkday)
             ),
-            confirmedAdjustments = mapOf(makeupDate to 5)
+            confirmedAdjustments = mapOf(makeupDate to MakeupCourseSource(5, WeekParity.ODD))
         )
 
         assertEquals(listOf(makeupDate), dates)
@@ -115,7 +115,7 @@ class TimetableCalendarMappingTest {
                 1,
                 5,
                 listOf(makeupDay(actual)),
-                mapOf(actual to 5)
+                mapOf(actual to MakeupCourseSource(5, WeekParity.ODD))
             )
         )
     }
@@ -133,7 +133,7 @@ class TimetableCalendarMappingTest {
             semesterStart,
             1,
             rules,
-            confirmedAdjustments = mapOf(makeupDate to 4)
+            confirmedAdjustments = mapOf(makeupDate to MakeupCourseSource(4, WeekParity.ODD))
         )
         assertEquals(null, slots.single { it.actualDate == holidayDate }.courseDayOfWeek)
         assertEquals(4, slots.single { it.actualDate == makeupDate }.courseDayOfWeek)
@@ -144,7 +144,7 @@ class TimetableCalendarMappingTest {
                 1,
                 4,
                 rules,
-                confirmedAdjustments = mapOf(makeupDate to 4)
+                confirmedAdjustments = mapOf(makeupDate to MakeupCourseSource(4, WeekParity.ODD))
             )
         )
     }
@@ -201,6 +201,22 @@ class TimetableCalendarMappingTest {
                 emptyMap(),
                 mapOf(holidayDate to ClassOverride.HAS_CLASS)
             )
+        )
+    }
+
+    @Test
+    fun makeupOnlyRunsCoursesFromTheChosenParity() {
+        val makeupDate = LocalDate.of(2026, 9, 26)
+        val rules = listOf(rule(makeupDate, CalendarDayKind.MAKEUP_WORKDAY))
+        val confirmed = mapOf(makeupDate to MakeupCourseSource(5, WeekParity.EVEN))
+
+        assertEquals(
+            listOf(LocalDate.of(2026, 9, 18)),
+            courseOccurrenceDatesWithRules(semesterStart, 1, 5, rules, confirmed)
+        )
+        assertEquals(
+            listOf(LocalDate.of(2026, 9, 25), makeupDate),
+            courseOccurrenceDatesWithRules(semesterStart, 2, 5, rules, confirmed)
         )
     }
 

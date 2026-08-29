@@ -87,6 +87,7 @@ fun TimetableScreen(
     ,onSavePeriodTimes: () -> Unit
     ,onClosePeriodEditor: () -> Unit
     ,onMakeupSourceChange: (java.time.LocalDate, Int?) -> Unit
+    ,onMakeupParityChange: (java.time.LocalDate, WeekParity?) -> Unit
     ,onRefreshSystemCalendarDays: () -> Unit
     ,onClassOverrideChange: (java.time.LocalDate, ClassOverride) -> Unit = { _, _ -> }
 ) {
@@ -172,6 +173,7 @@ fun TimetableScreen(
             onCancel = onCancelImport,
             onConfirm = confirmImportWithCalendarPermission,
             onMakeupSourceChange = onMakeupSourceChange,
+            onMakeupParityChange = onMakeupParityChange,
             onClassOverrideChange = onClassOverrideChange
         )
         return

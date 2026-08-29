@@ -41,6 +41,7 @@ fun TimetableImportScreen(
     onCancel: () -> Unit,
     onConfirm: () -> Unit,
     onMakeupSourceChange: (LocalDate, Int?) -> Unit,
+    onMakeupParityChange: (LocalDate, WeekParity?) -> Unit,
     onClassOverrideChange: (LocalDate, ClassOverride) -> Unit = { _, _ -> }
 ) {
     Column(
@@ -102,9 +103,9 @@ fun TimetableImportScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text("${choice.actualDate.format(IMPORT_DATE_FORMATTER)} · ${choice.label}")
-                            if (choice.selectedSourceDayOfWeek == null) {
+                            if (choice.selectedSourceDayOfWeek == null || choice.selectedSourceWeekParity == null) {
                                 Text(
-                                    "请选择补课来源",
+                                    "请选择补课来源的星期和单双周",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.error
                                 )
@@ -114,6 +115,10 @@ fun TimetableImportScreen(
                             selectedDay = choice.selectedSourceDayOfWeek,
                             options = choice.options,
                             onSelected = { day -> onMakeupSourceChange(choice.actualDate, day) }
+                        )
+                        MakeupParityPicker(
+                            selectedParity = choice.selectedSourceWeekParity,
+                            onSelected = { parity -> onMakeupParityChange(choice.actualDate, parity) }
                         )
                     }
                 }
@@ -231,6 +236,32 @@ fun TimetableImportScreen(
             }
         }
     }
+}
+
+@Composable
+private fun MakeupParityPicker(
+    selectedParity: WeekParity?,
+    onSelected: (WeekParity) -> Unit
+) {
+    var expanded by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    Box {
+        OutlinedButton(onClick = { expanded = true }) {
+            Text(selectedParity?.let(::weekParityLabel) ?: "单双周")
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            WeekParity.entries.forEach { parity ->
+                DropdownMenuItem(
+                    text = { Text(weekParityLabel(parity)) },
+                    onClick = { expanded = false; onSelected(parity) }
+                )
+            }
+        }
+    }
+}
+
+private fun weekParityLabel(parity: WeekParity): String = when (parity) {
+    WeekParity.ODD -> "单周"
+    WeekParity.EVEN -> "双周"
 }
 
 @Composable

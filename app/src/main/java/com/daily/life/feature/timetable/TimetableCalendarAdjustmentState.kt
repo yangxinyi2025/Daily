@@ -18,6 +18,7 @@ internal fun buildTimetableAdjustmentChoices(
                 actualDate = day.date,
                 label = day.label,
                 selectedSourceDayOfWeek = old?.selectedSourceDayOfWeek,
+                selectedSourceWeekParity = old?.selectedSourceWeekParity,
                 sourceDate = old?.sourceDate ?: day.sourceDate,
                 isRequired = true
             )
@@ -25,16 +26,21 @@ internal fun buildTimetableAdjustmentChoices(
 }
 
 internal fun adjustmentChoicesAreComplete(choices: Iterable<TimetableAdjustmentChoiceState>): Boolean =
-    choices.all { choice -> choice.selectedSourceDayOfWeek in 1..7 }
+    choices.all { choice ->
+        choice.selectedSourceDayOfWeek in 1..7 && choice.selectedSourceWeekParity != null
+    }
 
 internal fun List<TimetableAdjustmentChoiceState>.toAdjustmentInputs(): List<SemesterCalendarAdjustmentInput> =
     mapNotNull { choice ->
         choice.selectedSourceDayOfWeek?.takeIf { it in 1..7 }?.let { sourceDay ->
+            choice.selectedSourceWeekParity?.let { sourceWeekParity ->
             SemesterCalendarAdjustmentInput(
                 actualDate = choice.actualDate,
                 sourceDayOfWeek = sourceDay,
+                sourceWeekParity = sourceWeekParity,
                 sourceDate = choice.sourceDate,
                 sourceLabel = choice.label
             )
+            }
         }
     }

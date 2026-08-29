@@ -104,6 +104,7 @@ class TimetableRepositoryTest {
                 SemesterCalendarAdjustmentInput(
                     actualDate = LocalDate.of(2026, 10, 10),
                     sourceDayOfWeek = 5,
+                    sourceWeekParity = WeekParity.ODD,
                     sourceLabel = "补周五"
                 )
             )
@@ -240,6 +241,7 @@ class TimetableRepositoryTest {
                 SemesterCalendarAdjustmentInput(
                     actualDate = LocalDate.of(2026, 9, 5),
                     sourceDayOfWeek = 5,
+                    sourceWeekParity = WeekParity.ODD,
                     sourceLabel = "补周五"
                 )
             )
