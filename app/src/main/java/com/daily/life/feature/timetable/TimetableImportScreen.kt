@@ -81,7 +81,7 @@ fun TimetableImportScreen(
             }
         }
 
-        if (state.calendarSpecialDays.isNotEmpty() || state.calendarReadWarning != null) {
+        if (state.calendarSpecialDays.isNotEmpty() || state.calendarReadWarning != null || state.holidayCalendarWarning != null) {
             DailyCard {
                 Text(text = "节假日与调休校准", style = MaterialTheme.typography.titleLarge)
                 Text(
@@ -135,6 +135,9 @@ fun TimetableImportScreen(
                     }
                 }
                 state.calendarReadWarning?.let { warning ->
+                    Text(warning, color = MaterialTheme.colorScheme.error)
+                }
+                state.holidayCalendarWarning?.let { warning ->
                     Text(warning, color = MaterialTheme.colorScheme.error)
                 }
             }

@@ -297,6 +297,7 @@ class RoomTimetableRepository(
             .toMap()
         val unifiedRules = holidayCalendarRepository?.let { repository ->
             repository.initialize()
+            repository.syncIfStale()
             repository.resolveBetween(
                 semester.startDate,
                 semester.endDate ?: semester.startDate.plusWeeks(DEFAULT_SEMESTER_WEEKS.toLong()).minusDays(1)

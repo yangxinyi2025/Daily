@@ -149,6 +149,8 @@ data class TimetableImportState(
     val calendarAdjustmentChoices: List<TimetableAdjustmentChoiceState> = emptyList(),
     val classOverrideChoices: List<TimetableClassOverrideState> = emptyList(),
     val calendarReadWarning: String? = null,
+    val holidayCalendarWarning: String? = null,
+    val holidayCalendarReady: Boolean = true,
     val replaceExisting: Boolean = true,
     val canConfirm: Boolean = false,
     val errorMessage: String? = null

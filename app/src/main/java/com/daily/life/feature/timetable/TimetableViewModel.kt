@@ -480,8 +480,22 @@ class TimetableViewModel(
 
     private fun refreshHolidayCalendarRules(startDate: LocalDate, endDate: LocalDate?) {
         val repository = holidayCalendarRepository ?: return
+        if (importState.value.isOpen) {
+            updateImportState(
+                importState.value.copy(
+                    holidayCalendarReady = false,
+                    holidayCalendarWarning = null
+                )
+            )
+        }
         scope.launch {
             repository.initialize()
+            repository.syncIfStale()
+            val hasUsableBuiltInData = repository.observeSourcesSnapshot().any { source ->
+                source.id == HolidayCalendarRepository.BUILTIN_SOURCE_ID &&
+                    source.enabled &&
+                    source.lastSuccessfulSyncAt != null
+            }
             val rules = repository.resolveBetween(
                 startDate,
                 endDate ?: startDate.plusWeeks(DEFAULT_IMPORT_SEMESTER_WEEKS.toLong()).minusDays(1)
@@ -510,7 +524,17 @@ class TimetableViewModel(
                     current.classOverrideChoices.firstOrNull { it.actualDate == date }
                         ?: TimetableClassOverrideState(date)
                 }
-                updateImportState(current.copy(calendarSpecialDays = mergedDays, calendarAdjustmentChoices = choices, classOverrideChoices = classChoices))
+                updateImportState(
+                    current.copy(
+                        calendarSpecialDays = mergedDays,
+                        calendarAdjustmentChoices = choices,
+                        classOverrideChoices = classChoices,
+                        holidayCalendarReady = hasUsableBuiltInData,
+                        holidayCalendarWarning = if (hasUsableBuiltInData) null else {
+                            "节假日日历同步失败，暂不能确认导入。请检查网络后重试。"
+                        }
+                    )
+                )
             }
         }
     }
@@ -564,6 +588,7 @@ class TimetableViewModel(
             canConfirm = !value.isLoading &&
                 value.semesterName.isNotBlank() &&
                 parseDate(value.semesterStartDate) != null &&
+                value.holidayCalendarReady &&
                 previewCourses.isNotEmpty() &&
                 previewCourses.all { course ->
                     course.courseName.isNotBlank() &&

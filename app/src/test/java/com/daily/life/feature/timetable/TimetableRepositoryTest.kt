@@ -4,10 +4,16 @@ import androidx.test.core.app.ApplicationProvider
 import com.daily.life.core.NoOpReminderScheduler
 import com.daily.life.core.ReminderScheduler
 import com.daily.life.core.calendar.CalendarAlertMethod
+import com.daily.life.core.calendar.CalendarDayKind
 import com.daily.life.core.calendar.CalendarProviderClient
 import com.daily.life.core.calendar.CalendarReminderRequest
 import com.daily.life.core.calendar.CalendarReminderSyncer
 import com.daily.life.core.calendar.CalendarTarget
+import com.daily.life.core.calendar.HolidayCalendarRepository
+import com.daily.life.core.calendar.IcsCalendarEvent
+import com.daily.life.core.calendar.IcsCalendarFetcher
+import com.daily.life.core.calendar.IcsCalendarSource
+import com.daily.life.core.calendar.IcsFetchResult
 import com.daily.life.core.calendar.SystemCalendarScheduleEvent
 import com.daily.life.core.calendar.SystemCalendarScheduleReader
 import com.daily.life.core.calendar.SystemCalendarGateway
@@ -254,6 +260,64 @@ class TimetableRepositoryTest {
             ),
             calendarClient.insertedRequests.map { it.startAt.atZone(ZoneId.of("Asia/Shanghai")).toLocalDate() }
         )
+    }
+
+    @Test
+    fun courseCalendarMessagesSkipHolidayFromFreshBuiltInCalendarSync() = runTest {
+        val calendarClient = RecordingCalendarClient()
+        preferences.setCourseReminderMinutes(15)
+        val holidayCalendar = HolidayCalendarRepository(
+            dao = database.holidayCalendarDao(),
+            preferences = preferences,
+            systemCalendarReader = SystemCalendarScheduleReader(ZoneId.systemDefault(), { false }) { _, _ -> emptyList() },
+            icsClient = object : IcsCalendarFetcher {
+                override fun fetch(source: IcsCalendarSource, etag: String?, lastModified: String?) = IcsFetchResult.Success(
+                    events = listOf(
+                        IcsCalendarEvent(
+                            eventKey = "national-day-2026",
+                            startDate = LocalDate.of(2026, 10, 1),
+                            endExclusiveDate = LocalDate.of(2026, 10, 2),
+                            title = "国庆节假期",
+                            description = null,
+                            kind = CalendarDayKind.HOLIDAY_REST,
+                            sourceDayOfWeek = null,
+                            sourceDate = null
+                        )
+                    ),
+                    etag = null,
+                    lastModified = null
+                )
+            },
+            now = { fixedClock().instant() }
+        )
+        val repository = RoomTimetableRepository(
+            database = database,
+            preferences = preferences,
+            reminderScheduler = NoOpReminderScheduler,
+            calendarReminderSyncer = CalendarReminderSyncer(
+                database = database,
+                gateway = SystemCalendarGateway(calendarClient)
+            ),
+            holidayCalendarRepository = holidayCalendar,
+            clock = fixedClock()
+        )
+
+        repository.confirmImport(
+            preview = TimetableParseResult(
+                courses = listOf(previewCourse("数据库", 4, 1, 2, "1周", setOf(1))),
+                warnings = emptyList(),
+                unsupportedRows = emptyList()
+            ),
+            semester = SemesterInput(
+                name = "2026 秋季",
+                startDate = LocalDate.of(2026, 9, 28),
+                endDate = LocalDate.of(2026, 10, 4),
+                isCurrent = true
+            ),
+            replaceExisting = false
+        )
+
+        assertTrue(calendarClient.insertedRequests.isEmpty())
     }
 
     @Test
