@@ -1,5 +1,6 @@
 package com.daily.life.feature.health
 
+import android.app.DatePickerDialog
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -53,6 +54,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -85,8 +87,7 @@ internal fun HealthDashboardScreen(
     state: HealthState,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
-    onCurrentMonth: () -> Unit,
-    onRecordWeight: (Double) -> Unit,
+    onRecordWeight: (Double, LocalDate) -> Unit,
     onSetTargetWeight: (Double?) -> Unit,
     onRecordPeriod: (LocalDate, LocalDate) -> Unit,
     onUpdatePeriod: (PeriodRecord) -> Unit,
@@ -99,6 +100,7 @@ internal fun HealthDashboardScreen(
         .takeLast(30)
         .map { WeightPoint(it.recordedAt.atZone(zoneId).toLocalDate(), it.weightJin) }
     var showWeightEditor by remember { mutableStateOf(false) }
+    var recordingDate by remember { mutableStateOf(LocalDate.now()) }
     var editedPeriod by remember { mutableStateOf<PeriodRecord?>(null) }
     var showPeriodEditor by remember { mutableStateOf(false) }
     val sectionOrder = healthDashboardSectionOrder(showWeightEditor, showPeriodEditor)
@@ -116,14 +118,22 @@ internal fun HealthDashboardScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            HealthHeader(onAddWeight = { showWeightEditor = true })
+            HealthHeader(
+                onAddWeight = {
+                    recordingDate = LocalDate.now()
+                    showWeightEditor = true
+                }
+            )
         }
         item {
             HealthOverviewCard(
                 presentation = presentation,
                 state = state,
                 onPreviousMonth = onPreviousMonth,
-                onCurrentMonth = onCurrentMonth,
+                onSelectRecordDate = { date ->
+                    recordingDate = date
+                    showWeightEditor = true
+                },
                 onNextMonth = onNextMonth
             )
         }
@@ -132,9 +142,10 @@ internal fun HealthDashboardScreen(
             item {
                 HealthWeightEntryCard(
                     onSave = {
-                        onRecordWeight(it)
+                        onRecordWeight(it, recordingDate)
                         showWeightEditor = false
                     },
+                    recordingDate = recordingDate,
                     onDismiss = { showWeightEditor = false }
                 )
             }
@@ -235,9 +246,11 @@ private fun HealthOverviewCard(
     presentation: HealthDashboardPresentation,
     state: HealthState,
     onPreviousMonth: () -> Unit,
-    onCurrentMonth: () -> Unit,
+    onSelectRecordDate: (LocalDate) -> Unit,
     onNextMonth: () -> Unit
 ) {
+    val context = LocalContext.current
+    val initialDate = state.selectedMonth.atDay(1)
     val delta = weightChangeFromLatest(state.weights)
     HealthReferenceCard(modifier = Modifier.height(124.dp)) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -254,7 +267,22 @@ private fun HealthOverviewCard(
                 )
                 Spacer(Modifier.weight(1f))
                 HealthHeaderIcon(Icons.Outlined.ArrowBackIosNew, "上个月", onPreviousMonth)
-                HealthHeaderIcon(Icons.Outlined.CalendarMonth, "回到本月", onCurrentMonth, 24.dp)
+                HealthHeaderIcon(
+                    Icons.Outlined.CalendarMonth,
+                    "选择体重记录日期",
+                    onClick = {
+                        DatePickerDialog(
+                            context,
+                            { _, year, month, day ->
+                                onSelectRecordDate(LocalDate.of(year, month + 1, day))
+                            },
+                            initialDate.year,
+                            initialDate.monthValue - 1,
+                            initialDate.dayOfMonth
+                        ).show()
+                    },
+                    size = 24.dp
+                )
                 HealthHeaderIcon(Icons.Outlined.ArrowForwardIos, "下个月", onNextMonth)
             }
             Row(
@@ -589,11 +617,22 @@ private fun HealthSecondaryButton(
 }
 
 @Composable
-private fun HealthWeightEntryCard(onSave: (Double) -> Unit, onDismiss: () -> Unit) {
+private fun HealthWeightEntryCard(
+    recordingDate: LocalDate,
+    onSave: (Double) -> Unit,
+    onDismiss: () -> Unit
+) {
     var input by remember { mutableStateOf("") }
     HealthReferenceCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            HealthSectionTitle("记录体重")
+            Column {
+                HealthSectionTitle("记录体重")
+                Text(
+                    text = "记录日期：${recordingDate.format(DateTimeFormatter.ofPattern("yyyy年M月d日"))}",
+                    color = SkyMutedText,
+                    fontSize = 14.sp
+                )
+            }
             Spacer(Modifier.weight(1f))
             Icon(Icons.Outlined.Close, contentDescription = "取消", modifier = Modifier.clickable(onClick = onDismiss), tint = SkyMutedText)
         }

@@ -88,10 +88,13 @@ class HealthViewModel(
         _state.update { it.copy(selectedTab = tab) }
     }
 
-    fun recordWeight(weightJin: Double, notes: String? = null) {
+    fun recordWeight(weightJin: Double, recordedOn: LocalDate) {
         scope.launch {
             try {
-                repository.recordWeight(weightJin = weightJin, notes = notes)
+                repository.recordWeight(
+                    recordedAt = weightRecordInstantFor(recordedOn, clock.zone),
+                    weightJin = weightJin
+                )
                 _state.update { it.copy(statusMessage = "体重已记录", errorMessage = null) }
             } catch (error: Exception) {
                 _state.update { it.copy(errorMessage = error.message ?: "体重记录失败") }

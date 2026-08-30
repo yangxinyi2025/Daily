@@ -58,4 +58,23 @@ class HealthViewModelTest {
         assertEquals(LocalDate.of(2026, 8, 31), state.nextPeriodStart)
         assertEquals(1, state.periodRecords.size)
     }
+
+    @Test
+    fun recordingWeightUsesTheChosenDate() = runTest {
+        val viewModel = HealthViewModel(
+            repository = HealthRepository(database.healthDao(), preferences),
+            periodRepository = PeriodRepository(database.periodDao(), preferences),
+            preferences = preferences,
+            clock = Clock.fixed(Instant.parse("2026-08-20T12:00:00Z"), ZoneOffset.UTC),
+            coroutineScope = backgroundScope
+        )
+
+        viewModel.recordWeight(
+            weightJin = 118.5,
+            recordedOn = LocalDate.of(2026, 8, 17)
+        )
+
+        val record = viewModel.state.first { it.weights.size == 1 }.weights.single()
+        assertEquals(LocalDate.of(2026, 8, 17), record.recordedAt.atZone(ZoneOffset.UTC).toLocalDate())
+    }
 }
