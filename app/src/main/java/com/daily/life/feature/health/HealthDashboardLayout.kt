@@ -11,16 +11,12 @@ internal enum class HealthDashboardSection {
     History
 }
 
-internal fun healthDashboardSectionOrder(
-    showWeightEditor: Boolean,
-    showPeriodEditor: Boolean
-): List<HealthDashboardSection> = buildList {
-    add(HealthDashboardSection.Header)
-    add(HealthDashboardSection.Overview)
-    add(HealthDashboardSection.Trend)
-    if (showWeightEditor) add(HealthDashboardSection.WeightEntry)
-    add(HealthDashboardSection.Goal)
-    add(HealthDashboardSection.Period)
-    if (showPeriodEditor) add(HealthDashboardSection.PeriodEntry)
-    add(HealthDashboardSection.History)
-}
+internal fun healthDashboardSectionOrder(): List<HealthDashboardSection> =
+    listOf(
+        HealthDashboardSection.Header,
+        HealthDashboardSection.Overview,
+        HealthDashboardSection.Trend,
+        HealthDashboardSection.Goal,
+        HealthDashboardSection.Period,
+        HealthDashboardSection.History
+    )

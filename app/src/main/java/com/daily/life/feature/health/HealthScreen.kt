@@ -2,6 +2,7 @@ package com.daily.life.feature.health
 
 import androidx.compose.runtime.Composable
 import java.time.LocalDate
+import java.time.LocalDateTime
 
 @Composable
 fun HealthScreen(
@@ -9,7 +10,7 @@ fun HealthScreen(
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onSelectTab: (HealthTab) -> Unit,
-    onRecordWeight: (Double, LocalDate) -> Unit,
+    onRecordWeight: (Double, LocalDateTime) -> Unit,
     onSetTargetWeight: (Double?) -> Unit,
     onRecordPeriod: (LocalDate, LocalDate) -> Unit,
     onUpdatePeriod: (PeriodRecord) -> Unit,

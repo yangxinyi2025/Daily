@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.daily.life.core.datastore.DailyPreferences
 import java.time.Clock
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.YearMonth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -89,10 +90,14 @@ class HealthViewModel(
     }
 
     fun recordWeight(weightJin: Double, recordedOn: LocalDate) {
+        recordWeight(weightJin, recordedOn.atStartOfDay())
+    }
+
+    fun recordWeight(weightJin: Double, recordedAt: LocalDateTime) {
         scope.launch {
             try {
                 repository.recordWeight(
-                    recordedAt = weightRecordInstantFor(recordedOn, clock.zone),
+                    recordedAt = weightRecordInstantFor(recordedAt, clock.zone),
                     weightJin = weightJin
                 )
                 _state.update { it.copy(statusMessage = "体重已记录", errorMessage = null) }

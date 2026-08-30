@@ -1,6 +1,7 @@
 package com.daily.life.feature.health
 
 import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -22,25 +23,26 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowBackIosNew
 import androidx.compose.material.icons.outlined.ArrowForwardIos
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.TrackChanges
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -76,6 +78,8 @@ import com.daily.life.core.designsystem.SkySuccess
 import com.daily.life.core.designsystem.SkySurface
 import com.daily.life.core.designsystem.SkyWarm
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -87,7 +91,7 @@ internal fun HealthDashboardScreen(
     state: HealthState,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
-    onRecordWeight: (Double, LocalDate) -> Unit,
+    onRecordWeight: (Double, LocalDateTime) -> Unit,
     onSetTargetWeight: (Double?) -> Unit,
     onRecordPeriod: (LocalDate, LocalDate) -> Unit,
     onUpdatePeriod: (PeriodRecord) -> Unit,
@@ -99,11 +103,14 @@ internal fun HealthDashboardScreen(
         .sortedBy { it.recordedAt }
         .takeLast(30)
         .map { WeightPoint(it.recordedAt.atZone(zoneId).toLocalDate(), it.weightJin) }
-    var showWeightEditor by remember { mutableStateOf(false) }
-    var recordingDate by remember { mutableStateOf(LocalDate.now()) }
+    var activeSheet by remember { mutableStateOf<HealthSheet?>(null) }
+    var recordingDateTime by remember { mutableStateOf(LocalDateTime.now()) }
     var editedPeriod by remember { mutableStateOf<PeriodRecord?>(null) }
-    var showPeriodEditor by remember { mutableStateOf(false) }
-    val sectionOrder = healthDashboardSectionOrder(showWeightEditor, showPeriodEditor)
+    var showAllWeightHistory by remember { mutableStateOf(false) }
+    var showAllPeriodHistory by remember { mutableStateOf(false) }
+    val sortedWeights = state.weights.sortedByDescending { it.recordedAt }
+    val visibleWeights = if (showAllWeightHistory) sortedWeights else sortedWeights.take(3)
+    val visiblePeriods = if (showAllPeriodHistory) presentation.history else presentation.history.take(3)
 
     LazyColumn(
         modifier = Modifier
@@ -124,8 +131,8 @@ internal fun HealthDashboardScreen(
                 state = state,
                 onPreviousMonth = onPreviousMonth,
                 onSelectRecordDate = { date ->
-                    recordingDate = date
-                    showWeightEditor = true
+                    recordingDateTime = LocalDateTime.of(date, LocalTime.now())
+                    activeSheet = HealthSheet.Weight
                 },
                 onNextMonth = onNextMonth
             )
@@ -133,32 +140,21 @@ internal fun HealthDashboardScreen(
         item {
             HealthQuickRecordCard(
                 onRecordWeight = {
-                    recordingDate = LocalDate.now()
-                    showWeightEditor = true
+                    recordingDateTime = LocalDateTime.now()
+                    activeSheet = HealthSheet.Weight
                 },
                 onRecordPeriod = {
                     editedPeriod = null
-                    showPeriodEditor = true
+                    activeSheet = HealthSheet.Period
                 }
             )
         }
         item { HealthTrendCard(points = recentPoints) }
-        if (HealthDashboardSection.WeightEntry in sectionOrder) {
-            item {
-                HealthWeightEntryCard(
-                    onSave = {
-                        onRecordWeight(it, recordingDate)
-                        showWeightEditor = false
-                    },
-                    recordingDate = recordingDate,
-                    onDismiss = { showWeightEditor = false }
-                )
-            }
-        }
         item {
             HealthGoalCard(
                 targetWeight = state.targetWeightJin,
-                onSetTargetWeight = onSetTargetWeight
+                currentWeight = state.weights.maxByOrNull { it.recordedAt }?.weightJin,
+                onModify = { activeSheet = HealthSheet.Target }
             )
         }
         item {
@@ -166,25 +162,19 @@ internal fun HealthDashboardScreen(
                 presentation = presentation,
                 onRecord = {
                     editedPeriod = null
-                    showPeriodEditor = true
+                    activeSheet = HealthSheet.Period
                 }
             )
         }
-        if (HealthDashboardSection.PeriodEntry in sectionOrder) {
-            item {
-                HealthPeriodEditorCard(
-                    record = editedPeriod,
-                    onSave = { startDate, endDate ->
-                        editedPeriod?.let { onUpdatePeriod(it.copy(startDate = startDate, endDate = endDate)) }
-                            ?: onRecordPeriod(startDate, endDate)
-                        showPeriodEditor = false
-                    },
-                    onDismiss = { showPeriodEditor = false }
-                )
-            }
-        }
         item { HealthSectionTitle("历史记录") }
-        item { HealthHistoryCategoryTitle("体重记录") }
+        item {
+            HealthHistoryCategoryTitle(
+                title = "体重记录",
+                canExpand = sortedWeights.size > visibleWeights.size,
+                expanded = showAllWeightHistory,
+                onToggle = { showAllWeightHistory = !showAllWeightHistory }
+            )
+        }
         if (state.weights.isEmpty()) {
             item {
                 HealthReferenceCard {
@@ -192,14 +182,18 @@ internal fun HealthDashboardScreen(
                 }
             }
         } else {
-            items(
-                state.weights.sortedByDescending { it.recordedAt },
-                key = { it.id }
-            ) { record ->
+            items(visibleWeights, key = { it.id }) { record ->
                 HealthWeightHistoryCard(record = record, zoneId = zoneId)
             }
         }
-        item { HealthHistoryCategoryTitle("经期记录") }
+        item {
+            HealthHistoryCategoryTitle(
+                title = "经期记录",
+                canExpand = presentation.history.size > visiblePeriods.size,
+                expanded = showAllPeriodHistory,
+                onToggle = { showAllPeriodHistory = !showAllPeriodHistory }
+            )
+        }
         if (presentation.history.isEmpty()) {
             item {
                 HealthReferenceCard {
@@ -207,12 +201,12 @@ internal fun HealthDashboardScreen(
                 }
             }
         } else {
-            items(presentation.history, key = { it.record.id }) { item ->
+            items(visiblePeriods, key = { it.record.id }) { item ->
                 HealthHistoryCard(
                     item = item,
                     onEdit = {
                         editedPeriod = item.record
-                        showPeriodEditor = true
+                        activeSheet = HealthSheet.Period
                     },
                     onDelete = { onDeletePeriod(item.record.id) }
                 )
@@ -225,7 +219,44 @@ internal fun HealthDashboardScreen(
             item { Text(message, color = SkyWarm, fontSize = 14.sp) }
         }
     }
+
+    activeSheet?.let { sheet ->
+        HealthBottomSheet(onDismiss = { activeSheet = null }) {
+            when (sheet) {
+                HealthSheet.Weight -> HealthWeightEditorContent(
+                    recordingDateTime = recordingDateTime,
+                    onRecordingDateTimeChange = { recordingDateTime = it },
+                    onSave = { weight ->
+                        onRecordWeight(weight, recordingDateTime)
+                        activeSheet = null
+                    },
+                    onDismiss = { activeSheet = null }
+                )
+
+                HealthSheet.Period -> HealthPeriodEditorContent(
+                    record = editedPeriod,
+                    onSave = { startDate, endDate ->
+                        editedPeriod?.let { onUpdatePeriod(it.copy(startDate = startDate, endDate = endDate)) }
+                            ?: onRecordPeriod(startDate, endDate)
+                        activeSheet = null
+                    },
+                    onDismiss = { activeSheet = null }
+                )
+
+                HealthSheet.Target -> HealthTargetEditorContent(
+                    targetWeight = state.targetWeightJin,
+                    onSave = {
+                        onSetTargetWeight(it)
+                        activeSheet = null
+                    },
+                    onDismiss = { activeSheet = null }
+                )
+            }
+        }
+    }
 }
+
+private enum class HealthSheet { Weight, Period, Target }
 
 @Composable
 private fun HealthHeader() {
@@ -506,122 +537,99 @@ private fun HealthWeightTrendChart(points: List<WeightPoint>) {
 }
 
 @Composable
-private fun HealthGoalCard(targetWeight: Double?, onSetTargetWeight: (Double?) -> Unit) {
-    var input by remember(targetWeight) { mutableStateOf(targetWeight?.let(::formatHealthWeight).orEmpty()) }
+private fun HealthGoalCard(
+    targetWeight: Double?,
+    currentWeight: Double?,
+    onModify: () -> Unit
+) {
+    val distance = if (targetWeight != null && currentWeight != null) {
+        val delta = currentWeight - targetWeight
+        if (delta > 0) "距目标 ${formatHealthWeight(delta)} 斤" else "已达到目标"
+    } else {
+        "设置目标后会显示进度"
+    }
     HealthReferenceCard {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.Top) {
-                Surface(
-                    modifier = Modifier.size(48.dp),
-                    color = SkyPurpleSurface,
-                    shape = RoundedCornerShape(20.dp)
-                ) {
-                    Icon(
-                        Icons.Outlined.TrackChanges,
-                        contentDescription = null,
-                        tint = SkyAccent,
-                        modifier = Modifier.padding(12.dp)
-                    )
-                }
-                Column(modifier = Modifier.padding(start = 12.dp)) {
-                    Text(
-                        "目标体重 · ${targetWeight?.let(::formatHealthWeight) ?: "未设置"} 斤",
-                        color = SkyInk,
-                        fontSize = 18.sp,
-                        lineHeight = 25.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        "持续记录，慢慢靠近目标",
-                        modifier = Modifier.padding(top = 3.dp),
-                        color = SkyMutedText,
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp
-                    )
-                }
-            }
-            Text("✦", modifier = Modifier.align(Alignment.TopEnd), color = SkyAccent.copy(alpha = 0.26f), fontSize = 28.sp)
-        }
-        Row(
-            modifier = Modifier.padding(top = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text("斤数", color = SkyAccent, fontSize = 15.sp)
-            OutlinedTextField(
-                value = input,
-                onValueChange = { input = it },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                shape = RoundedCornerShape(18.dp),
-                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 18.sp, color = SkyInk),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = SkyPrimary,
-                    unfocusedBorderColor = SkyPrimary.copy(alpha = 0.70f),
-                    cursorColor = SkyPrimary
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                HealthSectionTitle("目标体重")
+                Text(
+                    text = "目标 ${targetWeight?.let(::formatHealthWeight) ?: "未设置"} 斤",
+                    modifier = Modifier.padding(top = 7.dp),
+                    color = SkyInk,
+                    fontSize = 24.sp,
+                    lineHeight = 30.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
+                Text(
+                    text = "当前 ${currentWeight?.let(::formatHealthWeight) ?: "--"} 斤 · $distance",
+                    modifier = Modifier.padding(top = 3.dp),
+                    color = SkyMutedText,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
+            }
+            Image(
+                painter = painterResource(R.drawable.health_scale_illustration),
+                contentDescription = null,
+                modifier = Modifier.size(72.dp),
+                contentScale = ContentScale.Fit
             )
-            Button(
-                onClick = { onSetTargetWeight(input.toDoubleOrNull()) },
-                modifier = Modifier.width(96.dp).height(52.dp),
-                shape = RoundedCornerShape(50),
-                colors = ButtonDefaults.buttonColors(containerColor = SkyPrimary, contentColor = Color.White)
-            ) { Text("保存", fontSize = 16.sp, fontWeight = FontWeight.Medium) }
         }
+        HealthPrimaryActionButton(
+            text = "修改目标",
+            color = SkyPrimary,
+            onClick = onModify
+        )
     }
 }
 
 @Composable
 private fun HealthPeriodCard(presentation: HealthDashboardPresentation, onRecord: () -> Unit) {
-    val hasPrediction = presentation.nextPeriodSummary.startsWith("下次预计")
-    HealthReferenceCard(
-        modifier = Modifier.height(172.dp),
-        cardColor = Color(0xFFFFFCFD)
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .width(176.dp)
-            ) {
+    val latestPeriod = presentation.history.firstOrNull()?.dateRange ?: "暂无记录"
+    HealthReferenceCard(cardColor = Color(0xFFFFFCFD)) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
                 HealthSectionTitle("经期记录")
                 Text(
-                    text = presentation.nextPeriodSummary,
-                    modifier = Modifier.padding(top = 8.dp),
+                    text = "最近 $latestPeriod",
+                    modifier = Modifier.padding(top = 7.dp),
                     color = SkyWarm,
-                    fontSize = if (hasPrediction) 21.sp else 18.sp,
-                    lineHeight = if (hasPrediction) 28.sp else 24.sp,
+                    fontSize = 19.sp,
+                    lineHeight = 26.sp,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = presentation.cycleSummary,
-                    modifier = Modifier.padding(top = 2.dp),
+                    text = "${presentation.cycleSummary} · ${presentation.nextPeriodSummary}",
+                    modifier = Modifier.padding(top = 3.dp),
                     color = SkyMutedText,
                     fontSize = 14.sp,
-                    lineHeight = 18.sp
+                    lineHeight = 20.sp
                 )
             }
-            Button(
-                onClick = onRecord,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .width(188.dp)
-                    .height(48.dp),
-                shape = RoundedCornerShape(50),
-                colors = ButtonDefaults.buttonColors(containerColor = SkyWarm, contentColor = Color.White)
-            ) { Text("记录本次经期", fontSize = 16.sp, fontWeight = FontWeight.Medium) }
             Image(
                 painter = painterResource(R.drawable.health_period_illustration),
                 contentDescription = null,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .offset(x = 8.dp, y = 8.dp)
-                    .width(138.dp)
-                    .height(122.dp),
+                modifier = Modifier.size(72.dp),
                 contentScale = ContentScale.Fit
             )
         }
+        HealthPrimaryActionButton(
+            text = "记录本次经期",
+            color = SkyWarm,
+            onClick = onRecord
+        )
+    }
+}
+
+@Composable
+private fun HealthPrimaryActionButton(text: String, color: Color, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.height(48.dp).width(136.dp),
+        shape = RoundedCornerShape(24.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = color, contentColor = Color.White)
+    ) {
+        Text(text, fontSize = 16.sp, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -642,15 +650,27 @@ private fun HealthHistoryCard(
 }
 
 @Composable
-private fun HealthHistoryCategoryTitle(title: String) {
-    Text(
-        text = title,
-        modifier = Modifier.padding(top = 2.dp),
-        color = SkyMutedText,
-        fontSize = 15.sp,
-        lineHeight = 21.sp,
-        fontWeight = FontWeight.Medium
-    )
+private fun HealthHistoryCategoryTitle(
+    title: String,
+    canExpand: Boolean,
+    expanded: Boolean,
+    onToggle: () -> Unit
+) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = title,
+            modifier = Modifier.weight(1f).padding(top = 2.dp),
+            color = SkyMutedText,
+            fontSize = 15.sp,
+            lineHeight = 21.sp,
+            fontWeight = FontWeight.Medium
+        )
+        if (canExpand || expanded) {
+            TextButton(onClick = onToggle) {
+                Text(if (expanded) "收起" else "查看全部", color = SkyAccent, fontSize = 14.sp)
+            }
+        }
+    }
 }
 
 @Composable
@@ -701,69 +721,153 @@ private fun HealthSecondaryButton(
 }
 
 @Composable
-private fun HealthWeightEntryCard(
-    recordingDate: LocalDate,
-    onSave: (Double) -> Unit,
-    onDismiss: () -> Unit
+@OptIn(ExperimentalMaterial3Api::class)
+private fun HealthBottomSheet(
+    onDismiss: () -> Unit,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
 ) {
-    var input by remember { mutableStateOf("") }
-    HealthReferenceCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column {
-                HealthSectionTitle("记录体重")
-                Text(
-                    text = "记录日期：${recordingDate.format(DateTimeFormatter.ofPattern("yyyy年M月d日"))}",
-                    color = SkyMutedText,
-                    fontSize = 14.sp
-                )
-            }
-            Spacer(Modifier.weight(1f))
-            Icon(Icons.Outlined.Close, contentDescription = "取消", modifier = Modifier.clickable(onClick = onDismiss), tint = SkyMutedText)
-        }
-        OutlinedTextField(
-            value = input,
-            onValueChange = { input = it },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("当前体重（斤）") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            shape = RoundedCornerShape(18.dp)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = SkySurface,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 30.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            content = content
         )
-        Button(
-            onClick = { input.toDoubleOrNull()?.let(onSave) },
-            modifier = Modifier.fillMaxWidth().height(48.dp),
-            shape = RoundedCornerShape(50),
-            colors = ButtonDefaults.buttonColors(containerColor = SkyPrimary, contentColor = Color.White)
-        ) { Text("保存", fontSize = 16.sp) }
     }
 }
 
 @Composable
-private fun HealthPeriodEditorCard(
+private fun HealthSheetHeader(title: String, onDismiss: () -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, modifier = Modifier.weight(1f), color = SkyInk, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+        IconButton(onClick = onDismiss) {
+            Icon(Icons.Outlined.Close, contentDescription = "关闭", tint = SkyMutedText)
+        }
+    }
+}
+
+@Composable
+private fun HealthWeightEditorContent(
+    recordingDateTime: LocalDateTime,
+    onRecordingDateTimeChange: (LocalDateTime) -> Unit,
+    onSave: (Double) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var input by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    HealthSheetHeader("记录体重", onDismiss)
+    Text("记录日期与时间", color = SkyMutedText, fontSize = 14.sp)
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(
+            onClick = {
+                DatePickerDialog(
+                    context,
+                    { _, year, month, day ->
+                        onRecordingDateTimeChange(recordingDateTime.withYear(year).withMonth(month + 1).withDayOfMonth(day))
+                    },
+                    recordingDateTime.year,
+                    recordingDateTime.monthValue - 1,
+                    recordingDateTime.dayOfMonth
+                ).show()
+            },
+            modifier = Modifier.weight(1f).height(50.dp),
+            shape = RoundedCornerShape(18.dp),
+            border = BorderStroke(1.dp, SkyCoolBorder)
+        ) { Text(recordingDateTime.format(DateTimeFormatter.ofPattern("yyyy年M月d日")), color = SkyInk, fontSize = 15.sp) }
+        OutlinedButton(
+            onClick = {
+                TimePickerDialog(
+                    context,
+                    { _, hour, minute -> onRecordingDateTimeChange(recordingDateTime.withHour(hour).withMinute(minute)) },
+                    recordingDateTime.hour,
+                    recordingDateTime.minute,
+                    true
+                ).show()
+            },
+            modifier = Modifier.weight(0.62f).height(50.dp),
+            shape = RoundedCornerShape(18.dp),
+            border = BorderStroke(1.dp, SkyCoolBorder)
+        ) { Text(recordingDateTime.format(DateTimeFormatter.ofPattern("HH:mm")), color = SkyInk, fontSize = 15.sp) }
+    }
+    OutlinedTextField(
+        value = input,
+        onValueChange = { input = it },
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("当前体重（斤）") },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        shape = RoundedCornerShape(18.dp)
+    )
+    Button(
+        onClick = { input.toDoubleOrNull()?.let(onSave) },
+        modifier = Modifier.fillMaxWidth().height(48.dp),
+        shape = RoundedCornerShape(24.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = SkyPrimary, contentColor = Color.White)
+    ) { Text("保存", fontSize = 16.sp) }
+}
+
+@Composable
+private fun HealthPeriodEditorContent(
     record: PeriodRecord?,
     onSave: (LocalDate, LocalDate) -> Unit,
     onDismiss: () -> Unit
 ) {
     var startDate by remember(record) { mutableStateOf(record?.startDate ?: LocalDate.now()) }
     var endDate by remember(record) { mutableStateOf(record?.endDate ?: LocalDate.now()) }
-    HealthReferenceCard {
-        HealthSectionTitle(if (record == null) "记录本次经期" else "编辑经期记录")
-        DailyDatePickerField(startDate.toString(), "开始日期", onDateSelected = { startDate = it })
-        DailyDatePickerField(endDate.toString(), "结束日期", onDateSelected = { endDate = it })
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(
-                onClick = { onSave(startDate, endDate) },
-                modifier = Modifier.weight(1f).height(48.dp),
-                shape = RoundedCornerShape(50),
-                colors = ButtonDefaults.buttonColors(containerColor = SkyWarm, contentColor = Color.White)
-            ) { Text("保存") }
-            OutlinedButton(
-                onClick = onDismiss,
-                modifier = Modifier.weight(1f).height(48.dp),
-                shape = RoundedCornerShape(50),
-                border = BorderStroke(1.dp, SkyCoolBorder)
-            ) { Text("取消", color = SkyMutedText) }
-        }
+    HealthSheetHeader(if (record == null) "记录本次经期" else "编辑经期记录", onDismiss)
+    DailyDatePickerField(startDate.toString(), "开始日期", onDateSelected = { startDate = it })
+    DailyDatePickerField(endDate.toString(), "结束日期", onDateSelected = { endDate = it })
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Button(
+            onClick = { onSave(startDate, endDate) },
+            modifier = Modifier.weight(1f).height(48.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = SkyWarm, contentColor = Color.White)
+        ) { Text("保存", fontSize = 16.sp) }
+        OutlinedButton(
+            onClick = onDismiss,
+            modifier = Modifier.weight(1f).height(48.dp),
+            shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(1.dp, SkyCoolBorder)
+        ) { Text("取消", color = SkyMutedText, fontSize = 16.sp) }
+    }
+}
+
+@Composable
+private fun HealthTargetEditorContent(
+    targetWeight: Double?,
+    onSave: (Double?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var input by remember(targetWeight) { mutableStateOf(targetWeight?.let(::formatHealthWeight).orEmpty()) }
+    HealthSheetHeader("修改目标体重", onDismiss)
+    OutlinedTextField(
+        value = input,
+        onValueChange = { input = it },
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("目标体重（斤）") },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        shape = RoundedCornerShape(18.dp)
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Button(
+            onClick = { onSave(input.toDoubleOrNull()) },
+            modifier = Modifier.weight(1f).height(48.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = SkyPrimary, contentColor = Color.White)
+        ) { Text("保存", fontSize = 16.sp) }
+        OutlinedButton(
+            onClick = onDismiss,
+            modifier = Modifier.weight(1f).height(48.dp),
+            shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(1.dp, SkyCoolBorder)
+        ) { Text("取消", color = SkyMutedText, fontSize = 16.sp) }
     }
 }
 

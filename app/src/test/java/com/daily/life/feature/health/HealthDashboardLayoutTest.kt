@@ -5,18 +5,17 @@ import org.junit.Test
 
 class HealthDashboardLayoutTest {
     @Test
-    fun weightEntryIsInsertedBetweenTrendAndGoal() {
+    fun inlineEditorsAreNeverInsertedIntoTheDashboard() {
         assertEquals(
             listOf(
                 HealthDashboardSection.Header,
                 HealthDashboardSection.Overview,
                 HealthDashboardSection.Trend,
-                HealthDashboardSection.WeightEntry,
                 HealthDashboardSection.Goal,
                 HealthDashboardSection.Period,
                 HealthDashboardSection.History
             ),
-            healthDashboardSectionOrder(showWeightEditor = true, showPeriodEditor = false)
+            healthDashboardSectionOrder()
         )
     }
 }
