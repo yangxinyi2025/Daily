@@ -6,7 +6,7 @@ import org.junit.Test
 
 class HomePresentationTest {
     @Test
-    fun courseCardContentKeepsTheNextRealCourseWhenTodayHasClasses() {
+    fun courseCardContentKeepsEveryCourseWhenTodayHasClasses() {
         val content = courseCardContent(
             HomeState(
                 todayCourses = listOf(
@@ -14,13 +14,37 @@ class HomePresentationTest {
                         startPeriod = 3,
                         courseName = "数据库",
                         detail = "信息楼 201"
+                    ),
+                    HomeCourseRow(
+                        startPeriod = 7,
+                        courseName = "体育",
+                        detail = "操场"
                     )
                 )
             )
         )
 
-        assertEquals("第 3 节 · 数据库", content.primaryText)
-        assertEquals("信息楼 201", content.secondaryText)
+        assertEquals(
+            listOf("第 3 节 · 数据库", "第 7 节 · 体育"),
+            content.items.map { it.primaryText }
+        )
+        assertEquals(listOf("信息楼 201", "操场"), content.items.map { it.secondaryText })
+        assertTrue(content.hasContent)
+    }
+
+    @Test
+    fun scheduleCardContentKeepsEveryScheduleToday() {
+        val content = scheduleCardContent(
+            HomeState(
+                todaySchedules = listOf(
+                    HomeScheduleRow(id = 1L, title = "提交作业", timeLabel = "09:00"),
+                    HomeScheduleRow(id = 2L, title = "实验课", timeLabel = "15:30")
+                )
+            )
+        )
+
+        assertEquals(listOf("提交作业", "实验课"), content.items.map { it.primaryText })
+        assertEquals(listOf("09:00", "15:30"), content.items.map { it.secondaryText })
         assertTrue(content.hasContent)
     }
 
@@ -28,8 +52,8 @@ class HomePresentationTest {
     fun scheduleCardContentUsesTheFigmaEmptyCopyWhenThereAreNoSchedules() {
         val content = scheduleCardContent(HomeState())
 
-        assertEquals("今天还没有待办", content.primaryText)
-        assertEquals(null, content.secondaryText)
+        assertEquals(listOf("今天还没有待办"), content.items.map { it.primaryText })
+        assertEquals(listOf(null), content.items.map { it.secondaryText })
         assertTrue(!content.hasContent)
     }
 }

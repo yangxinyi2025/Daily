@@ -44,6 +44,9 @@
             android:name=".core.notification.ReminderAlarmReceiver"
             android:exported="false" />
         <receiver
+            android:name=".core.notification.AlarmStopReceiver"
+            android:exported="false" />
+        <receiver
             android:name=".core.notification.AlarmBootReceiver"
             android:directBootAware="false"
             android:enabled="true"

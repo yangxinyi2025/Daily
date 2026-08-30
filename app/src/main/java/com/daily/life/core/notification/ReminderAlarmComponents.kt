@@ -57,6 +57,20 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
     }
 }
 
+class AlarmStopReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (!shouldStopAlarm(intent.action)) return
+        context.stopService(Intent(context, AlarmRingtoneService::class.java))
+        AlarmRingtoneService.dismissAlarmNotifications(context)
+    }
+
+    companion object {
+        const val ACTION_STOP = "com.daily.life.action.STOP_ALARM"
+    }
+}
+
+internal fun shouldStopAlarm(action: String?): Boolean = action == AlarmStopReceiver.ACTION_STOP
+
 class AlarmRingtoneService : Service() {
     private var player: MediaPlayer? = null
     private var wakeLock: PowerManager.WakeLock? = null
@@ -168,6 +182,11 @@ class AlarmRingtoneService : Service() {
         .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
         .setOngoing(true)
         .setAutoCancel(false)
+        .addAction(
+            android.R.drawable.ic_menu_close_clear_cancel,
+            "停止闹钟",
+            stopAlarmPendingIntent(this)
+        )
         .setFullScreenIntent(fullScreenPendingIntent(title), true)
         .build()
 
@@ -245,6 +264,11 @@ class AlarmRingtoneService : Service() {
                     .setPriority(NotificationCompat.PRIORITY_MAX)
                     .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                     .setAutoCancel(true)
+                    .addAction(
+                        android.R.drawable.ic_menu_close_clear_cancel,
+                        "停止闹钟",
+                        stopAlarmPendingIntent(context)
+                    )
                     .setFullScreenIntent(
                         android.app.PendingIntent.getActivity(
                             context,
@@ -259,6 +283,20 @@ class AlarmRingtoneService : Service() {
                     .build()
             )
         }
+
+        fun dismissAlarmNotifications(context: Context) {
+            context.getSystemService(NotificationManager::class.java)?.apply {
+                cancel(NOTIFICATION_ID)
+                cancel(FALLBACK_NOTIFICATION_ID)
+            }
+        }
+
+        private fun stopAlarmPendingIntent(context: Context) = android.app.PendingIntent.getBroadcast(
+            context,
+            20_002,
+            Intent(context, AlarmStopReceiver::class.java).setAction(AlarmStopReceiver.ACTION_STOP),
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
 
         private const val FALLBACK_CHANNEL_ID = "daily_alarm_fallback_v3"
         private const val FALLBACK_NOTIFICATION_ID = 7_002
@@ -304,7 +342,9 @@ class AlarmActivity : android.app.Activity() {
     }
 
     private fun dismissAlarm() {
-        stopService(Intent(this, AlarmRingtoneService::class.java).setAction(AlarmRingtoneService.ACTION_STOP))
+        sendBroadcast(
+            Intent(this, AlarmStopReceiver::class.java).setAction(AlarmStopReceiver.ACTION_STOP)
+        )
         finishAndRemoveTask()
     }
 

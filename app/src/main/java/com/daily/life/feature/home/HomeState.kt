@@ -82,40 +82,48 @@ data class HomeScheduleRow(
 )
 
 internal data class HomeCardContent(
-    val primaryText: String,
-    val secondaryText: String?,
+    val items: List<HomeCardItem>,
     val hasContent: Boolean
 )
 
+internal data class HomeCardItem(
+    val primaryText: String,
+    val secondaryText: String?
+)
+
 internal fun courseCardContent(state: HomeState): HomeCardContent {
-    val firstCourse = state.todayCourses.firstOrNull()
-    return if (firstCourse == null) {
+    return if (state.todayCourses.isEmpty()) {
         HomeCardContent(
-            primaryText = "今天还没有课程",
-            secondaryText = null,
+            items = listOf(HomeCardItem("今天还没有课程", null)),
             hasContent = false
         )
     } else {
         HomeCardContent(
-            primaryText = "第 ${firstCourse.startPeriod} 节 · ${firstCourse.courseName}",
-            secondaryText = firstCourse.detail.takeIf { it.isNotBlank() },
+            items = state.todayCourses.map { course ->
+                HomeCardItem(
+                    primaryText = "第 ${course.startPeriod} 节 · ${course.courseName}",
+                    secondaryText = course.detail.takeIf { it.isNotBlank() }
+                )
+            },
             hasContent = true
         )
     }
 }
 
 internal fun scheduleCardContent(state: HomeState): HomeCardContent {
-    val firstSchedule = state.todaySchedules.firstOrNull()
-    return if (firstSchedule == null) {
+    return if (state.todaySchedules.isEmpty()) {
         HomeCardContent(
-            primaryText = "今天还没有待办",
-            secondaryText = null,
+            items = listOf(HomeCardItem("今天还没有待办", null)),
             hasContent = false
         )
     } else {
         HomeCardContent(
-            primaryText = firstSchedule.title,
-            secondaryText = firstSchedule.timeLabel,
+            items = state.todaySchedules.map { schedule ->
+                HomeCardItem(
+                    primaryText = schedule.title,
+                    secondaryText = schedule.timeLabel
+                )
+            },
             hasContent = true
         )
     }

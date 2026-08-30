@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -223,13 +224,16 @@ private fun HomeContentCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(156.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 7.dp)
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 156.dp)
+        ) {
             Surface(
                 modifier = Modifier
                     .offset(x = 20.dp, y = 28.dp)
@@ -263,27 +267,29 @@ private fun HomeContentCard(
             )
             Column(
                 modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 24.dp, end = 146.dp, bottom = 24.dp)
+                    .align(Alignment.TopStart)
+                    .padding(start = 24.dp, top = 78.dp, end = 146.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text(
-                    text = content.primaryText,
-                    color = HomeMuted,
-                    fontSize = 14.sp,
-                    lineHeight = 18.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                content.secondaryText?.let { detail ->
+                content.items.forEach { item ->
                     Text(
-                        text = detail,
-                        modifier = Modifier.padding(top = 2.dp),
+                        text = item.primaryText,
                         color = HomeMuted,
-                        fontSize = 12.sp,
-                        lineHeight = 15.sp,
+                        fontSize = 14.sp,
+                        lineHeight = 18.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    item.secondaryText?.let { detail ->
+                        Text(
+                            text = detail,
+                            color = HomeMuted,
+                            fontSize = 12.sp,
+                            lineHeight = 15.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
         }
