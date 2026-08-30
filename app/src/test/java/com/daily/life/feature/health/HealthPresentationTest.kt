@@ -9,6 +9,15 @@ import org.junit.Test
 
 class HealthPresentationTest {
     @Test
+    fun dashboardPresentationUsesTheHealthOverviewHeadingForTheMonthlySummary() {
+        val presentation = healthDashboardPresentation(
+            state = HealthState(selectedMonth = YearMonth.of(2026, 8))
+        )
+
+        assertEquals("本月健康概览", presentation.overviewTitle)
+    }
+
+    @Test
     fun dashboardPresentationCombinesWeightGoalPredictionAndHistory() {
         val presentation = healthDashboardPresentation(
             state = HealthState(
@@ -27,7 +36,7 @@ class HealthPresentationTest {
             zoneId = ZoneId.of("Asia/Shanghai")
         )
 
-        assertEquals("8月体重概况", presentation.overviewTitle)
+        assertEquals("本月健康概览", presentation.overviewTitle)
         assertEquals("119.0", presentation.latestWeight)
         assertEquals("目标 110.0 斤", presentation.targetSummary)
         assertEquals("本月记录 2 次", presentation.monthRecordSummary)

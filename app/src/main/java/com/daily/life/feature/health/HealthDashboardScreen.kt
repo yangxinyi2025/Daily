@@ -117,14 +117,7 @@ internal fun HealthDashboardScreen(
         ),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        item {
-            HealthHeader(
-                onAddWeight = {
-                    recordingDate = LocalDate.now()
-                    showWeightEditor = true
-                }
-            )
-        }
+        item { HealthHeader() }
         item {
             HealthOverviewCard(
                 presentation = presentation,
@@ -135,6 +128,18 @@ internal fun HealthDashboardScreen(
                     showWeightEditor = true
                 },
                 onNextMonth = onNextMonth
+            )
+        }
+        item {
+            HealthQuickRecordCard(
+                onRecordWeight = {
+                    recordingDate = LocalDate.now()
+                    showWeightEditor = true
+                },
+                onRecordPeriod = {
+                    editedPeriod = null
+                    showPeriodEditor = true
+                }
             )
         }
         item { HealthTrendCard(points = recentPoints) }
@@ -179,6 +184,22 @@ internal fun HealthDashboardScreen(
             }
         }
         item { HealthSectionTitle("历史记录") }
+        item { HealthHistoryCategoryTitle("体重记录") }
+        if (state.weights.isEmpty()) {
+            item {
+                HealthReferenceCard {
+                    Text("还没有体重记录", color = SkyMutedText, fontSize = 14.sp)
+                }
+            }
+        } else {
+            items(
+                state.weights.sortedByDescending { it.recordedAt },
+                key = { it.id }
+            ) { record ->
+                HealthWeightHistoryCard(record = record, zoneId = zoneId)
+            }
+        }
+        item { HealthHistoryCategoryTitle("经期记录") }
         if (presentation.history.isEmpty()) {
             item {
                 HealthReferenceCard {
@@ -207,7 +228,7 @@ internal fun HealthDashboardScreen(
 }
 
 @Composable
-private fun HealthHeader(onAddWeight: () -> Unit) {
+private fun HealthHeader() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -223,21 +244,19 @@ private fun HealthHeader(onAddWeight: () -> Unit) {
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "把身体状态，慢慢记录下来。",
+                text = "记录体重与经期变化，慢慢关注自己。",
                 modifier = Modifier.padding(top = 2.dp),
                 color = SkyMutedText,
                 fontSize = 14.sp,
                 lineHeight = 20.sp
             )
         }
-        IconButton(onClick = onAddWeight, modifier = Modifier.size(46.dp)) {
-            Icon(
-                imageVector = Icons.Outlined.Add,
-                contentDescription = "记录体重",
-                tint = SkyInk,
-                modifier = Modifier.size(32.dp)
-            )
-        }
+        Image(
+            painter = painterResource(R.drawable.health_header_sheep),
+            contentDescription = null,
+            modifier = Modifier.size(64.dp),
+            contentScale = ContentScale.Fit
+        )
     }
 }
 
@@ -251,104 +270,67 @@ private fun HealthOverviewCard(
 ) {
     val context = LocalContext.current
     val initialDate = state.selectedMonth.atDay(1)
-    val delta = weightChangeFromLatest(state.weights)
-    HealthReferenceCard(modifier = Modifier.height(124.dp)) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = presentation.overviewTitle,
-                    color = SkyMutedText,
-                    fontSize = 18.sp,
-                    lineHeight = 25.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Spacer(Modifier.weight(1f))
-                HealthHeaderIcon(Icons.Outlined.ArrowBackIosNew, "上个月", onPreviousMonth)
-                HealthHeaderIcon(
-                    Icons.Outlined.CalendarMonth,
-                    "选择体重记录日期",
-                    onClick = {
-                        DatePickerDialog(
-                            context,
-                            { _, year, month, day ->
-                                onSelectRecordDate(LocalDate.of(year, month + 1, day))
-                            },
-                            initialDate.year,
-                            initialDate.monthValue - 1,
-                            initialDate.dayOfMonth
-                        ).show()
-                    },
-                    size = 24.dp
-                )
-                HealthHeaderIcon(Icons.Outlined.ArrowForwardIos, "下个月", onNextMonth)
-            }
-            Row(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(top = 15.dp),
-                verticalAlignment = Alignment.Bottom
-            ) {
-                Text(
-                    text = presentation.latestWeight,
-                    color = SkyInk,
-                    fontSize = 31.sp,
-                    lineHeight = 37.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "斤",
-                    modifier = Modifier.padding(start = 5.dp, bottom = 4.dp),
-                    color = SkyMutedText,
-                    fontSize = 17.sp,
-                    lineHeight = 22.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                HealthDeltaBadge(delta = delta)
-            }
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .padding(end = 126.dp, bottom = 3.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = presentation.targetSummary,
-                    modifier = Modifier.weight(1f),
-                    color = SkyMutedText,
-                    fontSize = 14.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(Modifier.width(10.dp))
-                Spacer(
-                    modifier = Modifier
-                        .width(1.dp)
-                        .height(18.dp)
-                        .background(SkyCoolBorder)
-                )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    text = presentation.monthRecordSummary,
-                    modifier = Modifier.weight(1f),
-                    color = SkyMutedText,
-                    fontSize = 14.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Image(
-                painter = painterResource(R.drawable.health_scale_illustration),
-                contentDescription = null,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .offset(x = 8.dp, y = 11.dp)
-                    .width(126.dp)
-                    .height(102.dp),
-                contentScale = ContentScale.Fit
+    val latestPeriod = state.periodRecords.maxByOrNull { it.endDate }
+    HealthReferenceCard {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = presentation.overviewTitle,
+                color = SkyInk,
+                fontSize = 20.sp,
+                lineHeight = 27.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.weight(1f))
+            HealthHeaderIcon(Icons.Outlined.ArrowBackIosNew, "上个月", onPreviousMonth)
+            HealthHeaderIcon(
+                Icons.Outlined.CalendarMonth,
+                "选择体重记录日期",
+                onClick = {
+                    DatePickerDialog(
+                        context,
+                        { _, year, month, day -> onSelectRecordDate(LocalDate.of(year, month + 1, day)) },
+                        initialDate.year,
+                        initialDate.monthValue - 1,
+                        initialDate.dayOfMonth
+                    ).show()
+                },
+                size = 23.dp
+            )
+            HealthHeaderIcon(Icons.Outlined.ArrowForwardIos, "下个月", onNextMonth)
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            HealthOverviewMetric("当前体重", "${presentation.latestWeight} 斤", Modifier.weight(1f))
+            HealthOverviewMetric("目标体重", presentation.targetSummary.removePrefix("目标 "), Modifier.weight(1f))
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            HealthOverviewMetric("本月体重记录", presentation.monthRecordSummary.removePrefix("本月记录 "), Modifier.weight(1f))
+            HealthOverviewMetric(
+                "最近经期",
+                latestPeriod?.let { "${it.startDate.monthValue}.${it.startDate.dayOfMonth}–${it.endDate.monthValue}.${it.endDate.dayOfMonth}" } ?: "暂无记录",
+                Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun HealthOverviewMetric(label: String, value: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.height(78.dp),
+        color = SkyPurpleSurface.copy(alpha = 0.58f),
+        shape = RoundedCornerShape(18.dp)
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp)) {
+            Text(label, color = SkyMutedText, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                value,
+                modifier = Modifier.padding(top = 4.dp),
+                color = SkyInk,
+                fontSize = 19.sp,
+                lineHeight = 24.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -363,6 +345,67 @@ private fun HealthHeaderIcon(
 ) {
     IconButton(onClick = onClick, modifier = Modifier.size(34.dp)) {
         Icon(icon, contentDescription = contentDescription, tint = SkyInk, modifier = Modifier.size(size))
+    }
+}
+
+@Composable
+private fun HealthQuickRecordCard(
+    onRecordWeight: () -> Unit,
+    onRecordPeriod: () -> Unit
+) {
+    HealthReferenceCard {
+        Text("快捷记录", color = SkyInk, fontSize = 20.sp, lineHeight = 27.sp, fontWeight = FontWeight.SemiBold)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            HealthQuickRecordAction(
+                label = "记录体重",
+                supporting = "记下今天的变化",
+                icon = Icons.Outlined.Edit,
+                color = SkyPrimary,
+                surfaceColor = SkyPurpleSurface,
+                onClick = onRecordWeight,
+                modifier = Modifier.weight(1f)
+            )
+            HealthQuickRecordAction(
+                label = "记录经期",
+                supporting = "更新本次日期",
+                icon = Icons.Outlined.CalendarMonth,
+                color = SkyWarm,
+                surfaceColor = SkyPinkSurface,
+                onClick = onRecordPeriod,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun HealthQuickRecordAction(
+    label: String,
+    supporting: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    color: Color,
+    surfaceColor: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .height(104.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick),
+        color = surfaceColor,
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Surface(color = Color.White.copy(alpha = 0.72f), shape = RoundedCornerShape(13.dp)) {
+                Icon(icon, contentDescription = label, tint = color, modifier = Modifier.padding(8.dp).size(20.dp))
+            }
+            Text(label, modifier = Modifier.padding(top = 8.dp), color = SkyInk, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(supporting, modifier = Modifier.padding(top = 2.dp), color = SkyMutedText, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 
@@ -393,7 +436,7 @@ private fun HealthDeltaBadge(delta: Double?) {
 
 @Composable
 private fun HealthTrendCard(points: List<WeightPoint>) {
-    HealthReferenceCard(modifier = Modifier.height(142.dp)) {
+    HealthReferenceCard(modifier = Modifier.height(184.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             HealthSectionTitle("体重趋势")
             Spacer(Modifier.weight(1f))
@@ -418,7 +461,7 @@ private fun HealthWeightTrendChart(points: List<WeightPoint>) {
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
-            .height(82.dp)
+            .height(116.dp)
             .padding(top = 6.dp)
     ) {
         val left = 28.dp.toPx()
@@ -594,6 +637,47 @@ private fun HealthHistoryCard(
             HealthSecondaryButton("编辑", Icons.Outlined.Edit, onEdit)
             Spacer(Modifier.width(10.dp))
             HealthSecondaryButton("删除", Icons.Outlined.DeleteOutline, onDelete)
+        }
+    }
+}
+
+@Composable
+private fun HealthHistoryCategoryTitle(title: String) {
+    Text(
+        text = title,
+        modifier = Modifier.padding(top = 2.dp),
+        color = SkyMutedText,
+        fontSize = 15.sp,
+        lineHeight = 21.sp,
+        fontWeight = FontWeight.Medium
+    )
+}
+
+@Composable
+private fun HealthWeightHistoryCard(record: WeightRecord, zoneId: ZoneId) {
+    val date = record.recordedAt.atZone(zoneId).toLocalDate()
+    HealthReferenceCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = date.format(DateTimeFormatter.ofPattern("M月d日")),
+                    color = SkyInk,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "体重记录",
+                    modifier = Modifier.padding(top = 2.dp),
+                    color = SkyMutedText,
+                    fontSize = 13.sp
+                )
+            }
+            Text(
+                text = "${formatHealthWeight(record.weightJin)} 斤",
+                color = SkyAccent,
+                fontSize = 19.sp,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }

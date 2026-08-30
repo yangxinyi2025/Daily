@@ -28,7 +28,7 @@ internal fun healthDashboardPresentation(
         java.time.YearMonth.from(it.recordedAt.atZone(zoneId)) == state.selectedMonth
     }
     return HealthDashboardPresentation(
-        overviewTitle = "${state.selectedMonth.monthValue}月体重概况",
+        overviewTitle = "本月健康概览",
         latestWeight = latestWeight?.let(::formatHealthPresentationWeight) ?: "--",
         targetSummary = "目标 ${state.targetWeightJin?.let(::formatHealthPresentationWeight) ?: "未设置"} 斤",
         monthRecordSummary = "本月记录 $monthlyRecordCount 次",
