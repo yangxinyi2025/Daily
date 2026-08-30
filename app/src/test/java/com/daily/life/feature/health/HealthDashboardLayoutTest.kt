@@ -10,6 +10,7 @@ class HealthDashboardLayoutTest {
             listOf(
                 HealthDashboardSection.Header,
                 HealthDashboardSection.Overview,
+                HealthDashboardSection.QuickRecord,
                 HealthDashboardSection.Trend,
                 HealthDashboardSection.Goal,
                 HealthDashboardSection.Period,
