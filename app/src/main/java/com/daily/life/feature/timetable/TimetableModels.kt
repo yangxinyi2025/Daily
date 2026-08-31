@@ -162,6 +162,15 @@ data class TimetablePeriodEditorState(
     val errorMessage: String? = null
 )
 
+data class TimetableCourseEditorState(
+    val draft: TimetableCourseDraft? = null,
+    val isOpen: Boolean = false,
+    val isSaving: Boolean = false,
+    val fieldError: String? = null,
+    val syncNotice: String? = null,
+    val deleteConfirmationCourseName: String? = null
+)
+
 data class TimetableState(
     val currentSemesterName: String? = null,
     val currentSemesterStartDate: LocalDate? = null,
@@ -173,6 +182,7 @@ data class TimetableState(
     val periodTimes: List<SemesterPeriodTime> = defaultSemesterPeriodTimes(),
     val importState: TimetableImportState = TimetableImportState(),
     val periodEditor: TimetablePeriodEditorState = TimetablePeriodEditorState(),
+    val courseEditor: TimetableCourseEditorState = TimetableCourseEditorState(),
     val calendarSpecialDays: List<SystemCalendarSpecialDay> = emptyList(),
     val classOverrides: Map<LocalDate, ClassOverride> = emptyMap(),
     val calendarAdjustmentWarning: String? = null,

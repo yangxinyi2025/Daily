@@ -418,7 +418,7 @@ private fun CourseGridCard(course: TimetableCourseUiState, onClick: () -> Unit) 
     }
 }
 
-internal fun timetableCourseColorSlot(dayOfWeek: Int): Int = ((dayOfWeek - 1) % 5 + 5) % 5
+internal fun timetableCourseColorSlot(dayOfWeek: Int): Int = ((dayOfWeek - 1) % 4 + 4) % 4
 
 private val TIMETABLE_COURSE_COLORS = listOf(
     SkyPrimary,
