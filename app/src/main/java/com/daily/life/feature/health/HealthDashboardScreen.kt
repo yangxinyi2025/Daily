@@ -67,7 +67,6 @@ import androidx.compose.ui.unit.sp
 import com.daily.life.R
 import com.daily.life.core.designsystem.DailyDatePickerField
 import com.daily.life.core.designsystem.SkyAccent
-import com.daily.life.core.designsystem.SkyBackground
 import com.daily.life.core.designsystem.SkyCoolBorder
 import com.daily.life.core.designsystem.SkyInk
 import com.daily.life.core.designsystem.SkyMutedText
@@ -115,10 +114,14 @@ internal fun HealthDashboardScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(SkyBackground),
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(Color(0xFFF7F4FF), Color(0xFFFCFBFF))
+                )
+            ),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
             start = 18.dp,
-            top = 14.dp,
+            top = 18.dp,
             end = 18.dp,
             bottom = 28.dp
         ),
@@ -248,12 +251,18 @@ private fun HealthHeader() {
                 lineHeight = 21.sp
             )
         }
-        Image(
-            painter = painterResource(R.drawable.health_header_sheep),
-            contentDescription = null,
-            modifier = Modifier.size(64.dp),
-            contentScale = ContentScale.Fit
-        )
+        Box(modifier = Modifier.size(64.dp)) {
+            Image(
+                painter = painterResource(R.drawable.health_header_sheep),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(56.dp)
+                    .align(Alignment.Center),
+                contentScale = ContentScale.Fit
+            )
+            Text("✦", modifier = Modifier.align(Alignment.TopStart), color = SkyWarm.copy(alpha = 0.72f), fontSize = 15.sp)
+            Text("✦", modifier = Modifier.align(Alignment.BottomEnd), color = SkyAccent.copy(alpha = 0.56f), fontSize = 12.sp)
+        }
     }
 }
 
@@ -270,13 +279,7 @@ private fun HealthOverviewCard(
     val latestPeriod = state.periodRecords.maxByOrNull { it.endDate }
     HealthReferenceCard {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = presentation.overviewTitle,
-                color = SkyInk,
-                fontSize = 20.sp,
-                lineHeight = 27.sp,
-                fontWeight = FontWeight.SemiBold
-            )
+            HealthDecoratedTitle(presentation.overviewTitle)
             Spacer(Modifier.weight(1f))
             HealthHeaderIcon(Icons.Outlined.ArrowBackIosNew, "上个月", onPreviousMonth)
             HealthHeaderIcon(
@@ -352,7 +355,7 @@ private fun HealthQuickRecordCard(
     onRecordPeriod: () -> Unit
 ) {
     HealthReferenceCard {
-        Text("快捷记录", color = SkyInk, fontSize = 20.sp, lineHeight = 27.sp, fontWeight = FontWeight.SemiBold)
+        HealthDecoratedTitle("快捷记录")
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -360,7 +363,7 @@ private fun HealthQuickRecordCard(
             HealthQuickRecordAction(
                 label = "记录体重",
                 supporting = "记下今天的变化",
-                icon = Icons.Outlined.Edit,
+                illustrationRes = R.drawable.health_quick_weight,
                 color = SkyPrimary,
                 surfaceColor = SkyPurpleSurface,
                 onClick = onRecordWeight,
@@ -369,7 +372,7 @@ private fun HealthQuickRecordCard(
             HealthQuickRecordAction(
                 label = "记录经期",
                 supporting = "更新本次日期",
-                icon = Icons.Outlined.CalendarMonth,
+                illustrationRes = R.drawable.health_quick_period,
                 color = SkyWarm,
                 surfaceColor = SkyPinkSurface,
                 onClick = onRecordPeriod,
@@ -383,7 +386,7 @@ private fun HealthQuickRecordCard(
 private fun HealthQuickRecordAction(
     label: String,
     supporting: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    illustrationRes: Int,
     color: Color,
     surfaceColor: Color,
     onClick: () -> Unit,
@@ -391,18 +394,34 @@ private fun HealthQuickRecordAction(
 ) {
     Surface(
         modifier = modifier
-            .height(118.dp)
+            .height(96.dp)
             .clip(RoundedCornerShape(20.dp))
             .clickable(onClick = onClick),
         color = surfaceColor,
         shape = RoundedCornerShape(20.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Surface(color = Color.White.copy(alpha = 0.72f), shape = RoundedCornerShape(13.dp)) {
-                Icon(icon, contentDescription = label, tint = color, modifier = Modifier.padding(8.dp).size(20.dp))
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Image(
+                painter = painterResource(illustrationRes),
+                contentDescription = null,
+                modifier = Modifier.size(42.dp),
+                contentScale = ContentScale.Fit
+            )
+            Column(modifier = Modifier.weight(1f).padding(start = 9.dp)) {
+                Text(label, color = SkyInk, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text(supporting, modifier = Modifier.padding(top = 2.dp), color = SkyMutedText, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Text(label, modifier = Modifier.padding(top = 8.dp), color = SkyInk, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-            Text(supporting, modifier = Modifier.padding(top = 3.dp), color = SkyMutedText, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Surface(color = color, shape = RoundedCornerShape(16.dp), modifier = Modifier.size(32.dp)) {
+                Icon(
+                    Icons.Outlined.ArrowForwardIos,
+                    contentDescription = label,
+                    tint = Color.White,
+                    modifier = Modifier.padding(9.dp).size(14.dp)
+                )
+            }
         }
     }
 }
@@ -434,9 +453,9 @@ private fun HealthDeltaBadge(delta: Double?) {
 
 @Composable
 private fun HealthTrendCard(points: List<WeightPoint>) {
-    HealthReferenceCard(modifier = Modifier.height(204.dp)) {
+    HealthReferenceCard(modifier = Modifier.height(218.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            HealthSectionTitle("体重趋势")
+            HealthDecoratedTitle("体重趋势")
             Spacer(Modifier.weight(1f))
             Text("最近 30 天", color = SkyMutedText, fontSize = 15.sp)
         }
@@ -459,7 +478,7 @@ private fun HealthWeightTrendChart(points: List<WeightPoint>) {
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
-            .height(132.dp)
+            .height(124.dp)
             .padding(top = 6.dp)
     ) {
         val left = 28.dp.toPx()
@@ -540,7 +559,7 @@ private fun HealthGoalCard(
                 horizontalAlignment = Alignment.End
             ) {
                 Image(
-                    painter = painterResource(R.drawable.health_scale_illustration),
+                    painter = painterResource(R.drawable.health_quick_weight),
                     contentDescription = null,
                     modifier = Modifier.size(72.dp),
                     contentScale = ContentScale.Fit
@@ -582,8 +601,8 @@ private fun HealthPeriodCard(presentation: HealthDashboardPresentation) {
                     lineHeight = 20.sp
                 )
             }
-            Image(
-                painter = painterResource(R.drawable.health_period_illustration),
+                Image(
+                    painter = painterResource(R.drawable.health_quick_period),
                 contentDescription = null,
                 modifier = Modifier
                     .weight(0.4f)
@@ -622,27 +641,40 @@ private fun HealthHistoryPanel(
 ) {
     HealthReferenceCard {
         HealthSectionTitle("历史记录")
-        HealthHistoryCategoryTitle("体重记录", weightCanExpand, weightExpanded, onToggleWeight)
-        if (weights.isEmpty()) {
-            Text("暂无体重记录", color = SkyMutedText, fontSize = 14.sp)
-        } else {
-            weights.forEachIndexed { index, record ->
-                HealthWeightHistoryRow(record, zoneId)
-                if (index != weights.lastIndex) HealthHistoryDivider()
+        Surface(color = SkyPurpleSurface.copy(alpha = 0.62f), shape = RoundedCornerShape(18.dp)) {
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                HealthHistoryCategoryTitle("体重记录", weightCanExpand, weightExpanded, onToggleWeight)
+                if (weights.isEmpty()) {
+                    Text("暂无体重记录", color = SkyMutedText, fontSize = 14.sp)
+                } else {
+                    weights.forEachIndexed { index, record ->
+                        HealthWeightHistoryRow(record, zoneId)
+                        if (index != weights.lastIndex) HealthHistoryDivider()
+                    }
+                }
             }
         }
-        HealthHistoryDivider()
-        HealthHistoryCategoryTitle("经期记录", periodCanExpand, periodExpanded, onTogglePeriod)
-        if (periodHistory.isEmpty()) {
-            Text("暂无经期记录", color = SkyMutedText, fontSize = 14.sp)
-        } else {
-            periodHistory.forEachIndexed { index, item ->
-                HealthPeriodHistoryRow(
-                    item = item,
-                    onEdit = { onEditPeriod(item.record) },
-                    onDelete = { onDeletePeriod(item.record.id) }
-                )
-                if (index != periodHistory.lastIndex) HealthHistoryDivider()
+        Surface(color = SkyPinkSurface.copy(alpha = 0.66f), shape = RoundedCornerShape(18.dp)) {
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                HealthHistoryCategoryTitle("经期记录", periodCanExpand, periodExpanded, onTogglePeriod)
+                if (periodHistory.isEmpty()) {
+                    Text("暂无经期记录", color = SkyMutedText, fontSize = 14.sp)
+                } else {
+                    periodHistory.forEachIndexed { index, item ->
+                        HealthPeriodHistoryRow(
+                            item = item,
+                            onEdit = { onEditPeriod(item.record) },
+                            onDelete = { onDeletePeriod(item.record.id) }
+                        )
+                        if (index != periodHistory.lastIndex) HealthHistoryDivider()
+                    }
+                }
             }
         }
     }
@@ -882,6 +914,21 @@ private fun HealthSectionTitle(text: String) {
 }
 
 @Composable
+private fun HealthDecoratedTitle(text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("✦", color = SkyAccent.copy(alpha = 0.78f), fontSize = 17.sp)
+        Text(
+            text,
+            modifier = Modifier.padding(start = 5.dp),
+            color = SkyInk,
+            fontSize = 20.sp,
+            lineHeight = 27.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
 private fun HealthReferenceCard(
     modifier: Modifier = Modifier,
     cardColor: Color = SkySurface,
@@ -891,7 +938,7 @@ private fun HealthReferenceCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = cardColor),
-        border = BorderStroke(1.dp, SkyCoolBorder.copy(alpha = 0.32f)),
+        border = null,
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
