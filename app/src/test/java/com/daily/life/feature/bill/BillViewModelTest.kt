@@ -144,6 +144,28 @@ class BillViewModelTest {
         assertEquals("2025年", viewModel.state.value.periodLabel)
     }
 
+    @Test
+    fun selectingAMonthRefreshesTheExistingMonthlyStatistics() = runTest {
+        seedTransactions(
+            transaction("七月午餐", LocalDate.of(2026, 7, 12), 1_200L),
+            transaction("八月午餐", LocalDate.of(2026, 8, 12), 3_400L)
+        )
+        val viewModel = BillViewModel(
+            repository = repository,
+            clock = clock,
+            coroutineScope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
+        )
+
+        viewModel.selectMonth(YearMonth.of(2026, 7))
+        advanceUntilIdle()
+        awaitRange(viewModel, LocalDate.of(2026, 7, 1), testScheduler)
+
+        assertEquals(YearMonth.of(2026, 7), viewModel.state.value.selectedMonth)
+        assertEquals("2026年7月", viewModel.state.value.periodLabel)
+        assertEquals(1, viewModel.state.value.statistics.count)
+        assertEquals(1_200L, viewModel.state.value.statistics.expenseCents)
+    }
+
     private suspend fun seedTransactions(vararg entities: TransactionEntity) {
         database.transactionDao().insertAll(entities.toList())
     }

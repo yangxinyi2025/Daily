@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.daily.life.core.designsystem.DailyCard
+import java.time.YearMonth
 import java.util.Locale
 
 @Composable
@@ -30,6 +31,7 @@ fun BillScreen(
     onPreviousPeriod: () -> Unit,
     onNextPeriod: () -> Unit,
     onCurrentPeriod: () -> Unit,
+    onSelectMonth: (YearMonth) -> Unit,
     onPeriodChange: (BillPeriod) -> Unit,
     onDirectionChange: (Direction?) -> Unit,
     onSearchChange: (String) -> Unit,
@@ -79,6 +81,7 @@ fun BillScreen(
         onPreviousPeriod = onPreviousPeriod,
         onNextPeriod = onNextPeriod,
         onCurrentPeriod = onCurrentPeriod,
+        onSelectMonth = onSelectMonth,
         onPeriodChange = onPeriodChange,
         onDirectionChange = onDirectionChange,
         onSearchChange = onSearchChange,

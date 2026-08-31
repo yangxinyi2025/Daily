@@ -116,6 +116,15 @@ class BillViewModel(
         refresh()
     }
 
+    fun selectMonth(month: YearMonth) {
+        selectedMonth.value = month
+        if (_state.value.selectedPeriod == BillPeriod.WEEK) {
+            selectedWeekAnchor.value = month.atDay(1)
+                .with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+        }
+        refresh()
+    }
+
     fun setPeriod(period: BillPeriod) {
         if (period == BillPeriod.WEEK) {
             selectedWeekAnchor.value = todayWeekStart()

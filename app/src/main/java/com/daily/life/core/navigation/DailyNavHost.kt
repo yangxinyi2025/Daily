@@ -255,6 +255,7 @@ fun DailyNavHost(
                     onPreviousPeriod = billViewModel::selectPreviousPeriod,
                     onNextPeriod = billViewModel::selectNextPeriod,
                     onCurrentPeriod = billViewModel::selectCurrentPeriod,
+                    onSelectMonth = billViewModel::selectMonth,
                     onPeriodChange = billViewModel::setPeriod,
                     onDirectionChange = billViewModel::setDirectionFilter,
                     onSearchChange = billViewModel::setSearchText,

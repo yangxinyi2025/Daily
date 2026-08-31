@@ -1,5 +1,6 @@
 package com.daily.life.feature.bill
 
+import android.app.DatePickerDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -21,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowDropDown
+import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material.icons.outlined.PieChart
@@ -48,6 +50,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -58,6 +61,7 @@ import com.daily.life.R
 import com.daily.life.core.designsystem.QuietSkyListRow
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -78,6 +82,7 @@ fun BillDashboardScreen(
     onPreviousPeriod: () -> Unit,
     onNextPeriod: () -> Unit,
     onCurrentPeriod: () -> Unit,
+    onSelectMonth: (YearMonth) -> Unit,
     onPeriodChange: (BillPeriod) -> Unit,
     onDirectionChange: (Direction?) -> Unit,
     onSearchChange: (String) -> Unit,
@@ -113,7 +118,8 @@ fun BillDashboardScreen(
             onPeriodChange = onPeriodChange,
             onPreviousPeriod = onPreviousPeriod,
             onNextPeriod = onNextPeriod,
-            onCurrentPeriod = onCurrentPeriod
+            onCurrentPeriod = onCurrentPeriod,
+            onSelectMonth = onSelectMonth
         )
         BillSummaryCard(statistics = state.statistics, countLabel = presentation.transactionCountLabel)
         BillFilterAndSearch(
@@ -201,8 +207,11 @@ private fun BillPeriodSelector(
     onPeriodChange: (BillPeriod) -> Unit,
     onPreviousPeriod: () -> Unit,
     onNextPeriod: () -> Unit,
-    onCurrentPeriod: () -> Unit
+    onCurrentPeriod: () -> Unit,
+    onSelectMonth: (YearMonth) -> Unit
 ) {
+    val context = LocalContext.current
+    val isCurrentMonth = state.selectedMonth == YearMonth.now()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -221,11 +230,27 @@ private fun BillPeriodSelector(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Box {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onPreviousPeriod, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    imageVector = Icons.Outlined.ChevronLeft,
+                    contentDescription = state.previousPeriodLabel,
+                    tint = BillMuted,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
-                    .clickable { onExpandedChange(true) }
+                    .clickable {
+                        DatePickerDialog(
+                            context,
+                            { _, year, month, _ -> onSelectMonth(YearMonth.of(year, month + 1)) },
+                            state.selectedMonth.year,
+                            state.selectedMonth.monthValue - 1,
+                            1
+                        ).show()
+                    }
                     .padding(vertical = 3.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -236,39 +261,53 @@ private fun BillPeriodSelector(
                     lineHeight = 32.sp,
                     fontWeight = FontWeight.SemiBold
                 )
+            }
+            IconButton(onClick = onNextPeriod, modifier = Modifier.size(32.dp)) {
                 Icon(
-                    imageVector = Icons.Outlined.ArrowDropDown,
-                    contentDescription = "选择账单周期",
-                    tint = BillPurple,
-                    modifier = Modifier.size(25.dp)
+                    imageVector = Icons.Outlined.ChevronRight,
+                    contentDescription = state.nextPeriodLabel,
+                    tint = BillMuted,
+                    modifier = Modifier.size(24.dp)
                 )
             }
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { onExpandedChange(false) }
-            ) {
-                BillPeriod.entries.filter { it != BillPeriod.WEEK }.forEach { period ->
-                    DropdownMenuItem(
-                        text = { Text("按${period.label}查看") },
-                        onClick = {
-                            onExpandedChange(false)
-                            onPeriodChange(period)
-                        }
+            Box {
+                IconButton(onClick = { onExpandedChange(true) }, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        imageVector = Icons.Outlined.ArrowDropDown,
+                        contentDescription = "选择账单周期",
+                        tint = BillPurple,
+                        modifier = Modifier.size(22.dp)
                     )
+                }
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { onExpandedChange(false) }
+                ) {
+                    BillPeriod.entries.filter { it != BillPeriod.WEEK }.forEach { period ->
+                        DropdownMenuItem(
+                            text = { Text("按${period.label}查看") },
+                            onClick = {
+                                onExpandedChange(false)
+                                onPeriodChange(period)
+                            }
+                        )
+                    }
                 }
             }
         }
-        Text(
-            text = "回到本月",
-            modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
-                .clickable(onClick = onCurrentPeriod)
-                .padding(horizontal = 4.dp, vertical = 6.dp),
-            color = BillPurple,
-            fontSize = 16.sp,
-            lineHeight = 22.sp,
-            fontWeight = FontWeight.Medium
-        )
+        if (!isCurrentMonth) {
+            Text(
+                text = "回到本月",
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(onClick = onCurrentPeriod)
+                    .padding(horizontal = 4.dp, vertical = 6.dp),
+                color = BillPurple,
+                fontSize = 16.sp,
+                lineHeight = 22.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
     }
 }
 
