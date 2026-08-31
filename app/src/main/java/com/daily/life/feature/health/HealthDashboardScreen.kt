@@ -85,6 +85,10 @@ import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
 
+private val HealthPageInk = Color(0xFF171B2C)
+private val HealthPageMutedText = Color(0xFF858A98)
+private val HealthNavigationIcon = Color(0xFF5E6575)
+
 @Composable
 internal fun HealthDashboardScreen(
     state: HealthState,
@@ -238,15 +242,15 @@ private fun HealthHeader() {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "健康",
-                color = SkyInk,
-                fontSize = 32.sp,
-                lineHeight = 38.sp,
+                color = HealthPageInk,
+                fontSize = 31.sp,
+                lineHeight = 37.sp,
                 fontWeight = FontWeight.Bold
             )
             Text(
                 text = "记录体重与经期变化，慢慢关注自己。",
                 modifier = Modifier.padding(top = 4.dp),
-                color = SkyMutedText,
+                color = HealthPageMutedText,
                 fontSize = 15.sp,
                 lineHeight = 21.sp
             )
@@ -294,7 +298,7 @@ private fun HealthOverviewCard(
                         initialDate.dayOfMonth
                     ).show()
                 },
-                size = 23.dp
+                size = 21.dp
             )
             HealthHeaderIcon(Icons.Outlined.ArrowForwardIos, "下个月", onNextMonth)
         }
@@ -326,9 +330,9 @@ private fun HealthOverviewMetric(label: String, value: String, cardColor: Color,
             Text(
                 value,
                 modifier = Modifier.padding(top = 4.dp),
-                color = SkyInk,
-                fontSize = 23.sp,
-                lineHeight = 28.sp,
+                color = HealthPageInk,
+                fontSize = 24.sp,
+                lineHeight = 29.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -342,10 +346,10 @@ private fun HealthHeaderIcon(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     contentDescription: String,
     onClick: () -> Unit,
-    size: androidx.compose.ui.unit.Dp = 18.dp
+    size: androidx.compose.ui.unit.Dp = 20.dp
 ) {
-    IconButton(onClick = onClick, modifier = Modifier.size(34.dp)) {
-        Icon(icon, contentDescription = contentDescription, tint = SkyInk, modifier = Modifier.size(size))
+    IconButton(onClick = onClick, modifier = Modifier.size(32.dp)) {
+        Icon(icon, contentDescription = contentDescription, tint = HealthNavigationIcon, modifier = Modifier.size(size))
     }
 }
 
@@ -354,7 +358,7 @@ private fun HealthQuickRecordCard(
     onRecordWeight: () -> Unit,
     onRecordPeriod: () -> Unit
 ) {
-    HealthReferenceCard {
+    HealthReferenceCard(contentPadding = 14.dp) {
         HealthDecoratedTitle("快捷记录")
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -400,21 +404,32 @@ private fun HealthQuickRecordAction(
         color = surfaceColor,
         shape = RoundedCornerShape(20.dp)
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Box(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 12.dp)
         ) {
             Image(
                 painter = painterResource(illustrationRes),
                 contentDescription = null,
-                modifier = Modifier.size(42.dp),
+                modifier = Modifier
+                    .size(34.dp)
+                    .align(Alignment.BottomStart),
                 contentScale = ContentScale.Fit
             )
-            Column(modifier = Modifier.weight(1f).padding(start = 9.dp)) {
-                Text(label, color = SkyInk, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                Text(supporting, modifier = Modifier.padding(top = 2.dp), color = SkyMutedText, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(end = 38.dp)
+            ) {
+                Text(label, color = HealthPageInk, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text(supporting, modifier = Modifier.padding(top = 2.dp), color = HealthPageMutedText, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Surface(color = color, shape = RoundedCornerShape(16.dp), modifier = Modifier.size(32.dp)) {
+            Surface(
+                color = color,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .size(32.dp)
+                    .align(Alignment.TopEnd)
+            ) {
                 Icon(
                     Icons.Outlined.ArrowForwardIos,
                     contentDescription = label,
@@ -910,7 +925,7 @@ private fun HealthTargetEditorContent(
 
 @Composable
 private fun HealthSectionTitle(text: String) {
-    Text(text, color = SkyInk, fontSize = 20.sp, lineHeight = 27.sp, fontWeight = FontWeight.SemiBold)
+    Text(text, color = HealthPageInk, fontSize = 19.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold)
 }
 
 @Composable
@@ -920,9 +935,9 @@ private fun HealthDecoratedTitle(text: String) {
         Text(
             text,
             modifier = Modifier.padding(start = 5.dp),
-            color = SkyInk,
-            fontSize = 20.sp,
-            lineHeight = 27.sp,
+            color = HealthPageInk,
+            fontSize = 19.sp,
+            lineHeight = 26.sp,
             fontWeight = FontWeight.SemiBold
         )
     }
@@ -932,6 +947,7 @@ private fun HealthDecoratedTitle(text: String) {
 private fun HealthReferenceCard(
     modifier: Modifier = Modifier,
     cardColor: Color = SkySurface,
+    contentPadding: androidx.compose.ui.unit.Dp = 20.dp,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
 ) {
     Card(
@@ -942,7 +958,7 @@ private fun HealthReferenceCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(contentPadding),
             verticalArrangement = Arrangement.spacedBy(10.dp),
             content = content
         )
