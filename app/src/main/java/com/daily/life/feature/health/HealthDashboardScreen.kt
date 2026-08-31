@@ -303,23 +303,53 @@ private fun HealthOverviewCard(
             HealthHeaderIcon(Icons.Outlined.ArrowForwardIos, "下个月", onNextMonth)
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            HealthOverviewMetric("当前体重", "${presentation.latestWeight} 斤", SkyPurpleSurface, Modifier.weight(1f))
-            HealthOverviewMetric("目标体重", presentation.targetSummary.removePrefix("目标 "), SkyPurpleSurface, Modifier.weight(1f))
+            HealthOverviewMetric(
+                label = "当前体重",
+                value = if (state.weights.isEmpty()) presentation.latestWeight else "${presentation.latestWeight} 斤",
+                cardColor = SkyPurpleSurface,
+                modifier = Modifier.weight(1f),
+                isEmpty = state.weights.isEmpty(),
+                supporting = "记录一次体重后显示"
+            )
+            HealthOverviewMetric(
+                label = "目标体重",
+                value = presentation.targetSummary.removePrefix("目标 "),
+                cardColor = SkyPurpleSurface,
+                modifier = Modifier.weight(1f),
+                isEmpty = state.targetWeightJin == null,
+                supporting = "可在目标体重卡中设置"
+            )
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            HealthOverviewMetric("本月体重记录", presentation.monthRecordSummary.removePrefix("本月记录 "), SkyPurpleSurface, Modifier.weight(1f))
             HealthOverviewMetric(
-                "最近经期",
-                latestPeriod?.let { "${it.startDate.monthValue}.${it.startDate.dayOfMonth}–${it.endDate.monthValue}.${it.endDate.dayOfMonth}" } ?: "暂无记录",
-                SkyPinkSurface,
-                Modifier.weight(1f)
+                label = "本月体重记录",
+                value = presentation.monthRecordSummary.removePrefix("本月记录 "),
+                cardColor = SkyPurpleSurface,
+                modifier = Modifier.weight(1f),
+                isEmpty = presentation.monthRecordSummary == "尚未记录",
+                supporting = "本月还没有体重记录"
+            )
+            HealthOverviewMetric(
+                label = "最近经期",
+                value = latestPeriod?.let { "${it.startDate.monthValue}.${it.startDate.dayOfMonth}–${it.endDate.monthValue}.${it.endDate.dayOfMonth}" } ?: "尚未记录经期",
+                cardColor = SkyPinkSurface,
+                modifier = Modifier.weight(1f),
+                isEmpty = latestPeriod == null,
+                supporting = "记录后将显示日期"
             )
         }
     }
 }
 
 @Composable
-private fun HealthOverviewMetric(label: String, value: String, cardColor: Color, modifier: Modifier = Modifier) {
+private fun HealthOverviewMetric(
+    label: String,
+    value: String,
+    cardColor: Color,
+    modifier: Modifier = Modifier,
+    isEmpty: Boolean = false,
+    supporting: String? = null
+) {
     Surface(
         modifier = modifier.height(84.dp),
         color = cardColor.copy(alpha = 0.72f),
@@ -327,16 +357,40 @@ private fun HealthOverviewMetric(label: String, value: String, cardColor: Color,
     ) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp)) {
             Text(label, color = SkyMutedText, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                value,
-                modifier = Modifier.padding(top = 4.dp),
-                color = HealthPageInk,
-                fontSize = 24.sp,
-                lineHeight = 29.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            if (isEmpty) {
+                Text(
+                    value,
+                    modifier = Modifier.padding(top = 4.dp),
+                    color = HealthPageMutedText,
+                    fontSize = 16.sp,
+                    lineHeight = 22.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                supporting?.let {
+                    Text(
+                        it,
+                        modifier = Modifier.padding(top = 1.dp),
+                        color = HealthPageMutedText,
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            } else {
+                Text(
+                    value,
+                    modifier = Modifier.padding(top = 4.dp),
+                    color = HealthPageInk,
+                    fontSize = 24.sp,
+                    lineHeight = 29.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
@@ -543,31 +597,51 @@ private fun HealthGoalCard(
     currentWeight: Double?,
     onModify: () -> Unit
 ) {
-    val distance = if (targetWeight != null && currentWeight != null) {
-        val delta = currentWeight - targetWeight
-        if (delta > 0) "距目标 ${formatHealthWeight(delta)} 斤" else "已达到目标"
-    } else {
-        "设置目标后会显示进度"
+    val distance = when {
+        targetWeight == null -> "设置目标后可查看距离与进度"
+        currentWeight == null -> "记录体重后可查看距离与进度"
+        else -> {
+            val delta = currentWeight - targetWeight
+            if (delta > 0) "距目标 ${formatHealthWeight(delta)} 斤" else "已达到目标"
+        }
     }
     HealthReferenceCard(modifier = Modifier.height(174.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
             Column(modifier = Modifier.weight(0.6f)) {
                 HealthSectionTitle("目标体重")
-                Text(
-                    text = "目标 ${targetWeight?.let(::formatHealthWeight) ?: "未设置"} 斤",
-                    modifier = Modifier.padding(top = 7.dp),
-                    color = SkyInk,
-                    fontSize = 24.sp,
-                    lineHeight = 30.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "当前 ${currentWeight?.let(::formatHealthWeight) ?: "--"} 斤 · $distance",
-                    modifier = Modifier.padding(top = 3.dp),
-                    color = SkyMutedText,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp
-                )
+                if (targetWeight == null) {
+                    Text(
+                        text = "目标体重尚未设置",
+                        modifier = Modifier.padding(top = 8.dp),
+                        color = HealthPageMutedText,
+                        fontSize = 17.sp,
+                        lineHeight = 23.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = distance,
+                        modifier = Modifier.padding(top = 4.dp),
+                        color = HealthPageMutedText,
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp
+                    )
+                } else {
+                    Text(
+                        text = "目标 ${formatHealthWeight(targetWeight)} 斤",
+                        modifier = Modifier.padding(top = 7.dp),
+                        color = HealthPageInk,
+                        fontSize = 24.sp,
+                        lineHeight = 30.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "当前 ${currentWeight?.let(::formatHealthWeight) ?: "尚未记录"}${if (currentWeight == null) "" else " 斤"} · $distance",
+                        modifier = Modifier.padding(top = 3.dp),
+                        color = SkyMutedText,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp
+                    )
+                }
             }
             Column(
                 modifier = Modifier.weight(0.4f),
@@ -588,33 +662,51 @@ private fun HealthGoalCard(
 
 @Composable
 private fun HealthPeriodCard(presentation: HealthDashboardPresentation) {
-    val latestPeriod = presentation.history.firstOrNull()?.dateRange ?: "暂无记录"
+    val latestPeriod = presentation.history.firstOrNull()?.dateRange
     HealthReferenceCard(modifier = Modifier.height(174.dp), cardColor = Color(0xFFFFFCFD)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
             Column(modifier = Modifier.weight(0.6f)) {
                 HealthSectionTitle("经期记录")
-                Text(
-                    text = "最近 $latestPeriod",
-                    modifier = Modifier.padding(top = 7.dp),
-                    color = SkyWarm,
-                    fontSize = 19.sp,
-                    lineHeight = 26.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = presentation.cycleSummary,
-                    modifier = Modifier.padding(top = 4.dp),
-                    color = SkyMutedText,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp
-                )
-                Text(
-                    text = presentation.nextPeriodSummary,
-                    modifier = Modifier.padding(top = 2.dp),
-                    color = SkyMutedText,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp
-                )
+                if (latestPeriod == null) {
+                    Text(
+                        text = "尚未记录经期",
+                        modifier = Modifier.padding(top = 8.dp),
+                        color = HealthPageMutedText,
+                        fontSize = 17.sp,
+                        lineHeight = 23.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "记录后可查看预测日期",
+                        modifier = Modifier.padding(top = 4.dp),
+                        color = HealthPageMutedText,
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp
+                    )
+                } else {
+                    Text(
+                        text = "最近 $latestPeriod",
+                        modifier = Modifier.padding(top = 7.dp),
+                        color = SkyWarm,
+                        fontSize = 19.sp,
+                        lineHeight = 26.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = presentation.cycleSummary,
+                        modifier = Modifier.padding(top = 4.dp),
+                        color = SkyMutedText,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp
+                    )
+                    Text(
+                        text = presentation.nextPeriodSummary,
+                        modifier = Modifier.padding(top = 2.dp),
+                        color = SkyMutedText,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp
+                    )
+                }
             }
                 Image(
                     painter = painterResource(R.drawable.health_quick_period),
@@ -663,7 +755,7 @@ private fun HealthHistoryPanel(
             ) {
                 HealthHistoryCategoryTitle("体重记录", weightCanExpand, weightExpanded, onToggleWeight)
                 if (weights.isEmpty()) {
-                    Text("暂无体重记录", color = SkyMutedText, fontSize = 14.sp)
+                    Text("尚未记录体重", color = HealthPageMutedText, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                 } else {
                     weights.forEachIndexed { index, record ->
                         HealthWeightHistoryRow(record, zoneId)
@@ -679,7 +771,7 @@ private fun HealthHistoryPanel(
             ) {
                 HealthHistoryCategoryTitle("经期记录", periodCanExpand, periodExpanded, onTogglePeriod)
                 if (periodHistory.isEmpty()) {
-                    Text("暂无经期记录", color = SkyMutedText, fontSize = 14.sp)
+                    Text("尚未记录经期", color = HealthPageMutedText, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                 } else {
                     periodHistory.forEachIndexed { index, item ->
                         HealthPeriodHistoryRow(

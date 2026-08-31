@@ -29,9 +29,11 @@ internal fun healthDashboardPresentation(
     }
     return HealthDashboardPresentation(
         overviewTitle = "本月健康概览",
-        latestWeight = latestWeight?.let(::formatHealthPresentationWeight) ?: "--",
-        targetSummary = "目标 ${state.targetWeightJin?.let(::formatHealthPresentationWeight) ?: "未设置"} 斤",
-        monthRecordSummary = "本月记录 $monthlyRecordCount 次",
+        latestWeight = latestWeight?.let(::formatHealthPresentationWeight) ?: "尚未记录",
+        targetSummary = state.targetWeightJin
+            ?.let { "目标 ${formatHealthPresentationWeight(it)} 斤" }
+            ?: "尚未设置",
+        monthRecordSummary = if (monthlyRecordCount == 0) "尚未记录" else "本月记录 $monthlyRecordCount 次",
         nextPeriodSummary = state.nextPeriodStart
             ?.let { "下次预计 ${it.format(HEALTH_MONTH_DAY_FORMATTER)}" }
             ?: "还没有经期记录",

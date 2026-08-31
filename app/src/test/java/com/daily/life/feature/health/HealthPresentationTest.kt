@@ -57,4 +57,15 @@ class HealthPresentationTest {
         assertEquals("还没有经期记录", presentation.nextPeriodSummary)
         assertEquals("记录后将按 30 天周期预测", presentation.cycleSummary)
     }
+
+    @Test
+    fun dashboardPresentationUsesNaturalCopyForEmptyHealthData() {
+        val presentation = healthDashboardPresentation(
+            state = HealthState(selectedMonth = YearMonth.of(2026, 8))
+        )
+
+        assertEquals("尚未记录", presentation.latestWeight)
+        assertEquals("尚未设置", presentation.targetSummary)
+        assertEquals("尚未记录", presentation.monthRecordSummary)
+    }
 }

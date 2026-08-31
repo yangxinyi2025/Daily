@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.daily.life.core.designsystem.QuietSkyPageHeader
 import com.daily.life.core.designsystem.QuietSkyListRow
 import com.daily.life.core.designsystem.SkyAccent
@@ -199,21 +200,40 @@ private fun WeightOverviewCard(
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Row(verticalAlignment = Alignment.Bottom) {
+            if (latestWeight == null) {
                 Text(
-                    text = latestWeight?.let(::formatHealthJin) ?: "--",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = SkyInk
+                    text = "尚未记录",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = SkyMutedText
                 )
-                Text(" 斤", style = MaterialTheme.typography.labelMedium, color = SkyMutedText, modifier = Modifier.padding(bottom = 4.dp))
+            } else {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        text = formatHealthJin(latestWeight),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = SkyInk
+                    )
+                    Text(" 斤", style = MaterialTheme.typography.labelMedium, color = SkyMutedText, modifier = Modifier.padding(bottom = 4.dp))
+                }
             }
             Spacer(Modifier.weight(1f))
             TrendBadge(delta = delta)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            Text("目标 ${state.targetWeightJin?.let(::formatHealthJin) ?: "未设置"} 斤", style = MaterialTheme.typography.labelSmall, color = SkyMutedText)
-            Text("本月记录 $monthWeightCount 次", style = MaterialTheme.typography.labelSmall, color = SkyMutedText)
+            Text(
+                text = state.targetWeightJin?.let { "目标 ${formatHealthJin(it)} 斤" } ?: "目标体重尚未设置",
+                fontSize = if (state.targetWeightJin == null) 16.sp else 12.sp,
+                fontWeight = if (state.targetWeightJin == null) FontWeight.Medium else FontWeight.Normal,
+                color = SkyMutedText
+            )
+            Text(
+                text = if (monthWeightCount == 0) "本月尚未记录" else "本月记录 $monthWeightCount 次",
+                fontSize = if (monthWeightCount == 0) 16.sp else 12.sp,
+                fontWeight = if (monthWeightCount == 0) FontWeight.Medium else FontWeight.Normal,
+                color = SkyMutedText
+            )
         }
     }
 }
@@ -308,10 +328,15 @@ private fun WeightTargetCard(
                 }
             }
             Column(modifier = Modifier.padding(start = 11.dp).weight(1f)) {
-                Text("目标体重 · ${targetWeight?.let(::formatHealthJin) ?: "未设置"} 斤", style = MaterialTheme.typography.labelLarge)
                 Text(
-                    text = if (targetWeight == null) "设定一个想要保持的目标" else "持续记录，慢慢靠近目标",
-                    style = MaterialTheme.typography.labelSmall,
+                    text = targetWeight?.let { "目标体重 · ${formatHealthJin(it)} 斤" } ?: "目标体重尚未设置",
+                    fontSize = if (targetWeight == null) 16.sp else 14.sp,
+                    fontWeight = if (targetWeight == null) FontWeight.Medium else FontWeight.Normal,
+                    color = if (targetWeight == null) SkyMutedText else SkyInk
+                )
+                Text(
+                    text = if (targetWeight == null) "设置目标后可查看距离与进度" else "持续记录，慢慢靠近目标",
+                    fontSize = 13.sp,
                     color = SkyMutedText
                 )
             }
