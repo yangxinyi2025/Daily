@@ -123,6 +123,7 @@ git commit -m "feat: add cute home and navigation assets"
 - Modify: `app/src/main/java/com/daily/life/feature/home/HomeSummaryRepositories.kt`
 - Modify: `app/src/main/java/com/daily/life/core/navigation/DailyNavHost.kt`
 - Modify: `app/src/test/java/com/daily/life/feature/home/HomeViewModelTest.kt`
+- Modify: `app/src/test/java/com/daily/life/feature/home/HomeSummaryRepositoriesTest.kt`
 
 **Interfaces:**
 - Consumes: `HealthDao.observeWeights()`、`PeriodDao.observeAll()`、`DailyPreferences.menstrualCycleDays`，以及现有 `SemesterPeriodDao.observeBySemester()`。
