@@ -60,6 +60,71 @@ class TimetableRepositoryTest {
     }
 
     @Test
+    fun saveCourseWritesWeeksAndRejectsOverlap() = runTest {
+        val semesterId = database.semesterDao().insert(
+            SemesterEntity(1L, "2026 秋季", LocalDate.of(2026, 9, 1), isCurrent = true, createdAt = 1L)
+        )
+        val repository = RoomTimetableRepository(database, preferences, NoOpReminderScheduler, clock = fixedClock())
+        val first = repository.saveCourse(TimetableCourseDraft(null, semesterId, "数学", 1, 1, 2, "1-4周", "", "", ""))
+        val conflict = repository.saveCourse(TimetableCourseDraft(null, semesterId, "物理", 1, 2, 3, "2-6周", "", "", ""))
+
+        assertTrue(first is CourseMutationResult.Saved)
+        assertEquals("与“数学”在周一第 2 节冲突", (conflict as CourseMutationResult.Rejected).message)
+        val id = (first as CourseMutationResult.Saved).courseId
+        assertEquals(listOf(1, 2, 3, 4), database.courseDao().findWithWeeksById(id)!!.weeks.map { it.week }.sorted())
+    }
+
+    @Test
+    fun deleteCourseRemovesItsWeeks() = runTest {
+        val semesterId = database.semesterDao().insert(
+            SemesterEntity(1L, "2026 秋季", LocalDate.of(2026, 9, 1), isCurrent = true, createdAt = 1L)
+        )
+        val repository = RoomTimetableRepository(database, preferences, NoOpReminderScheduler, clock = fixedClock())
+        val saved = repository.saveCourse(TimetableCourseDraft(null, semesterId, "英语", 3, 3, 4, "1-2周", "", "", "")) as CourseMutationResult.Saved
+
+        val result = repository.deleteCourse(semesterId, saved.courseId)
+
+        assertTrue(result is CourseMutationResult.Saved)
+        assertEquals(null, database.courseDao().findById(saved.courseId))
+        assertTrue(database.courseDao().findAllWeeks().none { it.courseId == saved.courseId })
+    }
+
+    @Test
+    fun editingCourseKeepsItsIdAndImportedMetadata() = runTest {
+        val semesterId = database.semesterDao().insert(
+            SemesterEntity(1L, "2026 秋季", LocalDate.of(2026, 9, 1), isCurrent = true, createdAt = 1L)
+        )
+        val originalId = database.courseDao().insert(
+            CourseEntity(
+                semesterId = semesterId,
+                courseName = "原课程",
+                dayOfWeek = 2,
+                startPeriod = 1,
+                endPeriod = 2,
+                weekRuleText = "1-4周",
+                parsedWeeks = setOf(1, 2, 3, 4),
+                campus = "主校区",
+                courseCode = "CS101",
+                credits = 3.0
+            )
+        )
+        database.courseDao().insertWeeks((1..4).map { CourseWeekEntity(originalId, it) })
+        val repository = RoomTimetableRepository(database, preferences, NoOpReminderScheduler, clock = fixedClock())
+
+        val result = repository.saveCourse(
+            TimetableCourseDraft(originalId, semesterId, "更新课程", 2, 3, 4, "2-6周", "教一 101", "张老师", "重点课")
+        ) as CourseMutationResult.Saved
+        val stored = database.courseDao().findWithWeeksById(originalId)!!
+
+        assertEquals(originalId, result.courseId)
+        assertEquals("更新课程", stored.course.courseName)
+        assertEquals("主校区", stored.course.campus)
+        assertEquals("CS101", stored.course.courseCode)
+        assertEquals(3.0, stored.course.credits)
+        assertEquals(listOf(2, 3, 4, 5, 6), stored.weeks.map { it.week }.sorted())
+    }
+
+    @Test
     fun confirmImportReplacesCoursesWritesNormalizedWeeksThenSchedules() = runTest {
         val semesterId = database.semesterDao().insert(
             SemesterEntity(

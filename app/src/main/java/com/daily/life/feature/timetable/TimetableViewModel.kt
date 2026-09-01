@@ -44,6 +44,7 @@ class TimetableViewModel(
     private val selectedWeek = MutableStateFlow(1)
     private val importState = MutableStateFlow(TimetableImportState())
     private val periodEditor = MutableStateFlow(TimetablePeriodEditorState())
+    private val courseEditor = MutableStateFlow(TimetableCourseEditorState())
     private val calendarSpecialDays = MutableStateFlow<List<SystemCalendarSpecialDay>>(emptyList())
     private val calendarReadWarning = MutableStateFlow<String?>(null)
     private val holidayCalendarRules = MutableStateFlow<List<CalendarDayRule>>(emptyList())
@@ -55,8 +56,9 @@ class TimetableViewModel(
             repository.currentSemester,
             selectedWeek,
             importState,
-            periodEditor
-        ) { semester, week, importing, editor -> Query(semester, week, importing, editor) },
+            periodEditor,
+            courseEditor
+        ) { semester, week, importing, editor, courseEditor -> Query(semester, week, importing, editor, courseEditor) },
         calendarSpecialDays,
         calendarReadWarning
     ) { query, specialDays, readWarning ->
@@ -74,6 +76,7 @@ class TimetableViewModel(
                     periodTimes = defaultSemesterPeriodTimes(),
                     importing = query.importState,
                     editor = query.periodEditor,
+                    courseEditor = query.courseEditor,
                     specialDays = query.calendarSpecialDays,
                     confirmedAdjustments = emptyMap(),
                     calendarReadWarning = query.calendarReadWarning
@@ -104,6 +107,7 @@ class TimetableViewModel(
                     periodTimes = periodTimes,
                     importing = query.importState,
                     editor = query.periodEditor,
+                    courseEditor = query.courseEditor,
                     specialDays = query.calendarSpecialDays,
                     confirmedAdjustments = adjustments.mapNotNull { row ->
                         row.sourceWeekParity?.let { parityName ->
@@ -153,6 +157,119 @@ class TimetableViewModel(
 
     fun selectCurrentWeek() {
         selectedWeek.value = state.value.currentWeek
+    }
+
+    fun openNewCourse(dayOfWeek: Int, startPeriod: Int) {
+        val semesterId = state.value.currentSemesterId ?: return
+        courseEditor.value = TimetableCourseEditorState(
+            draft = TimetableCourseDraft(null, semesterId, "", dayOfWeek, startPeriod, startPeriod, "1-16周", "", "", ""),
+            isOpen = true
+        )
+    }
+
+    fun updateCourseDraft(draft: TimetableCourseDraft) {
+        courseEditor.value = courseEditor.value.copy(draft = draft, fieldError = null)
+    }
+
+    fun openCourseEditor(courseId: Long) {
+        scope.launch {
+            val stored = repository.findCourse(courseId) ?: return@launch
+            val course = stored.course
+            courseEditor.value = TimetableCourseEditorState(
+                draft = TimetableCourseDraft(
+                    id = course.id,
+                    semesterId = course.semesterId,
+                    courseName = course.courseName,
+                    dayOfWeek = course.dayOfWeek,
+                    startPeriod = course.startPeriod,
+                    endPeriod = course.endPeriod,
+                    weekRuleText = course.weekRuleText,
+                    location = course.location.orEmpty(),
+                    teacher = course.teacher.orEmpty(),
+                    notes = course.notes.orEmpty()
+                ),
+                isOpen = true
+            )
+        }
+    }
+
+    fun dismissCourseEditor() {
+        courseEditor.value = TimetableCourseEditorState()
+    }
+
+    fun dismissCourseSyncNotice() {
+        courseEditor.value = courseEditor.value.copy(syncNotice = null, fieldError = null)
+    }
+
+    fun saveCourse() {
+        val draft = courseEditor.value.draft ?: return
+        courseEditor.value = courseEditor.value.copy(isSaving = true, fieldError = null)
+        scope.launch {
+            when (val result = repository.saveCourse(draft)) {
+                is CourseMutationResult.Rejected -> courseEditor.value = courseEditor.value.copy(
+                    isSaving = false,
+                    fieldError = result.message
+                )
+                is CourseMutationResult.Saved -> courseEditor.value = TimetableCourseEditorState(
+                    syncNotice = if (result.reminderSyncFailed) "课程已保存，提醒同步失败" else null
+                )
+            }
+        }
+    }
+
+    fun requestCourseDelete() {
+        courseEditor.value = courseEditor.value.copy(
+            isOpen = false,
+            deleteConfirmationCourseName = courseEditor.value.draft?.courseName
+        )
+    }
+
+    fun cancelCourseDelete() {
+        courseEditor.value = courseEditor.value.copy(
+            isOpen = true,
+            deleteConfirmationCourseName = null
+        )
+    }
+
+    fun confirmCourseDelete() {
+        val draft = courseEditor.value.draft ?: return
+        val id = draft.id ?: return
+        courseEditor.value = courseEditor.value.copy(isSaving = true)
+        scope.launch {
+            when (val result = repository.deleteCourse(draft.semesterId, id)) {
+                is CourseMutationResult.Rejected -> courseEditor.value = courseEditor.value.copy(
+                    isSaving = false,
+                    fieldError = result.message,
+                    deleteConfirmationCourseName = null
+                )
+                is CourseMutationResult.Saved -> courseEditor.value = TimetableCourseEditorState(
+                    syncNotice = if (result.reminderSyncFailed) "课程已删除，提醒同步失败" else null
+                )
+            }
+        }
+    }
+
+    fun retryCourseReminderSync() {
+        val semesterId = state.value.currentSemesterId ?: return
+        courseEditor.value = courseEditor.value.copy(isSaving = true, fieldError = null)
+        scope.launch {
+            when (val result = repository.retryCourseReminderSync(semesterId)) {
+                is CourseMutationResult.Rejected -> courseEditor.value = courseEditor.value.copy(
+                    isSaving = false,
+                    fieldError = result.message
+                )
+                is CourseMutationResult.Saved -> {
+                    courseEditor.value = if (result.reminderSyncFailed) {
+                        courseEditor.value.copy(
+                            isSaving = false,
+                            syncNotice = "提醒仍未同步，请检查日历权限后重试"
+                        )
+                    } else {
+                        TimetableCourseEditorState()
+                    }
+                }
+            }
+        }
     }
 
     fun openImport() {
@@ -380,6 +497,7 @@ class TimetableViewModel(
         periodTimes: List<SemesterPeriodTime>,
         importing: TimetableImportState,
         editor: TimetablePeriodEditorState,
+        courseEditor: TimetableCourseEditorState,
         specialDays: List<SystemCalendarSpecialDay> = emptyList(),
         confirmedAdjustments: Map<LocalDate, MakeupCourseSource> = emptyMap(),
         holidayRules: List<CalendarDayRule> = emptyList(),
@@ -414,6 +532,7 @@ class TimetableViewModel(
                 .any(TimetableScheduleSlot::needsMakeupConfirmation)
         } == true
         return TimetableState(
+            currentSemesterId = semester?.id,
             currentSemesterName = semester?.name,
             currentSemesterStartDate = semester?.startDate,
             selectedWeek = week,
@@ -424,6 +543,7 @@ class TimetableViewModel(
             days = visibleDays.ifEmpty { defaultTimetableDays() },
             importState = importing,
             periodEditor = editor,
+            courseEditor = courseEditor,
             calendarSpecialDays = specialDays,
             classOverrides = classOverrides,
             calendarAdjustmentWarning = when {
@@ -642,6 +762,7 @@ class TimetableViewModel(
         val week: Int,
         val importState: TimetableImportState,
         val periodEditor: TimetablePeriodEditorState,
+        val courseEditor: TimetableCourseEditorState,
         val calendarSpecialDays: List<SystemCalendarSpecialDay> = emptyList(),
         val calendarReadWarning: String? = null
     )

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -31,10 +32,13 @@ import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -56,14 +60,10 @@ import androidx.core.content.ContextCompat
 import com.daily.life.core.calendar.requiresCalendarPermission
 import com.daily.life.core.designsystem.DailyCard
 import com.daily.life.core.designsystem.DailyEmptyState
-import com.daily.life.core.designsystem.SkyAccent
 import com.daily.life.core.designsystem.SkyCoolBorder
 import com.daily.life.core.designsystem.SkyInk
 import com.daily.life.core.designsystem.SkyPrimary
-import com.daily.life.core.designsystem.SkySecondary
-import com.daily.life.core.designsystem.SkySuccess
 import com.daily.life.core.designsystem.SkySurface
-import com.daily.life.core.designsystem.SkyWarm
 import java.io.InputStream
 import java.time.format.DateTimeFormatter
 
@@ -90,6 +90,16 @@ fun TimetableScreen(
     ,onMakeupParityChange: (java.time.LocalDate, WeekParity?) -> Unit
     ,onRefreshSystemCalendarDays: () -> Unit
     ,onClassOverrideChange: (java.time.LocalDate, ClassOverride) -> Unit = { _, _ -> }
+    ,onNewCourse: (Int, Int) -> Unit = { _, _ -> }
+    ,onEditCourse: (Long) -> Unit = { }
+    ,onCourseDraftChange: (TimetableCourseDraft) -> Unit = { }
+    ,onSaveCourse: () -> Unit = { }
+    ,onDismissCourseEditor: () -> Unit = { }
+    ,onRequestCourseDelete: () -> Unit = { }
+    ,onCancelCourseDelete: () -> Unit = { }
+    ,onConfirmCourseDelete: () -> Unit = { }
+    ,onRetryCourseReminderSync: () -> Unit = { }
+    ,onDismissCourseSyncNotice: () -> Unit = { }
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -183,6 +193,47 @@ fun TimetableScreen(
         return
     }
 
+    state.courseEditor.takeIf { it.isOpen }?.let { editor ->
+        TimetableCourseEditorDialog(
+            editor = editor,
+            onDraftChange = onCourseDraftChange,
+            onSave = onSaveCourse,
+            onDismiss = onDismissCourseEditor,
+            onRequestDelete = onRequestCourseDelete
+        )
+    }
+    state.courseEditor.deleteConfirmationCourseName?.let { courseName ->
+        AlertDialog(
+            onDismissRequest = onCancelCourseDelete,
+            title = { Text("删除课程") },
+            text = { Text("确定删除“$courseName”？这不会影响其他课程。") },
+            confirmButton = {
+                TextButton(onClick = onConfirmCourseDelete) {
+                    Text("删除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onCancelCourseDelete) { Text("取消") }
+            }
+        )
+    }
+    state.courseEditor.syncNotice?.let { notice ->
+        AlertDialog(
+            onDismissRequest = onDismissCourseSyncNotice,
+            title = { Text("提醒同步") },
+            text = { Text(notice) },
+            confirmButton = {
+                TextButton(
+                    enabled = !state.courseEditor.isSaving,
+                    onClick = onRetryCourseReminderSync
+                ) { Text(if (state.courseEditor.isSaving) "正在同步" else "重试同步") }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismissCourseSyncNotice) { Text("知道了") }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize(),
@@ -252,6 +303,8 @@ fun TimetableScreen(
                 days = state.days,
                 periods = state.timeLabels,
                 isEmpty = state.isEmpty,
+                onNewCourse = onNewCourse,
+                onEditCourse = onEditCourse,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -259,13 +312,122 @@ fun TimetableScreen(
 }
 
 @Composable
+private fun TimetableCourseEditorDialog(
+    editor: TimetableCourseEditorState,
+    onDraftChange: (TimetableCourseDraft) -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+    onRequestDelete: () -> Unit
+) {
+    val draft = editor.draft ?: return
+    AlertDialog(
+        onDismissRequest = { if (!editor.isSaving) onDismiss() },
+        title = { Text(if (draft.id == null) "添加课程" else "编辑课程") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 480.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = draft.courseName,
+                    onValueChange = { onDraftChange(draft.copy(courseName = it)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("课程名称") },
+                    singleLine = true
+                )
+                CourseNumberField("星期（1=周一，7=周日）", draft.dayOfWeek) {
+                    onDraftChange(draft.copy(dayOfWeek = it))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        CourseNumberField("开始节次", draft.startPeriod) {
+                            onDraftChange(draft.copy(startPeriod = it))
+                        }
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                        CourseNumberField("结束节次", draft.endPeriod) {
+                            onDraftChange(draft.copy(endPeriod = it))
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = draft.weekRuleText,
+                    onValueChange = { onDraftChange(draft.copy(weekRuleText = it)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("周次规则，例如 1-16周 单周") },
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = draft.location,
+                    onValueChange = { onDraftChange(draft.copy(location = it)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("上课地点（可选）") },
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = draft.teacher,
+                    onValueChange = { onDraftChange(draft.copy(teacher = it)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("教师（可选）") },
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = draft.notes,
+                    onValueChange = { onDraftChange(draft.copy(notes = it)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("备注（可选）") },
+                    minLines = 2,
+                    maxLines = 3
+                )
+                editor.fieldError?.let { error ->
+                    Text(
+                        text = error,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(enabled = !editor.isSaving, onClick = onSave) {
+                Text(if (editor.isSaving) "正在保存" else "保存")
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (draft.id != null) {
+                    TextButton(enabled = !editor.isSaving, onClick = onRequestDelete) {
+                        Text("删除", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+                TextButton(enabled = !editor.isSaving, onClick = onDismiss) { Text("取消") }
+            }
+        }
+    )
+}
+
+@Composable
+private fun CourseNumberField(label: String, value: Int, onValueChange: (Int) -> Unit) {
+    OutlinedTextField(
+        value = value.toString(),
+        onValueChange = { onValueChange(it.toIntOrNull() ?: 0) },
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text(label) },
+        singleLine = true
+    )
+}
+
+@Composable
 private fun WeeklyTimetableGrid(
     days: List<TimetableDayColumnState>,
     periods: List<TimetablePeriodLabel>,
     isEmpty: Boolean,
+    onNewCourse: (Int, Int) -> Unit,
+    onEditCourse: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var selectedCourse by remember { mutableStateOf<TimetableCourseUiState?>(null) }
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -335,10 +497,20 @@ private fun WeeklyTimetableGrid(
                             .weight(1f)
                             .height(PERIOD_HEIGHT * periods.size)
                     ) {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            periods.forEach { period ->
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(PERIOD_HEIGHT)
+                                        .clickable { onNewCourse(day.dayOfWeek, period.period) }
+                                )
+                            }
+                        }
                         day.courses.forEach { course ->
                             CourseGridCard(
                                 course = course,
-                                onClick = { selectedCourse = course }
+                                onClick = { course.id.toLongOrNull()?.let(onEditCourse) }
                             )
                         }
                     }
@@ -355,34 +527,33 @@ private fun WeeklyTimetableGrid(
                 )
             }
         }
-        selectedCourse?.let { course ->
-            DailyCard(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-                Text(course.courseName, style = MaterialTheme.typography.titleMedium)
-                Text(course.detail, style = MaterialTheme.typography.bodyMedium)
-            }
-        }
     }
 }
 
 @Composable
 private fun CourseGridCard(course: TimetableCourseUiState, onClick: () -> Unit) {
     val span = (course.endPeriod - course.startPeriod + 1).coerceAtLeast(1)
-    val accent = TIMETABLE_COURSE_COLORS[timetableCourseColorSlot(course.dayOfWeek)]
-    val courseTextStyle = MaterialTheme.typography.labelSmall.copy(
-        fontSize = 11.sp,
-        lineHeight = 15.sp,
-        fontWeight = FontWeight.Medium
+    val palette = TIMETABLE_COURSE_COLORS[timetableCourseColorSlot(course.dayOfWeek)]
+    val titleStyle = MaterialTheme.typography.labelSmall.copy(
+        fontSize = 13.sp,
+        lineHeight = 16.sp,
+        fontWeight = FontWeight.SemiBold
     )
-    val metadata = listOfNotNull(course.location, course.teacher).joinToString("\n")
+    val metadataStyle = MaterialTheme.typography.labelSmall.copy(
+        fontSize = 12.sp,
+        lineHeight = 15.sp,
+        fontWeight = FontWeight.SemiBold
+    )
+    val metadata = course.location.orEmpty()
     Card(
         modifier = Modifier
             .padding(horizontal = 2.dp, vertical = 3.dp)
             .offset(y = PERIOD_HEIGHT * (course.startPeriod - 1))
             .fillMaxWidth()
-            .height(PERIOD_HEIGHT * span - 6.dp)
+        .height(PERIOD_HEIGHT * span - 6.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(9.dp),
-        colors = CardDefaults.cardColors(containerColor = accent.copy(alpha = 0.16f))
+        colors = CardDefaults.cardColors(containerColor = palette.background)
     ) {
         Column(
             modifier = Modifier
@@ -393,14 +564,14 @@ private fun CourseGridCard(course: TimetableCourseUiState, onClick: () -> Unit) 
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(4.dp)
-                    .background(accent.copy(alpha = 0.48f))
+                    .background(palette.accent.copy(alpha = 0.48f))
             )
             Spacer(Modifier.height(2.dp))
             Text(
                 text = course.courseName,
                 modifier = Modifier.padding(horizontal = 5.dp),
-                style = courseTextStyle,
-                color = accent,
+                style = titleStyle,
+                color = palette.accent,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis
             )
@@ -408,8 +579,8 @@ private fun CourseGridCard(course: TimetableCourseUiState, onClick: () -> Unit) 
                 Text(
                     text = metadata,
                     modifier = Modifier.padding(horizontal = 5.dp),
-                    style = courseTextStyle,
-                    color = accent,
+                    style = metadataStyle,
+                    color = palette.accent,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -420,12 +591,13 @@ private fun CourseGridCard(course: TimetableCourseUiState, onClick: () -> Unit) 
 
 internal fun timetableCourseColorSlot(dayOfWeek: Int): Int = ((dayOfWeek - 1) % 4 + 4) % 4
 
+private data class TimetableCoursePalette(val background: Color, val accent: Color)
+
 private val TIMETABLE_COURSE_COLORS = listOf(
-    SkyPrimary,
-    SkyAccent,
-    SkySuccess,
-    SkyWarm,
-    SkySecondary
+    TimetableCoursePalette(Color(0xFFEDE9FF), Color(0xFF7464D9)),
+    TimetableCoursePalette(Color(0xFFE6F5EE), Color(0xFF579B78)),
+    TimetableCoursePalette(Color(0xFFFCE8EF), Color(0xFFD96B91)),
+    TimetableCoursePalette(Color(0xFFE5F3F6), Color(0xFF5C9CA8))
 )
 
 private val SkyMutedLabel = SkyInk.copy(alpha = 0.54f)

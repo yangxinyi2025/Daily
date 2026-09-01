@@ -172,7 +172,17 @@ fun DailyNavHost(
                     onMakeupSourceChange = timetableViewModel::updateMakeupSource,
                     onMakeupParityChange = timetableViewModel::updateMakeupParity,
                     onRefreshSystemCalendarDays = timetableViewModel::refreshSystemCalendarDays,
-                    onClassOverrideChange = timetableViewModel::updateClassOverride
+                    onClassOverrideChange = timetableViewModel::updateClassOverride,
+                    onNewCourse = timetableViewModel::openNewCourse,
+                    onEditCourse = timetableViewModel::openCourseEditor,
+                    onCourseDraftChange = timetableViewModel::updateCourseDraft,
+                    onSaveCourse = timetableViewModel::saveCourse,
+                    onDismissCourseEditor = timetableViewModel::dismissCourseEditor,
+                    onRequestCourseDelete = timetableViewModel::requestCourseDelete,
+                    onCancelCourseDelete = timetableViewModel::cancelCourseDelete,
+                    onConfirmCourseDelete = timetableViewModel::confirmCourseDelete,
+                    onRetryCourseReminderSync = timetableViewModel::retryCourseReminderSync,
+                    onDismissCourseSyncNotice = timetableViewModel::dismissCourseSyncNotice
                 )
             }
             composable(DailyDestination.Schedule.route) {

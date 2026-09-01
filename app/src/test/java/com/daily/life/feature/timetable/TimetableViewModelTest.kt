@@ -3,6 +3,8 @@ package com.daily.life.feature.timetable
 import com.daily.life.core.calendar.SystemCalendarScheduleEvent
 import com.daily.life.core.calendar.SystemCalendarScheduleReader
 import com.daily.life.core.database.CourseEntity
+import com.daily.life.core.database.CourseWeekEntity
+import com.daily.life.core.database.CourseWithWeeks
 import com.daily.life.core.database.SemesterEntity
 import java.time.Clock
 import java.time.Instant
@@ -160,6 +162,29 @@ class TimetableViewModelTest {
         assertFalse(viewModel.state.value.importState.isOpen)
     }
 
+    @Test
+    fun courseEditorPrefillsNewCellAndSavesTheDraft() = runTest {
+        val repository = FakeTimetableRepository(
+            semester = SemesterEntity(5L, "2026 秋季", LocalDate.of(2026, 9, 1), isCurrent = true, createdAt = 0L)
+        )
+        val viewModel = TimetableViewModel(repository, TimetableParser { error("unused") }, fixedClock(), coroutineScope = backgroundScope)
+        runCurrent()
+
+        viewModel.openNewCourse(dayOfWeek = 4, startPeriod = 6)
+        val opened = viewModel.state.first { it.courseEditor.isOpen }.courseEditor
+        assertTrue(opened.isOpen)
+        assertEquals(4, opened.draft!!.dayOfWeek)
+        assertEquals(6, opened.draft!!.startPeriod)
+        assertEquals(6, opened.draft!!.endPeriod)
+
+        viewModel.updateCourseDraft(opened.draft!!.copy(courseName = "操作系统", weekRuleText = "1-16周"))
+        viewModel.saveCourse()
+        runCurrent()
+
+        assertEquals("操作系统", repository.savedDrafts.single().courseName)
+        assertFalse(viewModel.state.value.courseEditor.isOpen)
+    }
+
     private fun fixedClock(): Clock = Clock.fixed(
         Instant.parse("2026-09-08T00:00:00Z"),
         ZoneOffset.UTC
@@ -173,6 +198,7 @@ class TimetableViewModelTest {
         private val coursesByWeek = courses.mapValues { MutableStateFlow(it.value) }
         private val periodTimes = MutableStateFlow(defaultSemesterPeriodTimes())
         val confirmations = mutableListOf<Confirmation>()
+        val savedDrafts = mutableListOf<TimetableCourseDraft>()
 
         override fun observeCourses(semesterId: Long, week: Int): Flow<List<CourseEntity>> =
             coursesByWeek[week] ?: MutableStateFlow(emptyList())
@@ -184,6 +210,17 @@ class TimetableViewModelTest {
 
         override suspend fun updatePeriodTimes(semesterId: Long, times: List<SemesterPeriodTime>) {
             periodTimes.value = times
+        }
+
+        override suspend fun findCourse(courseId: Long): CourseWithWeeks? =
+            coursesByWeek.values.asSequence()
+                .flatMap { it.value.asSequence() }
+                .firstOrNull { it.id == courseId }
+                ?.let { CourseWithWeeks(it, listOf(CourseWeekEntity(it.id, 1))) }
+
+        override suspend fun saveCourse(draft: TimetableCourseDraft): CourseMutationResult {
+            savedDrafts += draft
+            return CourseMutationResult.Saved(draft.id ?: 100L)
         }
 
         override suspend fun confirmImport(

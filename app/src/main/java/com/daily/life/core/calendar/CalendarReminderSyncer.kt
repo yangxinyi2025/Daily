@@ -108,8 +108,19 @@ class CalendarReminderSyncer(
     suspend fun deleteCourseOccurrences(courseIds: Collection<Long>): List<CalendarGatewayResult> {
         if (courseIds.isEmpty()) return emptyList()
         val courseIdSet = courseIds.toSet()
-        return links.findByKind(CalendarSyncKind.COURSE_OCCURRENCE)
-            .filter { link -> link.ownerKey.substringBefore(':').toLongOrNull() in courseIdSet }
+        return deleteCourseOccurrenceLinks { link ->
+            link.ownerKey.substringBefore(':').toLongOrNull() in courseIdSet
+        }
+    }
+
+    suspend fun deleteAllCourseOccurrences(): List<CalendarGatewayResult> =
+        deleteCourseOccurrenceLinks { true }
+
+    private suspend fun deleteCourseOccurrenceLinks(
+        shouldDelete: (CalendarSyncLinkEntity) -> Boolean
+    ): List<CalendarGatewayResult> =
+        links.findByKind(CalendarSyncKind.COURSE_OCCURRENCE)
+            .filter(shouldDelete)
             .map { link ->
                 val result = gateway.delete(link.eventId)
                 if (result is CalendarGatewayResult.Synced) {
@@ -117,5 +128,4 @@ class CalendarReminderSyncer(
                 }
                 result
             }
-    }
 }

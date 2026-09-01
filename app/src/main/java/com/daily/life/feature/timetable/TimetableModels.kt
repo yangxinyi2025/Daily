@@ -172,6 +172,7 @@ data class TimetableCourseEditorState(
 )
 
 data class TimetableState(
+    val currentSemesterId: Long? = null,
     val currentSemesterName: String? = null,
     val currentSemesterStartDate: LocalDate? = null,
     val selectedWeek: Int = 1,

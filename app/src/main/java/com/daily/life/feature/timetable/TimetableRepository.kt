@@ -24,6 +24,11 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
+sealed interface CourseMutationResult {
+    data class Saved(val courseId: Long, val reminderSyncFailed: Boolean = false) : CourseMutationResult
+    data class Rejected(val message: String) : CourseMutationResult
+}
+
 interface TimetableRepository {
     val currentSemester: Flow<SemesterEntity?>
 
@@ -36,6 +41,17 @@ interface TimetableRepository {
     fun observeClassOverrides(semesterId: Long): Flow<List<SemesterClassOverrideEntity>> = flowOf(emptyList())
 
     suspend fun updatePeriodTimes(semesterId: Long, times: List<SemesterPeriodTime>)
+
+    suspend fun findCourse(courseId: Long): com.daily.life.core.database.CourseWithWeeks? = null
+
+    suspend fun saveCourse(draft: TimetableCourseDraft): CourseMutationResult =
+        CourseMutationResult.Rejected("当前课表不支持手动保存课程")
+
+    suspend fun deleteCourse(semesterId: Long, courseId: Long): CourseMutationResult =
+        CourseMutationResult.Rejected("当前课表不支持删除课程")
+
+    suspend fun retryCourseReminderSync(semesterId: Long): CourseMutationResult =
+        CourseMutationResult.Rejected("当前课表不支持重试课程提醒")
 
     suspend fun confirmImport(
         preview: TimetableParseResult,
@@ -102,6 +118,103 @@ class RoomTimetableRepository(
 
     override fun observeClassOverrides(semesterId: Long): Flow<List<SemesterClassOverrideEntity>> =
         classOverrideDao.observeBySemester(semesterId)
+
+    override suspend fun findCourse(courseId: Long): com.daily.life.core.database.CourseWithWeeks? =
+        courseDao.findWithWeeksById(courseId)
+
+    override suspend fun saveCourse(draft: TimetableCourseDraft): CourseMutationResult {
+        val validation = validateTimetableCourseDraft(draft)
+        val weeks = (validation as? CourseDraftValidation.Valid)?.parsedWeeks
+            ?: return CourseMutationResult.Rejected((validation as CourseDraftValidation.Invalid).message)
+        val stored = if (draft.id == null) null else courseDao.findById(draft.id)
+        if (draft.id != null && stored == null) {
+            return CourseMutationResult.Rejected("课程不存在，无法保存修改")
+        }
+        if (stored != null && stored.semesterId != draft.semesterId) {
+            return CourseMutationResult.Rejected("课程不属于当前学期")
+        }
+        val existingCourses = courseDao.findBySemester(draft.semesterId)
+        val conflict = existingCourses
+            .sortedWith(compareBy(CourseEntity::dayOfWeek, CourseEntity::startPeriod, CourseEntity::id))
+            .firstOrNull { existing ->
+                val existingWeeks = courseDao.findWithWeeksById(existing.id)?.weeks
+                    ?.map(CourseWeekEntity::week)?.toSet().orEmpty()
+                coursesConflict(draft, weeks, existing, existingWeeks)
+            }
+        if (conflict != null) {
+            val period = maxOf(draft.startPeriod, conflict.startPeriod)
+            return CourseMutationResult.Rejected("与“${conflict.courseName}”在${courseDayLabel(draft.dayOfWeek)}第 $period 节冲突")
+        }
+        val courseId = database.withTransaction {
+            val entity = (stored ?: CourseEntity(semesterId = draft.semesterId, courseName = "", dayOfWeek = 1, startPeriod = 1, endPeriod = 1, weekRuleText = "", parsedWeeks = emptySet())).copy(
+                semesterId = draft.semesterId,
+                courseName = draft.courseName.trim(),
+                dayOfWeek = draft.dayOfWeek,
+                startPeriod = draft.startPeriod,
+                endPeriod = draft.endPeriod,
+                weekRuleText = draft.weekRuleText.trim(),
+                parsedWeeks = weeks,
+                location = draft.location.trim().ifBlank { null },
+                teacher = draft.teacher.trim().ifBlank { null },
+                notes = draft.notes.trim().ifBlank { null }
+            )
+            val id = if (stored == null) courseDao.insert(entity) else {
+                courseDao.update(entity)
+                entity.id
+            }
+            courseDao.deleteWeeksByCourseId(id)
+            courseDao.insertWeeks(weeks.sorted().map { CourseWeekEntity(id, it) })
+            id
+        }
+        val reminderSyncFailed = runCatching {
+            refreshCourseReminders(draft.semesterId, draft.id?.let(::listOf).orEmpty()).not()
+        }.getOrDefault(true)
+        return CourseMutationResult.Saved(courseId, reminderSyncFailed)
+    }
+
+    override suspend fun deleteCourse(semesterId: Long, courseId: Long): CourseMutationResult {
+        val course = courseDao.findById(courseId)
+            ?: return CourseMutationResult.Rejected("课程不存在")
+        if (course.semesterId != semesterId) {
+            return CourseMutationResult.Rejected("课程不属于当前学期")
+        }
+        database.withTransaction {
+            courseDao.deleteById(courseId)
+        }
+        val reminderSyncFailed = runCatching {
+            refreshCourseReminders(semesterId, listOf(courseId)).not()
+        }.getOrDefault(true)
+        return CourseMutationResult.Saved(courseId, reminderSyncFailed)
+    }
+
+    override suspend fun retryCourseReminderSync(semesterId: Long): CourseMutationResult {
+        val synced = runCatching {
+            val syncer = calendarReminderSyncer
+            if (syncer == null) {
+                reminderScheduler.scheduleCourseReminders(semesterId)
+                true
+            } else {
+                val cleanup = syncer.deleteAllCourseOccurrences()
+                val resync = syncFutureCourseCalendarMessages(semesterId)
+                (cleanup + resync).all { it is CalendarGatewayResult.Synced }
+            }
+        }.getOrDefault(false)
+        return CourseMutationResult.Saved(0L, reminderSyncFailed = !synced)
+    }
+
+    private suspend fun refreshCourseReminders(semesterId: Long, staleCourseIds: List<Long>): Boolean {
+        val syncer = calendarReminderSyncer
+        if (syncer == null) {
+            reminderScheduler.scheduleCourseReminders(semesterId)
+            return true
+        }
+        val cleanup = syncer.deleteCourseOccurrences(staleCourseIds)
+        val resync = syncFutureCourseCalendarMessages(semesterId)
+        return (cleanup + resync).all { it is CalendarGatewayResult.Synced }
+    }
+
+    private fun courseDayLabel(dayOfWeek: Int): String =
+        listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日").getOrElse(dayOfWeek - 1) { "星期$dayOfWeek" }
 
     override suspend fun updatePeriodTimes(semesterId: Long, times: List<SemesterPeriodTime>) {
         require(validateSemesterPeriodTimes(times) == null) { "节次时间不正确" }
