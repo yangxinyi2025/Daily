@@ -116,7 +116,7 @@ git add app/src/main/res/drawable-nodpi app/src/main/res/drawable/nav_cute_*.xml
 git commit -m "feat: add cute home and navigation assets"
 ```
 
-### Task 2: 扩展首页健康摘要以包含经期预测
+### Task 2: 扩展首页摘要以包含经期预测与真实课程时间
 
 **Files:**
 - Modify: `app/src/main/java/com/daily/life/feature/home/HomeState.kt`
@@ -125,8 +125,8 @@ git commit -m "feat: add cute home and navigation assets"
 - Modify: `app/src/test/java/com/daily/life/feature/home/HomeViewModelTest.kt`
 
 **Interfaces:**
-- Consumes: `HealthDao.observeWeights()`、`PeriodDao.observeAll()`、`DailyPreferences.menstrualCycleDays`。
-- Produces: `HealthHomeSummary(latestWeightJin, latestPeriod, nextPeriodStart, isEmpty)`；`HomeState` 透传同名字段。
+- Consumes: `HealthDao.observeWeights()`、`PeriodDao.observeAll()`、`DailyPreferences.menstrualCycleDays`，以及现有 `SemesterPeriodDao.observeBySemester()`。
+- Produces: `HealthHomeSummary(latestWeightJin, latestPeriod, nextPeriodStart, isEmpty)`；`HomeState` 透传同名字段；每个 `HomeCourseRow` 带有基于当前学期节次配置的 `timeLabel`。
 
 - [ ] **Step 1: 写出经期摘要传播的失败测试**
 
@@ -199,6 +199,8 @@ Expected: 所有 `HomeViewModelTest` 用例通过。
 git add app/src/main/java/com/daily/life/feature/home/HomeState.kt app/src/main/java/com/daily/life/feature/home/HomeSummaryRepositories.kt app/src/main/java/com/daily/life/core/navigation/DailyNavHost.kt app/src/test/java/com/daily/life/feature/home/HomeViewModelTest.kt
 git commit -m "feat: expose period summary on home"
 ```
+
+将 `DaoTimetableSummaryRepository` 扩展为接收 `SemesterPeriodDao`，在课程流与对应学期的节次时间流之间使用 `combine`。将课程开始节与结束节映射成例如 `08:00–09:35` 的 `timeLabel`；若学期尚未保存节次设置，则仅读取 `defaultSemesterPeriodTimes()` 作为展示回退，不向数据库写入默认值。将该 DAO 从 `DailyNavHost` 注入。`HomeCourseRow` 新增 `timeLabel`，现有 `detail` 继续代表地点。为默认节次时间和自定义节次时间各添加一条断言，确保首页不硬编码课程时间。
 
 ### Task 3: 建立首页局部状态与三种纯展示模型
 
@@ -308,7 +310,7 @@ Header 固定显示“首页”和“今天的重点，一眼看清。”；设�
 课程为“今日课程”，待办为“今日待办”，两者日期同行。每项只包含彩色序号圆块、标题和高对比时间/地点或时间，行间使用轻分隔线：
 
 ```kotlin
-HomeListRow(index = index + 1, title = title, primaryDetail = time, secondaryDetail = location)
+HomeListRow(index = index + 1, title = title, primaryDetail = course.timeLabel, secondaryDetail = location)
 ```
 
 窄屏时标题可单独成行，时间和地点下一行且至少 14sp。课程不显示科目图标，待办不显示新建按钮、优先级标签或额外图标；空状态为自然文案且不导航。
