@@ -1,10 +1,37 @@
 package com.daily.life.feature.home
 
+import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HomePresentationTest {
+    @Test
+    fun healthPresentationUsesWeightAndPeriodOnly() {
+        val presentation = healthHomePresentation(
+            HomeState(
+                latestWeightJin = 104.8,
+                latestPeriod = HomePeriodSummary(
+                    LocalDate.of(2026, 8, 4),
+                    LocalDate.of(2026, 8, 9)
+                ),
+                nextPeriodStart = LocalDate.of(2026, 9, 1)
+            )
+        )
+
+        assertEquals("52.4", presentation.weightKg)
+        assertEquals("6 天", presentation.periodValue)
+        assertEquals("距离预计经期", presentation.periodCaption)
+    }
+
+    @Test
+    fun emptyHealthPresentationUsesNaturalCopy() {
+        val presentation = healthHomePresentation(HomeState())
+
+        assertEquals("尚未记录", presentation.weightKg)
+        assertEquals("尚未记录经期", presentation.periodValue)
+    }
+
     @Test
     fun courseCardContentKeepsEveryCourseWhenTodayHasClasses() {
         val content = courseCardContent(

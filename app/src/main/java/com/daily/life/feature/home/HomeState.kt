@@ -2,6 +2,8 @@ package com.daily.life.feature.home
 
 import com.daily.life.core.navigation.DailyDestination
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
+import java.util.Locale
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -158,6 +160,27 @@ data class HomePeriodSummary(
     val startDate: LocalDate,
     val endDate: LocalDate
 )
+
+enum class HomeSection { COURSE, CALENDAR, HEALTH }
+
+internal data class HomeHealthPresentation(
+    val weightKg: String,
+    val periodValue: String,
+    val periodCaption: String
+)
+
+internal fun healthHomePresentation(state: HomeState): HomeHealthPresentation {
+    val periodDays = state.latestPeriod?.let { period ->
+        ChronoUnit.DAYS.between(period.startDate, period.endDate).toInt() + 1
+    }
+    return HomeHealthPresentation(
+        weightKg = state.latestWeightJin?.div(2.0)
+            ?.let { String.format(Locale.US, "%.1f", it) }
+            ?: "尚未记录",
+        periodValue = periodDays?.let { "$it 天" } ?: "尚未记录经期",
+        periodCaption = if (state.nextPeriodStart == null) "记录后可预测经期" else "距离预计经期"
+    )
+}
 
 data class BillHomeSummary(
     val monthlyExpenseCents: Long = 0L,
