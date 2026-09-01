@@ -54,6 +54,7 @@ class HomeSummaryRepositoriesTest {
         val repository = DaoTimetableSummaryRepository(
             semesterDao = database.semesterDao(),
             courseDao = database.courseDao(),
+            semesterPeriodDao = database.semesterPeriodDao(),
             preferences = preferences,
             clock = fixedClock(),
             currentPeriodProvider = { 3 }
@@ -75,6 +76,7 @@ class HomeSummaryRepositoriesTest {
         val repository = DaoTimetableSummaryRepository(
             semesterDao = database.semesterDao(),
             courseDao = database.courseDao(),
+            semesterPeriodDao = database.semesterPeriodDao(),
             preferences = preferences,
             clock = fixedClock(),
             currentPeriodProvider = { 9 }
@@ -96,6 +98,7 @@ class HomeSummaryRepositoriesTest {
         val repository = DaoTimetableSummaryRepository(
             semesterDao = database.semesterDao(),
             courseDao = database.courseDao(),
+            semesterPeriodDao = database.semesterPeriodDao(),
             preferences = preferences,
             clock = fixedClock(),
             currentPeriodProvider = { currentPeriod },

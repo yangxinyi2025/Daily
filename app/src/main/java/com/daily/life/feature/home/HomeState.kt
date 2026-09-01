@@ -1,6 +1,7 @@
 package com.daily.life.feature.home
 
 import com.daily.life.core.navigation.DailyDestination
+import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -15,6 +16,8 @@ data class HomeState(
     val nextEventLabel: String? = null,
     val todaySchedules: List<HomeScheduleRow> = emptyList(),
     val latestWeightJin: Double? = null,
+    val latestPeriod: HomePeriodSummary? = null,
+    val nextPeriodStart: LocalDate? = null,
     val monthlySpendingCents: Long = 0L,
     val monthlyBudgetCents: Long? = null,
     val hasBillData: Boolean = false
@@ -72,6 +75,7 @@ data class HomeCardState(
 data class HomeCourseRow(
     val startPeriod: Int,
     val courseName: String,
+    val timeLabel: String = "",
     val detail: String
 )
 
@@ -145,7 +149,14 @@ data class ScheduleHomeSummary(
 
 data class HealthHomeSummary(
     val latestWeightJin: Double? = null,
+    val latestPeriod: HomePeriodSummary? = null,
+    val nextPeriodStart: LocalDate? = null,
     val isEmpty: Boolean = true
+)
+
+data class HomePeriodSummary(
+    val startDate: LocalDate,
+    val endDate: LocalDate
 )
 
 data class BillHomeSummary(

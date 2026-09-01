@@ -140,6 +140,36 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun healthPeriodSummaryPropagatesToHomeState() = runTest {
+        val latest = HomePeriodSummary(
+            startDate = LocalDate.of(2026, 9, 1),
+            endDate = LocalDate.of(2026, 9, 6)
+        )
+        val viewModel = HomeViewModel(
+            timetableRepository = FakeTimetableSummaryRepository(),
+            scheduleRepository = FakeScheduleSummaryRepository(),
+            healthRepository = FakeHealthSummaryRepository(
+                MutableStateFlow(
+                    HealthHomeSummary(
+                        latestWeightJin = 104.8,
+                        latestPeriod = latest,
+                        nextPeriodStart = LocalDate.of(2026, 9, 29),
+                        isEmpty = false
+                    )
+                )
+            ),
+            billRepository = FakeBillSummaryRepository(),
+            clock = fixedClock(),
+            coroutineScope = backgroundScope
+        )
+
+        val state = viewModel.state.first { it.nextPeriodStart != null }
+
+        assertEquals(latest, state.latestPeriod)
+        assertEquals(LocalDate.of(2026, 9, 29), state.nextPeriodStart)
+    }
+
+    @Test
     fun summaryFlowChangesRefreshHomeCards() = runTest {
         val timetable = MutableStateFlow(TimetableHomeSummary())
         val viewModel = HomeViewModel(

@@ -106,10 +106,15 @@ fun DailyNavHost(
                         timetableRepository = DaoTimetableSummaryRepository(
                             semesterDao = database.semesterDao(),
                             courseDao = database.courseDao(),
+                            semesterPeriodDao = database.semesterPeriodDao(),
                             preferences = container.preferences
                         ),
                         scheduleRepository = DaoScheduleSummaryRepository(database.scheduleEventDao()),
-                        healthRepository = DaoHealthSummaryRepository(database.healthDao()),
+                        healthRepository = DaoHealthSummaryRepository(
+                            healthDao = database.healthDao(),
+                            periodDao = database.periodDao(),
+                            preferences = container.preferences
+                        ),
                         billRepository = DaoBillSummaryRepository(
                             transactionDao = database.transactionDao(),
                             budgetDao = database.budgetDao(),

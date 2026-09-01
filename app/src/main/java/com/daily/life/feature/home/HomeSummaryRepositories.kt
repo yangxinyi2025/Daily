@@ -4,11 +4,16 @@ import com.daily.life.core.database.BudgetDao
 import com.daily.life.core.database.CourseDao
 import com.daily.life.core.database.CourseEntity
 import com.daily.life.core.database.HealthDao
+import com.daily.life.core.database.PeriodDao
 import com.daily.life.core.database.ScheduleEventDao
 import com.daily.life.core.database.SemesterDao
+import com.daily.life.core.database.SemesterPeriodDao
 import com.daily.life.core.database.TransactionDao
 import com.daily.life.core.database.TransactionDirection
 import com.daily.life.core.datastore.DailyPreferences
+import com.daily.life.feature.health.PeriodPredictionCalculator
+import com.daily.life.feature.health.PeriodRecord
+import com.daily.life.feature.timetable.defaultSemesterPeriodTimes
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -30,6 +35,7 @@ import kotlinx.coroutines.flow.onStart
 class DaoTimetableSummaryRepository(
     semesterDao: SemesterDao,
     private val courseDao: CourseDao,
+    private val semesterPeriodDao: SemesterPeriodDao,
     preferences: DailyPreferences,
     private val clock: Clock = Clock.systemDefaultZone(),
     private val currentPeriodProvider: (LocalTime) -> Int? = ::defaultUpcomingPeriod,
@@ -59,11 +65,19 @@ class DaoTimetableSummaryRepository(
             if (query == null || query.week < 1) {
                 flowOf(TimetableHomeSummary())
             } else {
-                courseDao.observeBySemesterWeekAndDay(
-                    semesterId = query.semesterId,
-                    week = query.week,
-                    dayOfWeek = query.dayOfWeek
-                ).map { courses ->
+                combine(
+                    courseDao.observeBySemesterWeekAndDay(
+                        semesterId = query.semesterId,
+                        week = query.week,
+                        dayOfWeek = query.dayOfWeek
+                    ),
+                    semesterPeriodDao.observeBySemester(query.semesterId)
+                ) { courses, configuredPeriods ->
+                    val periodTimes = configuredPeriods
+                        .associate { it.period to (it.startTime to it.endTime) }
+                        .ifEmpty {
+                            defaultSemesterPeriodTimes().associate { it.period to (it.startTime to it.endTime) }
+                        }
                     val nextCourse = selectNextCourse(courses, query.currentPeriod)
                     TimetableHomeSummary(
                         todayCourseCount = courses.size,
@@ -76,6 +90,7 @@ class DaoTimetableSummaryRepository(
                             HomeCourseRow(
                                 startPeriod = course.startPeriod,
                                 courseName = course.courseName,
+                                timeLabel = course.timeLabel(periodTimes),
                                 detail = course.location?.takeIf(String::isNotBlank).orEmpty()
                             )
                         },
@@ -102,6 +117,16 @@ class DaoTimetableSummaryRepository(
             append(" 第 $startPeriod-$endPeriod 节")
             location?.takeIf(String::isNotBlank)?.let { append(" · $it") }
         }
+
+    private fun CourseEntity.timeLabel(periodTimes: Map<Int, Pair<LocalTime, LocalTime>>): String {
+        val start = periodTimes[startPeriod]?.first
+        val end = periodTimes[endPeriod]?.second
+        return if (start != null && end != null) {
+            "$start–$end"
+        } else {
+            "第 $startPeriod-$endPeriod 节"
+        }
+    }
 
     private data class TimetableQuery(
         val semesterId: Long,
@@ -193,18 +218,23 @@ class DaoScheduleSummaryRepository(
 
 class DaoHealthSummaryRepository(
     healthDao: HealthDao,
-    clock: Clock = Clock.systemDefaultZone()
+    periodDao: PeriodDao,
+    preferences: DailyPreferences
 ) : HealthSummaryRepository {
-    override val summary: Flow<HealthHomeSummary>
-
-    init {
-        summary = healthDao.observeWeights().map { weights ->
+    override val summary: Flow<HealthHomeSummary> =
+        combine(healthDao.observeWeights(), periodDao.observeAll(), preferences.menstrualCycleDays) {
+                weights, periods, cycleDays ->
+            val latestPeriod = periods.maxByOrNull { it.startDate }
             HealthHomeSummary(
                 latestWeightJin = weights.firstOrNull()?.weightJin,
-                isEmpty = weights.isEmpty()
+                latestPeriod = latestPeriod?.let { HomePeriodSummary(it.startDate, it.endDate) },
+                nextPeriodStart = PeriodPredictionCalculator.nextStartDate(
+                    periods.map { PeriodRecord(it.id, it.startDate, it.endDate) },
+                    cycleDays
+                ),
+                isEmpty = weights.isEmpty() && periods.isEmpty()
             )
         }
-    }
 }
 
 class DaoBillSummaryRepository(
