@@ -70,14 +70,15 @@ class HomePresentationTest {
         val content = scheduleCardContent(
             HomeState(
                 todaySchedules = listOf(
-                    HomeScheduleRow(id = 1L, title = "提交作业", timeLabel = "09:00"),
-                    HomeScheduleRow(id = 2L, title = "实验课", timeLabel = "15:30")
+                    HomeScheduleRow(id = 1L, title = "提交作业", timeLabel = "09:00", location = "宿舍"),
+                    HomeScheduleRow(id = 2L, title = "实验课", timeLabel = "15:30", location = null)
                 )
             )
         )
 
         assertEquals(listOf("提交作业", "实验课"), content.items.map { it.primaryText })
-        assertEquals(listOf("09:00", "15:30"), content.items.map { it.secondaryText })
+        assertEquals(listOf("宿舍", "无"), content.items.map { it.secondaryText })
+        assertEquals(listOf("09:00", "15:30"), content.items.map { it.trailingText })
         assertTrue(content.hasContent)
     }
 

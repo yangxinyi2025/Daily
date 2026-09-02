@@ -84,7 +84,8 @@ data class HomeCourseRow(
 data class HomeScheduleRow(
     val id: Long,
     val title: String,
-    val timeLabel: String
+    val timeLabel: String,
+    val location: String? = null
 )
 
 internal data class HomeCardContent(
@@ -129,7 +130,8 @@ internal fun scheduleCardContent(state: HomeState): HomeCardContent {
             items = state.todaySchedules.map { schedule ->
                 HomeCardItem(
                     primaryText = schedule.title,
-                    secondaryText = schedule.timeLabel
+                    secondaryText = schedule.location?.takeIf { it.isNotBlank() } ?: "无",
+                    trailingText = schedule.timeLabel
                 )
             },
             hasContent = true

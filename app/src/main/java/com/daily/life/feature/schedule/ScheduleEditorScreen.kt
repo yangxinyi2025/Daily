@@ -129,6 +129,12 @@ fun ScheduleEditorScreen(
             Text("每年重复", color = SkyInk, fontSize = 15.sp)
         }
         ScheduleOutlinedField(
+            value = state.location,
+            onValueChange = { onChange(state.copy(location = it)) },
+            label = "地点（可选）",
+            leadingIcon = { Icon(Icons.Outlined.EventNote, contentDescription = null, tint = SkyAccent, modifier = Modifier.size(20.dp)) }
+        )
+        ScheduleOutlinedField(
             value = state.notes,
             onValueChange = { onChange(state.copy(notes = it)) },
             label = "消息/备注",

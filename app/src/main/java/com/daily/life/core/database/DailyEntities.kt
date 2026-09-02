@@ -233,6 +233,7 @@ data class ScheduleEventEntity(
     val reminderMode: ReminderMode,
     val repeatYearly: Boolean,
     val notes: String? = null,
+    val location: String? = null,
     val isDismissed: Boolean = false,
     val createdAt: Long,
     val updatedAt: Long

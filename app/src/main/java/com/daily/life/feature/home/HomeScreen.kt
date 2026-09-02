@@ -114,9 +114,38 @@ private fun HomeSectionTabs(section: HomeSection, onSelect: (HomeSection) -> Uni
 }
 
 @Composable
-private fun HomeCoursePanel(state: HomeState) {
-    val content = courseCardContent(state)
-    val dateParts = state.dateLabel.split(" ", limit = 2)
+private fun HomeCoursePanel(state: HomeState) = HomeTimelinePanel(
+    title = "今日课程",
+    content = courseCardContent(state),
+    dateLabel = state.dateLabel,
+    headerColor = HomePurple,
+    emptyText = "今天还没有课程",
+    locationDescription = "课程地点",
+    timeDescription = "上课时间"
+)
+
+@Composable
+private fun HomeSchedulePanel(state: HomeState) = HomeTimelinePanel(
+    title = "今日待办",
+    content = scheduleCardContent(state),
+    dateLabel = state.dateLabel,
+    headerColor = HomeTodoPill,
+    emptyText = "今天还没有待办",
+    locationDescription = "日程地点",
+    timeDescription = "日程时间"
+)
+
+@Composable
+private fun HomeTimelinePanel(
+    title: String,
+    content: HomeCardContent,
+    dateLabel: String,
+    headerColor: Color,
+    emptyText: String,
+    locationDescription: String,
+    timeDescription: String
+) {
+    val dateParts = dateLabel.split(" ", limit = 2)
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(26.dp),
@@ -127,10 +156,10 @@ private fun HomeCoursePanel(state: HomeState) {
                 Surface(
                     modifier = Modifier.width(13.dp).height(38.dp),
                     shape = RoundedCornerShape(8.dp),
-                    color = HomePurple
+                    color = headerColor
                 ) {}
                 Text(
-                    text = "今日课程",
+                    text = title,
                     modifier = Modifier.padding(start = 18.dp),
                     color = HomeInk,
                     fontSize = 22.sp,
@@ -147,14 +176,19 @@ private fun HomeCoursePanel(state: HomeState) {
             }
             if (!content.hasContent) {
                 Text(
-                    text = "今天还没有课程",
+                    text = emptyText,
                     modifier = Modifier.padding(vertical = 34.dp),
                     color = HomeMuted,
                     fontSize = 16.sp
                 )
             } else {
                 content.items.forEachIndexed { index, item ->
-                    HomeCourseTimelineRow(index = index + 1, item = item)
+                    HomeTimelineRow(
+                        index = index + 1,
+                        item = item,
+                        locationDescription = locationDescription,
+                        timeDescription = timeDescription
+                    )
                     if (index < content.items.lastIndex) {
                         HorizontalDivider(color = HomeTimelineLine, thickness = 1.dp)
                     }
@@ -165,7 +199,12 @@ private fun HomeCoursePanel(state: HomeState) {
 }
 
 @Composable
-private fun HomeCourseTimelineRow(index: Int, item: HomeCardItem) {
+private fun HomeTimelineRow(
+    index: Int,
+    item: HomeCardItem,
+    locationDescription: String,
+    timeDescription: String
+) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -195,17 +234,17 @@ private fun HomeCourseTimelineRow(index: Int, item: HomeCardItem) {
         )
         Column(horizontalAlignment = Alignment.End) {
             item.secondaryText?.let { location ->
-                HomeCourseDetail(R.drawable.course_location_icon, location, "课程地点")
+                HomeTimelineDetail(R.drawable.course_location_icon, location, locationDescription)
             }
             item.trailingText?.let { time ->
-                HomeCourseDetail(R.drawable.course_time_icon, time, "上课时间")
+                HomeTimelineDetail(R.drawable.course_time_icon, time, timeDescription)
             }
         }
     }
 }
 
 @Composable
-private fun HomeCourseDetail(icon: Int, text: String, description: String) {
+private fun HomeTimelineDetail(icon: Int, text: String, description: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Image(
             painter = painterResource(icon),
@@ -221,20 +260,6 @@ private fun HomeCourseDetail(icon: Int, text: String, description: String) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-    }
-}
-
-@Composable
-private fun HomeSchedulePanel(state: HomeState) = HomeListPanel("今日待办", state.dateLabel, state.todaySchedules.map { Triple(it.title, it.timeLabel, "") }, "今天还没有待办")
-
-@Composable
-private fun HomeListPanel(title: String, date: String, rows: List<Triple<String, String, String>>, empty: String) {
-    Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp), color = HomeSurface) {
-        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) { Text(title, color = HomeInk, fontSize = 21.sp, fontWeight = FontWeight.Bold); Spacer(Modifier.weight(1f)); Text(date, color = HomeMuted, fontSize = 13.sp) }
-            if (rows.isEmpty()) Text(empty, color = HomeMuted, fontSize = 16.sp, modifier = Modifier.padding(vertical = 20.dp))
-            rows.forEachIndexed { index, row -> Row(verticalAlignment = Alignment.Top) { Surface(modifier = Modifier.size(28.dp), shape = RoundedCornerShape(14.dp), color = HomeTodoPill) { Text("${index + 1}", color = HomeInk, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 5.dp)) }; Column(modifier = Modifier.padding(start = 12.dp)) { Text(row.first, color = HomeInk, fontSize = 17.sp, fontWeight = FontWeight.SemiBold); Text(listOf(row.second, row.third).filter { it.isNotBlank() }.joinToString(" · "), color = HomeMuted, fontSize = 14.sp) } } }
-        }
     }
 }
 

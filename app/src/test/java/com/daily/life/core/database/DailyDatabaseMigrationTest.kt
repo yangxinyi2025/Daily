@@ -68,6 +68,41 @@ class DailyDatabaseMigrationTest {
         database.close()
     }
 
+    @Test
+    fun migrationFrom11To12AddsNullableScheduleLocationWithoutRemovingExistingRows() {
+        val database = createVersion11Database().writableDatabase
+        database.execSQL(
+            """
+            CREATE TABLE schedule_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                title TEXT NOT NULL,
+                eventAt INTEGER NOT NULL,
+                reminderOffsetMinutes INTEGER NOT NULL,
+                reminderMode TEXT NOT NULL,
+                repeatYearly INTEGER NOT NULL,
+                notes TEXT,
+                isDismissed INTEGER NOT NULL,
+                createdAt INTEGER NOT NULL,
+                updatedAt INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+        database.execSQL(
+            """
+            INSERT INTO schedule_events (
+                title, eventAt, reminderOffsetMinutes, reminderMode, repeatYearly,
+                notes, isDismissed, createdAt, updatedAt
+            ) VALUES ('已有日程', 0, 0, 'NOTIFICATION', 0, NULL, 0, 0, 0)
+            """.trimIndent()
+        )
+
+        DailyDatabase.MIGRATION_11_12.migrate(database)
+
+        assertTrue(database.hasColumn("schedule_events", "location"))
+        assertTrue(database.hasRow("SELECT title FROM schedule_events WHERE title = '已有日程'"))
+        database.close()
+    }
+
     private fun createVersion3Database() = FrameworkSQLiteOpenHelperFactory().create(
         androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
             .name(databaseName)
@@ -113,11 +148,33 @@ class DailyDatabaseMigrationTest {
             .build()
     )
 
+    private fun createVersion11Database() = FrameworkSQLiteOpenHelperFactory().create(
+        androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
+            .name(databaseName)
+            .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(11) {
+                override fun onCreate(db: SupportSQLiteDatabase) = Unit
+
+                override fun onUpgrade(
+                    db: SupportSQLiteDatabase,
+                    oldVersion: Int,
+                    newVersion: Int
+                ) = Unit
+            })
+            .build()
+    )
+
     private fun SupportSQLiteDatabase.hasTable(name: String): Boolean =
         hasRow("SELECT name FROM sqlite_master WHERE type = 'table' AND name = '$name'")
 
     private fun SupportSQLiteDatabase.hasIndex(name: String): Boolean =
         hasRow("SELECT name FROM sqlite_master WHERE type = 'index' AND name = '$name'")
+
+    private fun SupportSQLiteDatabase.hasColumn(tableName: String, columnName: String): Boolean =
+        query("PRAGMA table_info($tableName)").use { cursor ->
+            val nameIndex = cursor.getColumnIndexOrThrow("name")
+            generateSequence { if (cursor.moveToNext()) cursor.getString(nameIndex) else null }
+                .any { it == columnName }
+        }
 
     private fun SupportSQLiteDatabase.hasRow(sql: String): Boolean = query(sql).use { it.moveToFirst() }
 

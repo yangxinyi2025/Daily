@@ -200,7 +200,8 @@ class DaoScheduleSummaryRepository(
                         title = event.title,
                         timeLabel = TODAY_EVENT_TIME_FORMATTER.format(
                             Instant.ofEpochMilli(event.eventAt).atZone(zone)
-                        )
+                        ),
+                        location = event.location
                     )
                 },
                 isEmpty = events.isEmpty()

@@ -5,6 +5,8 @@ import com.daily.life.core.database.AdviceSource
 import com.daily.life.core.database.CourseWeekEntity
 import com.daily.life.core.database.SemesterEntity
 import com.daily.life.core.database.ReportGenerationStatus
+import com.daily.life.core.database.ReminderMode
+import com.daily.life.core.database.ScheduleEventEntity
 import com.daily.life.core.database.TransactionDirection
 import com.daily.life.core.database.TransactionEntity
 import java.io.File
@@ -28,6 +30,33 @@ class SnapshotSerializerTest {
         assertEquals(sampleSnapshot().schemaVersion, decoded.schemaVersion)
         assertEquals(12_345L, decoded.transactions.single().amountCents)
         assertEquals(sampleSnapshot().settings.webDavEndpoint, decoded.settings.webDavEndpoint)
+    }
+
+    @Test
+    fun scheduleLocationRoundTripsAndLegacySnapshotsRemainReadable() {
+        val snapshot = sampleSnapshot().copy(
+            scheduleEvents = listOf(
+                ScheduleEventEntity(
+                    id = 7L,
+                    title = "讲座",
+                    eventAt = 1_700_000_000_000L,
+                    reminderOffsetMinutes = 15,
+                    reminderMode = ReminderMode.NOTIFICATION,
+                    repeatYearly = false,
+                    location = "教学楼 A201",
+                    createdAt = 1_700_000_000_000L,
+                    updatedAt = 1_700_000_000_000L
+                )
+            )
+        )
+
+        val encoded = serializer.encode(snapshot)
+        assertEquals("教学楼 A201", serializer.decode(encoded).scheduleEvents.single().location)
+
+        val legacyEncoded = encoded.toString(Charsets.UTF_8)
+            .replace(",\"location\":\"教学楼 A201\"", "")
+            .toByteArray()
+        assertEquals(null, serializer.decode(legacyEncoded).scheduleEvents.single().location)
     }
 
     @Test

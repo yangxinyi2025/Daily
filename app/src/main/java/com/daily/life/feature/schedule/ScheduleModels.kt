@@ -17,6 +17,7 @@ data class ScheduleEvent(
     val reminderMode: ReminderMode,
     val repeatYearly: Boolean,
     val notes: String? = null,
+    val location: String? = null,
     val isDismissed: Boolean = false,
     val createdAt: Instant,
     val updatedAt: Instant
@@ -43,6 +44,7 @@ data class ScheduleEditorState(
     val reminderMode: ReminderMode = ReminderMode.NOTIFICATION,
     val repeatYearly: Boolean = false,
     val notes: String = "",
+    val location: String = "",
     val errorMessage: String? = null
 ) {
     companion object {
@@ -64,7 +66,8 @@ data class ScheduleEditorState(
                 reminderOffsetMinutes = event.reminderOffsetMinutes.toString(),
                 reminderMode = event.reminderMode,
                 repeatYearly = event.repeatYearly,
-                notes = event.notes.orEmpty()
+                notes = event.notes.orEmpty(),
+                location = event.location.orEmpty()
             )
         }
     }
@@ -84,6 +87,7 @@ data class ScheduleEditorState(
             reminderMode = reminderMode,
             repeatYearly = repeatYearly,
             notes = notes.trim().ifBlank { null },
+            location = location.trim().ifBlank { null },
             createdAt = now,
             updatedAt = now
         )
@@ -127,6 +131,7 @@ fun ScheduleEvent.toEntity(): ScheduleEventEntity = ScheduleEventEntity(
     reminderMode = reminderMode,
     repeatYearly = repeatYearly,
     notes = notes,
+    location = location,
     isDismissed = isDismissed,
     createdAt = createdAt.toEpochMilli(),
     updatedAt = updatedAt.toEpochMilli()
@@ -140,6 +145,7 @@ fun ScheduleEventEntity.toModel(): ScheduleEvent = ScheduleEvent(
     reminderMode = reminderMode,
     repeatYearly = repeatYearly,
     notes = notes,
+    location = location,
     isDismissed = isDismissed,
     createdAt = Instant.ofEpochMilli(createdAt),
     updatedAt = Instant.ofEpochMilli(updatedAt)
