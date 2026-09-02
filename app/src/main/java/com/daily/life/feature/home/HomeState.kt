@@ -94,7 +94,8 @@ internal data class HomeCardContent(
 
 internal data class HomeCardItem(
     val primaryText: String,
-    val secondaryText: String?
+    val secondaryText: String?,
+    val trailingText: String? = null
 )
 
 internal fun courseCardContent(state: HomeState): HomeCardContent {
@@ -107,8 +108,9 @@ internal fun courseCardContent(state: HomeState): HomeCardContent {
         HomeCardContent(
             items = state.todayCourses.map { course ->
                 HomeCardItem(
-                    primaryText = "第 ${course.startPeriod} 节 · ${course.courseName}",
-                    secondaryText = course.detail.takeIf { it.isNotBlank() }
+                    primaryText = course.courseName,
+                    secondaryText = course.detail.takeIf { it.isNotBlank() },
+                    trailingText = course.timeLabel.ifBlank { "第 ${course.startPeriod} 节" }
                 )
             },
             hasContent = true
