@@ -103,7 +103,7 @@ private fun HomeSectionTabs(section: HomeSection, onSelect: (HomeSection) -> Uni
                     }
                     Image(
                         painter = painterResource(mascot),
-                        contentDescription = "$label入口",
+                        contentDescription = "${label}入口",
                         modifier = Modifier.size(100.dp),
                         contentScale = ContentScale.Fit
                     )
