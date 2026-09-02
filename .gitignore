@@ -1,7 +1,10 @@
 .worktrees/
 .superpowers/sdd/
 app/build/
+build/
 .gradle/
+.kotlin/
+.gradle-user-home/
 local.properties
 *.iml
 .idea/
