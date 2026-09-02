@@ -40,11 +40,13 @@ class HomePresentationTest {
                     HomeCourseRow(
                         startPeriod = 3,
                         courseName = "数据库",
+                        timeLabel = "08:00-09:35",
                         detail = "信息楼 201"
                     ),
                     HomeCourseRow(
                         startPeriod = 7,
                         courseName = "体育",
+                        timeLabel = "16:00-17:35",
                         detail = "操场"
                     )
                 )
@@ -52,10 +54,14 @@ class HomePresentationTest {
         )
 
         assertEquals(
-            listOf("第 3 节 · 数据库", "第 7 节 · 体育"),
+            listOf("数据库", "体育"),
             content.items.map { it.primaryText }
         )
         assertEquals(listOf("信息楼 201", "操场"), content.items.map { it.secondaryText })
+        assertEquals(
+            listOf("08:00-09:35", "16:00-17:35"),
+            content.items.map { it.trailingText }
+        )
         assertTrue(content.hasContent)
     }
 

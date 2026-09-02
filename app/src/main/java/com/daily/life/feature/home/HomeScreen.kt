@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,14 +41,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.daily.life.R
 
-private val HomeInk = Color(0xFF204A0A)
-private val HomeMuted = Color(0xFF6E8466)
-private val HomePurple = Color(0xFFB69DDB)
-private val HomeCoursePill = Color(0xFFB69DDB)
-private val HomeTodoPill = Color(0xFFB1D685)
-private val HomeBackground = Color(0xFFF6F8E7)
-private val HomeSurface = Color(0xFFF9F7EE)
-private val HomeOrange = Color(0xFFFFB246)
+private val HomeInk = Color(0xFF244C12)
+private val HomeMuted = Color(0xFF74906C)
+private val HomePurple = Color(0xFFC7AFEE)
+private val HomeTodoPill = Color(0xFFC7E99F)
+private val HomeBackground = Color(0xFFFDFDF7)
+private val HomeSurface = Color(0xFFF8F8F0)
+private val HomeOrange = Color(0xFFFFCA79)
+private val HomeTimelineLine = Color(0xFFE5EBD9)
 
 @Composable
 fun HomeScreen(
@@ -61,8 +62,8 @@ fun HomeScreen(
             .fillMaxSize()
             .background(HomeBackground)
             .verticalScroll(rememberScrollState())
-            .padding(start = 18.dp, top = 30.dp, end = 18.dp, bottom = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+            .padding(start = 18.dp, top = 20.dp, end = 12.dp, bottom = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         HomeHeader(onOpenSettings = onOpenSettings)
         HomeSectionTabs(section = section, onSelect = { section = it })
@@ -76,15 +77,36 @@ fun HomeScreen(
 
 @Composable
 private fun HomeSectionTabs(section: HomeSection, onSelect: (HomeSection) -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
         HomeSection.values().forEach { item ->
             val label = when (item) { HomeSection.COURSE -> "课程"; HomeSection.CALENDAR -> "日历"; HomeSection.HEALTH -> "健康" }
-            val mascot = when (item) { HomeSection.COURSE -> R.drawable.home_mascot_course_reading; HomeSection.CALENDAR -> R.drawable.home_mascot_calendar; HomeSection.HEALTH -> R.drawable.home_mascot_health_dumbbell }
+            val mascot = when (item) { HomeSection.COURSE -> R.drawable.home_course_sheep_reading; HomeSection.CALENDAR -> R.drawable.home_calendar_sheep; HomeSection.HEALTH -> R.drawable.home_health_sheep }
             val color = when (item) { HomeSection.COURSE -> HomePurple; HomeSection.CALENDAR -> HomeTodoPill; HomeSection.HEALTH -> HomeOrange }
-            Surface(modifier = Modifier.weight(1f).height(76.dp).clickable { onSelect(item) }, shape = RoundedCornerShape(26.dp), color = if (section == item) color else color.copy(alpha = .55f)) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Image(painterResource(mascot), null, modifier = Modifier.size(38.dp), contentScale = ContentScale.Fit)
-                    Text(label, color = HomeInk, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Surface(
+                modifier = Modifier.weight(1f).height(185.dp).clickable { onSelect(item) },
+                shape = RoundedCornerShape(22.dp),
+                color = if (section == item) color else color.copy(alpha = .64f)
+            ) {
+                Column(
+                    modifier = Modifier.padding(top = 13.dp, bottom = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Surface(shape = RoundedCornerShape(9.dp), color = Color.White.copy(alpha = .72f)) {
+                        Text(
+                            text = label,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+                            color = HomeInk,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    Image(
+                        painter = painterResource(mascot),
+                        contentDescription = "$label入口",
+                        modifier = Modifier.size(100.dp),
+                        contentScale = ContentScale.Fit
+                    )
                 }
             }
         }
@@ -92,7 +114,115 @@ private fun HomeSectionTabs(section: HomeSection, onSelect: (HomeSection) -> Uni
 }
 
 @Composable
-private fun HomeCoursePanel(state: HomeState) = HomeListPanel("今日课程", state.dateLabel, state.todayCourses.map { Triple(it.courseName, it.timeLabel.ifBlank { "第 ${it.startPeriod} 节" }, it.detail) }, "今天还没有课程")
+private fun HomeCoursePanel(state: HomeState) {
+    val content = courseCardContent(state)
+    val dateParts = state.dateLabel.split(" ", limit = 2)
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(26.dp),
+        color = HomeSurface
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 22.dp, vertical = 20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    modifier = Modifier.width(13.dp).height(38.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    color = HomePurple
+                ) {}
+                Text(
+                    text = "今日课程",
+                    modifier = Modifier.padding(start = 18.dp),
+                    color = HomeInk,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.weight(1f))
+                Text(dateParts.firstOrNull().orEmpty(), color = HomeMuted, fontSize = 13.sp)
+                Text(
+                    dateParts.getOrNull(1).orEmpty(),
+                    modifier = Modifier.padding(start = 12.dp),
+                    color = HomeMuted,
+                    fontSize = 13.sp
+                )
+            }
+            if (!content.hasContent) {
+                Text(
+                    text = "今天还没有课程",
+                    modifier = Modifier.padding(vertical = 34.dp),
+                    color = HomeMuted,
+                    fontSize = 16.sp
+                )
+            } else {
+                content.items.forEachIndexed { index, item ->
+                    HomeCourseTimelineRow(index = index + 1, item = item)
+                    if (index < content.items.lastIndex) {
+                        HorizontalDivider(color = HomeTimelineLine, thickness = 1.dp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeCourseTimelineRow(index: Int, item: HomeCardItem) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            modifier = Modifier.size(40.dp),
+            shape = RoundedCornerShape(20.dp),
+            color = HomeTodoPill
+        ) {
+            Text(
+                text = index.toString(),
+                modifier = Modifier.padding(top = 8.dp),
+                color = HomeInk,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center
+            )
+        }
+        Text(
+            text = item.primaryText,
+            modifier = Modifier.weight(1f).padding(start = 14.dp, end = 8.dp),
+            color = HomeInk,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        Column(horizontalAlignment = Alignment.End) {
+            item.secondaryText?.let { location ->
+                HomeCourseDetail(R.drawable.course_location_icon, location, "课程地点")
+            }
+            item.trailingText?.let { time ->
+                HomeCourseDetail(R.drawable.course_time_icon, time, "上课时间")
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeCourseDetail(icon: Int, text: String, description: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Image(
+            painter = painterResource(icon),
+            contentDescription = description,
+            modifier = Modifier.size(16.dp),
+            contentScale = ContentScale.Fit
+        )
+        Text(
+            text = text,
+            modifier = Modifier.padding(start = 4.dp),
+            color = HomeMuted,
+            fontSize = 12.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
 
 @Composable
 private fun HomeSchedulePanel(state: HomeState) = HomeListPanel("今日待办", state.dateLabel, state.todaySchedules.map { Triple(it.title, it.timeLabel, "") }, "今天还没有待办")
@@ -143,11 +273,10 @@ private fun HomeHeader(onOpenSettings: () -> Unit) {
         }
         Spacer(modifier = Modifier.weight(1f))
         Image(
-            painter = painterResource(R.drawable.home_settings),
+            painter = painterResource(R.drawable.home_settings_flower),
             contentDescription = "打开设置",
             modifier = Modifier
-                .padding(top = 6.dp)
-                .size(34.dp)
+                .size(48.dp)
                 .clickable(onClick = onOpenSettings)
         )
     }
