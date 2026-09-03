@@ -9,6 +9,32 @@ import org.junit.Test
 
 class ScheduleCalendarModelTest {
     @Test
+    fun nextFlipLocksAdditionalRequestsUntilTheCurrentPageCompletes() {
+        val initial = CalendarFlipUiState(shownMonth = YearMonth.of(2026, 12))
+
+        val requested = requestCalendarFlip(initial, CalendarFlipDirection.NEXT)
+        val ignored = requestCalendarFlip(requested, CalendarFlipDirection.PREVIOUS)
+
+        assertEquals(YearMonth.of(2026, 12), requested.shownMonth)
+        assertEquals(YearMonth.of(2027, 1), requested.pendingMonth)
+        assertEquals(CalendarFlipDirection.NEXT, requested.direction)
+        assertTrue(requested.isFlipping)
+        assertEquals(requested, ignored)
+    }
+
+    @Test
+    fun previousFlipUsesTheOppositeDirectionAcrossYears() {
+        val requested = requestCalendarFlip(
+            CalendarFlipUiState(shownMonth = YearMonth.of(2027, 1)),
+            CalendarFlipDirection.PREVIOUS
+        )
+
+        assertEquals(YearMonth.of(2027, 1), requested.shownMonth)
+        assertEquals(YearMonth.of(2026, 12), requested.pendingMonth)
+        assertEquals(CalendarFlipDirection.PREVIOUS, requested.direction)
+    }
+
+    @Test
     fun selectingAnOutsideGridDateUpdatesBothTheDateAndItsVisibleMonth() {
         val selection = selectCalendarDate(
             visibleMonth = YearMonth.of(2026, 9),

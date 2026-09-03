@@ -26,8 +26,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.ArrowBackIosNew
-import androidx.compose.material.icons.outlined.ArrowForwardIos
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Cake
 import androidx.compose.material.icons.outlined.CalendarMonth
@@ -76,15 +74,16 @@ import com.daily.life.core.designsystem.SkySurface
 import com.daily.life.core.designsystem.SkyWarm
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-private val SchedulePageBackground = Color(0xFFF6F8E7)
-private val ScheduleSurfaceCream = Color(0xFFF9F7EE)
-private val ScheduleInk = Color(0xFF204A0A)
-private val ScheduleGreen = Color(0xFFB1D685)
-private val ScheduleOrange = Color(0xFFFFB246)
-private val SchedulePurple = Color(0xFFB69DDB)
+internal val SchedulePageBackground = Color(0xFFF6F8E7)
+internal val ScheduleSurfaceCream = Color(0xFFF9F7EE)
+internal val ScheduleInk = Color(0xFF204A0A)
+internal val ScheduleGreen = Color(0xFFB1D685)
+internal val ScheduleOrange = Color(0xFFFFB246)
+internal val SchedulePurple = Color(0xFFB69DDB)
 
 @Composable
 internal fun ScheduleMonthScreen(
@@ -100,16 +99,17 @@ internal fun ScheduleMonthScreen(
     onEditorChange: (ScheduleEditorState) -> Unit,
     onSaveCalendarDayOverride: (LocalDate, LocalDate, CalendarDayKind, String?) -> Unit,
     onClearCalendarDayOverrides: (List<LocalDate>) -> Unit,
-    onRefreshCalendarRules: () -> Unit
+    onRefreshCalendarRules: () -> Unit,
+    onBrowseMonth: (YearMonth) -> Unit
 ) {
     val zone = remember { ZoneId.systemDefault() }
-    val calendarDays = remember(state.selectedDate) { monthCalendarDays(state.selectedDate) }
+    val calendarDays = remember(state.visibleMonth) { monthCalendarDays(state.visibleMonth.atDay(1)) }
     val calendarRules = remember(state.calendarRules) { state.calendarRules.associateBy { it.date } }
-    val eventDates = remember(state.events) { state.events.map { it.eventAt.atZone(zone).toLocalDate() } }
+    val eventDates = remember(state.events) { state.events.map { it.eventAt.atZone(zone).toLocalDate() }.toSet() }
     val selectedEvents = state.events
         .filter { it.eventAt.atZone(zone).toLocalDate() == state.selectedDate }
         .sortedBy { it.eventAt }
-    LaunchedEffect(state.selectedDate.month, state.selectedDate.year) {
+    LaunchedEffect(state.visibleMonth) {
         onRefreshCalendarRules()
     }
 
@@ -120,14 +120,14 @@ internal fun ScheduleMonthScreen(
     ) {
         item { SchedulePageHeader(onCreate = onCreate) }
         item {
-            ScheduleMonthCard(
-                state = state,
+            FlipCalendar(
+                month = state.visibleMonth,
+                selectedDate = state.selectedDate,
                 days = calendarDays,
                 rules = calendarRules,
                 eventDates = eventDates,
                 onDateSelected = onDateSelected,
-                onPreviousMonth = { onDateSelected(state.selectedDate.minusMonths(1).withDayOfMonth(1)) },
-                onNextMonth = { onDateSelected(state.selectedDate.plusMonths(1).withDayOfMonth(1)) }
+                onMonthCommitted = onBrowseMonth
             )
         }
         item {
@@ -175,137 +175,6 @@ private fun SchedulePageHeader(onCreate: () -> Unit) {
             Icon(Icons.Outlined.Add, contentDescription = "新建日程", tint = SkyAccent, modifier = Modifier.size(32.dp))
         }
     }
-}
-
-@Composable
-private fun ScheduleMonthCard(
-    state: ScheduleState,
-    days: List<LocalDate>,
-    rules: Map<LocalDate, ScheduleCalendarRuleUi>,
-    eventDates: List<LocalDate>,
-    onDateSelected: (LocalDate) -> Unit,
-    onPreviousMonth: () -> Unit,
-    onNextMonth: () -> Unit
-) {
-    ScheduleReferenceCard(contentPadding = PaddingValues(start = 16.dp, top = 15.dp, end = 16.dp, bottom = 12.dp)) {
-        Box(modifier = Modifier.fillMaxWidth().height(45.dp)) {
-            Image(
-                painter = painterResource(R.drawable.schedule_calendar_illustration),
-                contentDescription = null,
-                modifier = Modifier.align(Alignment.TopEnd).offset(x = (-18).dp, y = (-22).dp).width(152.dp).height(96.dp).alpha(0.55f),
-                contentScale = ContentScale.Fit
-            )
-            Row(modifier = Modifier.fillMaxWidth().padding(end = 94.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("${state.selectedDate.monthValue}月", color = SkyInk, fontSize = 24.sp, lineHeight = 31.sp, fontWeight = FontWeight.Bold)
-                Text("${state.selectedDate.year}年", modifier = Modifier.padding(start = 10.dp, top = 3.dp), color = SkyAccent, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-            }
-            Row(modifier = Modifier.align(Alignment.TopEnd).padding(top = 1.dp)) {
-                ScheduleMonthArrow(Icons.Outlined.ArrowBackIosNew, "上个月", onPreviousMonth)
-                Spacer(Modifier.width(11.dp))
-                ScheduleMonthArrow(Icons.Outlined.ArrowForwardIos, "下个月", onNextMonth)
-            }
-        }
-        Row(modifier = Modifier.fillMaxWidth().padding(top = 22.dp, bottom = 6.dp)) {
-            listOf("一", "二", "三", "四", "五", "六", "日").forEach { label ->
-                Text(label, modifier = Modifier.weight(1f), color = SkyMutedText, fontSize = 14.sp, textAlign = TextAlign.Center, fontWeight = FontWeight.Medium)
-            }
-        }
-        days.chunked(7).forEach { week ->
-            Row(modifier = Modifier.fillMaxWidth()) {
-                week.forEach { date ->
-                    ScheduleCalendarDay(
-                        date = date,
-                        isOutsideMonth = date.month != state.selectedDate.month,
-                        isSelected = date == state.selectedDate,
-                        rule = rules[date],
-                        hasEvent = eventDatesForCalendar(date, eventDates).isNotEmpty(),
-                        onClick = { onDateSelected(date) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-        if (rules.values.any { it.badge != null || it.manualMarker != null }) {
-            Row(modifier = Modifier.fillMaxWidth().padding(top = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                Spacer(Modifier.weight(1f))
-                ScheduleBadgeLegend(ScheduleCalendarBadge.Holiday, "节假日")
-                Spacer(Modifier.width(20.dp))
-                ScheduleBadgeLegend(ScheduleCalendarBadge.AdjustedWorkday, "调休")
-                Spacer(Modifier.width(12.dp))
-                Text("改 = 手动", color = SkyMutedText, fontSize = 12.sp)
-                Spacer(Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-@Composable
-private fun ScheduleMonthArrow(icon: androidx.compose.ui.graphics.vector.ImageVector, contentDescription: String, onClick: () -> Unit) {
-    IconButton(onClick = onClick, modifier = Modifier.size(30.dp)) {
-        Icon(icon, contentDescription = contentDescription, tint = SkyInk, modifier = Modifier.size(17.dp))
-    }
-}
-
-@Composable
-private fun ScheduleCalendarDay(
-    date: LocalDate,
-    isOutsideMonth: Boolean,
-    isSelected: Boolean,
-    rule: ScheduleCalendarRuleUi?,
-    hasEvent: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier
-) {
-    val textColor = when {
-        isSelected -> SkyAccent
-        isOutsideMonth -> SkyMutedText.copy(alpha = 0.45f)
-        else -> SkyInk
-    }
-    Box(modifier = modifier.aspectRatio(2.25f).clickable(onClick = onClick), contentAlignment = Alignment.TopCenter) {
-        Surface(modifier = Modifier.size(36.dp), shape = CircleShape, color = if (isSelected) SkyPurpleSurface else Color.Transparent) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(date.dayOfMonth.toString(), color = textColor, fontSize = 16.sp, lineHeight = 20.sp, fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal)
-            }
-        }
-        rule?.badge?.let { badge ->
-            ScheduleBadge(
-                badge = badge,
-                modifier = Modifier.align(Alignment.TopEnd).offset(x = 3.dp, y = (-3).dp)
-            )
-        }
-        rule?.manualMarker?.let { marker ->
-            Text(
-                text = marker,
-                color = SkyAccent,
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.BottomEnd).offset(x = 1.dp, y = (-2).dp)
-            )
-        }
-        if (hasEvent) {
-            Box(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 1.dp).size(4.dp).background(SkyAccent, CircleShape))
-        }
-    }
-}
-
-@Composable
-private fun ScheduleBadge(badge: ScheduleCalendarBadge, modifier: Modifier = Modifier) {
-    Surface(
-        modifier = modifier.size(12.dp),
-        shape = CircleShape,
-            color = when (badge) {
-            ScheduleCalendarBadge.Holiday -> SkyWarm.copy(alpha = 0.82f)
-            ScheduleCalendarBadge.AdjustedWorkday -> Color(0xFF8FB6FA)
-        }
-    ) {
-        Box(contentAlignment = Alignment.Center) { Text(badge.label, color = Color.White, fontSize = 7.sp, lineHeight = 8.sp, fontWeight = FontWeight.Bold) }
-    }
-}
-
-@Composable
-private fun ScheduleBadgeLegend(badge: ScheduleCalendarBadge, text: String) {
-    ScheduleBadge(badge)
-    Text(" = $text", modifier = Modifier.padding(start = 4.dp), color = SkyMutedText, fontSize = 12.sp)
 }
 
 @Composable

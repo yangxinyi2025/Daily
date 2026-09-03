@@ -59,6 +59,7 @@ fun ScheduleScreen(
     onSaveCalendarDayOverride: (java.time.LocalDate, java.time.LocalDate, com.daily.life.core.calendar.CalendarDayKind, String?) -> Unit,
     onClearCalendarDayOverrides: (List<java.time.LocalDate>) -> Unit,
     onRefreshCalendarRules: () -> Unit,
+    onBrowseMonth: (java.time.YearMonth) -> Unit,
     onCalendarEventEditorOpened: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -192,7 +193,8 @@ fun ScheduleScreen(
             onEditorChange = onEditorChange,
             onSaveCalendarDayOverride = onSaveCalendarDayOverride,
             onClearCalendarDayOverrides = onClearCalendarDayOverrides,
-            onRefreshCalendarRules = onRefreshCalendarRules
+            onRefreshCalendarRules = onRefreshCalendarRules,
+            onBrowseMonth = onBrowseMonth
         )
         return
     }

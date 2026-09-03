@@ -8,6 +8,31 @@ internal enum class CalendarFlipDirection {
     NEXT
 }
 
+internal data class CalendarFlipUiState(
+    val shownMonth: YearMonth,
+    val pendingMonth: YearMonth? = null,
+    val direction: CalendarFlipDirection? = null
+) {
+    val isFlipping: Boolean get() = pendingMonth != null
+}
+
+internal fun requestCalendarFlip(
+    state: CalendarFlipUiState,
+    direction: CalendarFlipDirection
+): CalendarFlipUiState = if (state.isFlipping) {
+    state
+} else {
+    state.copy(
+        pendingMonth = browseCalendarMonth(state.shownMonth, direction),
+        direction = direction
+    )
+}
+
+internal fun completeCalendarFlip(state: CalendarFlipUiState): CalendarFlipUiState =
+    state.pendingMonth?.let { month ->
+        CalendarFlipUiState(shownMonth = month)
+    } ?: state
+
 internal data class CalendarSelection(
     val visibleMonth: YearMonth,
     val selectedDate: LocalDate
