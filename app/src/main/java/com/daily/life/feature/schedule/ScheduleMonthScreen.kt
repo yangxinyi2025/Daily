@@ -79,6 +79,13 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
+private val SchedulePageBackground = Color(0xFFF6F8E7)
+private val ScheduleSurfaceCream = Color(0xFFF9F7EE)
+private val ScheduleInk = Color(0xFF204A0A)
+private val ScheduleGreen = Color(0xFFB1D685)
+private val ScheduleOrange = Color(0xFFFFB246)
+private val SchedulePurple = Color(0xFFB69DDB)
+
 @Composable
 internal fun ScheduleMonthScreen(
     state: ScheduleState,
