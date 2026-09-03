@@ -7,6 +7,7 @@ import com.daily.life.core.database.ScheduleEventEntity
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.YearMonth
 import java.time.ZoneId
 
 data class ScheduleEvent(
@@ -97,7 +98,9 @@ data class ScheduleEditorState(
 data class ScheduleState(
     val viewMode: ScheduleViewMode = ScheduleViewMode.MONTH,
     val selectedDate: LocalDate = LocalDate.now(),
+    val visibleMonth: YearMonth = YearMonth.from(selectedDate),
     val events: List<ScheduleEvent> = emptyList(),
+    val selectedDateEvents: List<ScheduleEvent> = emptyList(),
     val calendarRules: List<ScheduleCalendarRuleUi> = emptyList(),
     val selectedCalendarRule: ScheduleCalendarRuleUi? = null,
     val holidayLastSyncAt: Instant? = null,

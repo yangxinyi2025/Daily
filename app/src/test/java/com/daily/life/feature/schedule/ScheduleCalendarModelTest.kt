@@ -1,12 +1,24 @@
 package com.daily.life.feature.schedule
 
 import java.time.LocalDate
+import java.time.YearMonth
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ScheduleCalendarModelTest {
+    @Test
+    fun selectingAnOutsideGridDateUpdatesBothTheDateAndItsVisibleMonth() {
+        val selection = selectCalendarDate(
+            visibleMonth = YearMonth.of(2026, 9),
+            date = LocalDate.of(2026, 10, 1)
+        )
+
+        assertEquals(LocalDate.of(2026, 10, 1), selection.selectedDate)
+        assertEquals(YearMonth.of(2026, 10), selection.visibleMonth)
+    }
+
     @Test
     fun monthGridStartsOnMondayAndAlwaysContainsSixWeeks() {
         val days = monthCalendarDays(LocalDate.of(2026, 8, 22))

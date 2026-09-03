@@ -12,6 +12,7 @@ import com.daily.life.core.notification.ReminderScheduleStatus
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -36,24 +38,33 @@ class ScheduleViewModel(
     private val calendarRefreshMutex = Mutex()
     private val viewMode = MutableStateFlow(ScheduleViewMode.MONTH)
     private val selectedDate = MutableStateFlow(LocalDate.now(clock))
+    private val visibleMonth = MutableStateFlow(YearMonth.from(selectedDate.value))
     private val _state = MutableStateFlow(
         ScheduleState(
             viewMode = viewMode.value,
-            selectedDate = selectedDate.value
+            selectedDate = selectedDate.value,
+            visibleMonth = visibleMonth.value
         )
     )
     val state = _state.asStateFlow()
 
     init {
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
-            combine(viewMode, selectedDate, ::ScheduleQuery)
-                .flatMapLatest { query -> repository.observeBetween(query.start(clock.zone), query.end(clock.zone)) }
-                .collect { events -> _state.update { it.copy(events = events) } }
+            combine(viewMode, selectedDate, visibleMonth, ::ScheduleQuery)
+                .flatMapLatest { query -> query.observeEvents(repository, clock.zone) }
+                .collect { events ->
+                    _state.update {
+                        it.copy(
+                            events = events.all,
+                            selectedDateEvents = events.selectedDate
+                        )
+                    }
+                }
         }
         holidayCalendarRepository?.let { holidayRepository ->
             scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 holidayRepository.initialize()
-                refreshCalendarRulesInternal(selectedDate.value)
+                refreshCalendarRulesInternal(visibleMonth.value)
             }
         }
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -69,16 +80,29 @@ class ScheduleViewModel(
     }
 
     fun selectDate(date: LocalDate) {
-        selectedDate.value = date
+        val selection = selectCalendarDate(visibleMonth.value, date)
+        selectedDate.value = selection.selectedDate
+        visibleMonth.value = selection.visibleMonth
         _state.update { current ->
             current.copy(
-                selectedDate = date,
+                selectedDate = selection.selectedDate,
+                visibleMonth = selection.visibleMonth,
                 selectedCalendarRule = current.calendarRules.firstOrNull { it.date == date }
             )
         }
         if (holidayCalendarRepository != null) {
             scope.launch(start = CoroutineStart.UNDISPATCHED) {
-                refreshCalendarRulesInternal(date)
+                refreshCalendarRulesInternal(selection.visibleMonth)
+            }
+        }
+    }
+
+    fun browseMonth(month: YearMonth) {
+        visibleMonth.value = month
+        _state.update { it.copy(visibleMonth = month) }
+        if (holidayCalendarRepository != null) {
+            scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                refreshCalendarRulesInternal(month)
             }
         }
     }
@@ -168,9 +192,9 @@ class ScheduleViewModel(
     }
 
     fun refreshCalendarRules() {
-        val date = selectedDate.value
+        val month = visibleMonth.value
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
-            refreshCalendarRulesInternal(date)
+            refreshCalendarRulesInternal(month)
         }
     }
 
@@ -184,7 +208,7 @@ class ScheduleViewModel(
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             runCatching {
                 holidayRepository.saveDateOverride(startDate, endDate, kind, note?.trim().orEmpty().ifBlank { null })
-                refreshCalendarRulesInternal(selectedDate.value)
+                refreshCalendarRulesInternal(visibleMonth.value)
             }.onSuccess {
                 _state.update { it.copy(statusMessage = "日期状态已更新") }
             }.onFailure { error ->
@@ -197,7 +221,7 @@ class ScheduleViewModel(
         val holidayRepository = holidayCalendarRepository ?: return
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             holidayRepository.clearDateOverrides(dates.distinct())
-            refreshCalendarRulesInternal(selectedDate.value)
+            refreshCalendarRulesInternal(visibleMonth.value)
             _state.update { it.copy(statusMessage = "已恢复自动判断") }
         }
     }
@@ -206,15 +230,17 @@ class ScheduleViewModel(
         _state.update { current -> current.editor?.let { current.copy(editor = it.update()) } ?: current }
     }
 
-    private suspend fun refreshCalendarRulesInternal(anchorDate: LocalDate) {
+    private suspend fun refreshCalendarRulesInternal(month: YearMonth) {
         val holidayRepository = holidayCalendarRepository ?: return
         calendarRefreshMutex.withLock {
-        val firstDay = anchorDate.withDayOfMonth(1)
-        val monthStart = firstDay.minusDays((firstDay.dayOfWeek.value - 1).toLong())
-        val monthEnd = monthStart.plusDays(41)
+            val gridWindow = calendarGridWindow(month)
             holidayRepository.initialize()
             val sourceNameMap = holidayRepository.observeSourcesSnapshot().associate { it.id to it.name }
-            val rules = holidayRepository.resolveBetween(monthStart, monthEnd).map { rule ->
+            val gridRules = holidayRepository.resolveBetween(gridWindow.start, gridWindow.endInclusive)
+            val selectedRule = selectedDate.value.takeIf { it !in gridWindow }?.let { date ->
+                holidayRepository.resolveBetween(date, date).singleOrNull()
+            }
+            val rules = (gridRules + listOfNotNull(selectedRule)).map { rule ->
                 rule.toUiModel(sourceNameMap)
             }
             _state.update { current ->
@@ -259,18 +285,51 @@ class ScheduleViewModel(
 
     private data class ScheduleQuery(
         val mode: ScheduleViewMode,
-        val date: LocalDate
+        val date: LocalDate,
+        val visibleMonth: YearMonth
     ) {
+        fun observeEvents(repository: ScheduleRepository, zone: ZoneId) = when (mode) {
+            ScheduleViewMode.MONTH -> {
+                val gridWindow = calendarGridWindow(visibleMonth)
+                val gridEvents = repository.observeBetween(
+                    gridWindow.start.atStartOfDay(zone).toInstant(),
+                    gridWindow.endInclusive.plusDays(1).atStartOfDay(zone).toInstant().minusMillis(1)
+                )
+                val selectedDateEvents = repository.observeBetween(
+                    date.atStartOfDay(zone).toInstant(),
+                    date.plusDays(1).atStartOfDay(zone).toInstant().minusMillis(1)
+                )
+                combine(gridEvents, selectedDateEvents) { grid, selected ->
+                    ScheduleEvents(
+                        all = (grid + selected).associateBy(ScheduleEvent::id).values.sortedBy(ScheduleEvent::eventAt),
+                        selectedDate = selected
+                    )
+                }
+            }
+            ScheduleViewMode.WEEK,
+            ScheduleViewMode.DAY -> repository.observeBetween(start(zone), end(zone)).map { events ->
+                ScheduleEvents(
+                    all = events,
+                    selectedDate = events.filter { event -> event.eventAt.atZone(zone).toLocalDate() == date }
+                )
+            }
+        }
+
         fun start(zone: ZoneId): Instant = when (mode) {
-            ScheduleViewMode.MONTH -> date.withDayOfMonth(1).atStartOfDay(zone).toInstant()
+            ScheduleViewMode.MONTH -> calendarGridWindow(visibleMonth).start.atStartOfDay(zone).toInstant()
             ScheduleViewMode.WEEK -> date.minusDays((date.dayOfWeek.value - 1).toLong()).atStartOfDay(zone).toInstant()
             ScheduleViewMode.DAY -> date.atStartOfDay(zone).toInstant()
         }
 
         fun end(zone: ZoneId): Instant = when (mode) {
-            ScheduleViewMode.MONTH -> date.withDayOfMonth(1).plusMonths(1).atStartOfDay(zone).toInstant().minusMillis(1)
+            ScheduleViewMode.MONTH -> calendarGridWindow(visibleMonth).endInclusive.plusDays(1).atStartOfDay(zone).toInstant().minusMillis(1)
             ScheduleViewMode.WEEK -> start(zone).plusSeconds(7 * 24 * 60 * 60L).minusMillis(1)
             ScheduleViewMode.DAY -> date.plusDays(1).atStartOfDay(zone).toInstant().minusMillis(1)
         }
     }
+
+    private data class ScheduleEvents(
+        val all: List<ScheduleEvent>,
+        val selectedDate: List<ScheduleEvent>
+    )
 }
