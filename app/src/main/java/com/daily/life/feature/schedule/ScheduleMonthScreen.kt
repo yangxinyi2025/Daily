@@ -22,16 +22,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Bolt
-import androidx.compose.material.icons.outlined.Cake
-import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material.icons.outlined.School
-import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -50,10 +44,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,7 +63,6 @@ import com.daily.life.core.designsystem.SkyCoolBorder
 import com.daily.life.core.designsystem.SkyInk
 import com.daily.life.core.designsystem.SkyMutedText
 import com.daily.life.core.designsystem.SkyPrimary
-import com.daily.life.core.designsystem.SkyPurpleSurface
 import com.daily.life.core.designsystem.SkySecondary
 import com.daily.life.core.designsystem.SkySurface
 import com.daily.life.core.designsystem.SkyWarm
@@ -106,9 +100,9 @@ internal fun ScheduleMonthScreen(
     val calendarDays = remember(state.visibleMonth) { monthCalendarDays(state.visibleMonth.atDay(1)) }
     val calendarRules = remember(state.calendarRules) { state.calendarRules.associateBy { it.date } }
     val eventDates = remember(state.events) { state.events.map { it.eventAt.atZone(zone).toLocalDate() }.toSet() }
-    val selectedEvents = state.events
-        .filter { it.eventAt.atZone(zone).toLocalDate() == state.selectedDate }
-        .sortedBy { it.eventAt }
+    val selectedDayContent = remember(state.selectedDateEvents) {
+        selectedDayScheduleContent(state.selectedDateEvents)
+    }
     LaunchedEffect(state.visibleMonth) {
         onRefreshCalendarRules()
     }
@@ -134,7 +128,7 @@ internal fun ScheduleMonthScreen(
             ScheduleSelectedDayCard(
                 state = state,
                 selectedCalendarRule = state.selectedCalendarRule,
-                events = selectedEvents,
+                content = selectedDayContent,
                 zone = zone,
                 onCreate = onCreate,
                 onEdit = onEdit,
@@ -181,7 +175,7 @@ private fun SchedulePageHeader(onCreate: () -> Unit) {
 private fun ScheduleSelectedDayCard(
     state: ScheduleState,
     selectedCalendarRule: ScheduleCalendarRuleUi?,
-    events: List<ScheduleEvent>,
+    content: SelectedDayScheduleContent,
     zone: ZoneId,
     onCreate: () -> Unit,
     onEdit: (ScheduleEvent) -> Unit,
@@ -189,25 +183,38 @@ private fun ScheduleSelectedDayCard(
     onSaveCalendarDayOverride: (LocalDate, LocalDate, CalendarDayKind, String?) -> Unit,
     onClearCalendarDayOverrides: (List<LocalDate>) -> Unit
 ) {
-    ScheduleReferenceCard {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = ScheduleSurfaceCream),
+        border = BorderStroke(1.dp, ScheduleGreen),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
         ScheduleCalendarRuleSummary(
             state = state,
             selectedCalendarRule = selectedCalendarRule,
             onSaveCalendarDayOverride = onSaveCalendarDayOverride,
             onClearCalendarDayOverrides = onClearCalendarDayOverrides
         )
-        if (events.isEmpty()) {
-            Box(modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(0.73f)) {
+                    if (content.isEmpty) {
+                        ScheduleEmptyDayCard(state, onCreate)
+                    } else {
+                        ScheduleEventsDayCard(content.events, zone, onEdit, onDelete)
+                    }
+                }
                 Image(
-                    painter = painterResource(R.drawable.schedule_note_illustration),
+                    painter = painterResource(R.drawable.schedule_mascot_clipboard),
                     contentDescription = null,
-                    modifier = Modifier.align(Alignment.BottomEnd).offset(x = 8.dp, y = 14.dp).width(142.dp).height(90.dp).alpha(0.20f),
+                    modifier = Modifier.weight(0.27f).height(108.dp),
                     contentScale = ContentScale.Fit
                 )
-                ScheduleEmptyDayCard(state, onCreate)
             }
-        } else {
-            ScheduleEventsDayCard(state, events, zone, onEdit, onDelete)
         }
     }
 }
@@ -249,19 +256,22 @@ private fun ScheduleCalendarRuleSummary(
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
             "${state.selectedDate.monthValue}月${state.selectedDate.dayOfMonth}日 · ${state.selectedDate.dayOfWeek.chineseLabel()}",
-            color = SkyInk,
+            color = ScheduleInk,
             fontSize = 20.sp,
             fontWeight = FontWeight.SemiBold
         )
-        Text("状态：${calendarDayKindLabel(currentRule.kind)}", color = SkyMutedText, fontSize = 14.sp)
-        Text("来源：${currentRule.sourceName}", color = SkyMutedText, fontSize = 14.sp)
+        Text("状态：${calendarDayKindLabel(currentRule.kind)}", color = ScheduleInk.copy(alpha = 0.72f), fontSize = 14.sp)
+        Text("来源：${currentRule.sourceName}", color = ScheduleInk.copy(alpha = 0.72f), fontSize = 14.sp)
         currentRule.label?.takeIf(String::isNotBlank)?.let {
-            Text("说明：$it", color = SkyMutedText, fontSize = 14.sp)
+            Text("说明：$it", color = ScheduleInk.copy(alpha = 0.72f), fontSize = 14.sp)
         }
         state.holidayLastSyncAt?.let {
-            Text("最近同步：${formatCalendarInstant(it)}", color = SkyMutedText, fontSize = 14.sp)
+            Text("最近同步：${formatCalendarInstant(it)}", color = ScheduleInk.copy(alpha = 0.72f), fontSize = 14.sp)
         }
-        OutlinedButton(onClick = { editingOverride = !editingOverride }) {
+        OutlinedButton(
+            onClick = { editingOverride = !editingOverride },
+            modifier = Modifier.semantics { contentDescription = calendarOverrideToggleLabel(editingOverride) }
+        ) {
             Text(calendarOverrideToggleLabel(editingOverride))
         }
         if (editingOverride) {
@@ -282,14 +292,16 @@ private fun ScheduleCalendarRuleSummary(
                 label = { Text("备注（可选）") }
             )
             overrideError?.let { error ->
-                Text(error, color = SkyWarm, fontSize = 13.sp)
+                Text(error, color = ScheduleOrange, fontSize = 13.sp)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(
-                    onClick = { submitOverride(CalendarDayKind.HOLIDAY_REST) }
+                    onClick = { submitOverride(CalendarDayKind.HOLIDAY_REST) },
+                    modifier = Modifier.semantics { contentDescription = "设为休息日" }
                 ) { Text("设为休息日") }
                 OutlinedButton(
-                    onClick = { submitOverride(manualCalendarWorkdayKind) }
+                    onClick = { submitOverride(manualCalendarWorkdayKind) },
+                    modifier = Modifier.semantics { contentDescription = "设为调休上班" }
                 ) { Text("设为调休上班") }
             }
             OutlinedButton(
@@ -306,7 +318,8 @@ private fun ScheduleCalendarRuleSummary(
                     }.onFailure {
                         overrideError = "请输入有效的日期"
                     }
-                }
+                },
+                modifier = Modifier.semantics { contentDescription = restoreSystemCalendarLabel }
             ) {
                 Text(restoreSystemCalendarLabel)
             }
@@ -323,34 +336,65 @@ internal const val restoreSystemCalendarLabel = "恢复系统日历"
 
 @Composable
 private fun ScheduleEmptyDayCard(state: ScheduleState, onCreate: () -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        Surface(modifier = Modifier.size(38.dp), color = SkyPurpleSurface, shape = RoundedCornerShape(14.dp)) {
-            Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = SkyAccent, modifier = Modifier.padding(8.dp))
-        }
-        Column(modifier = Modifier.padding(start = 11.dp).weight(1f)) {
-            Text("${state.selectedDate.monthValue}月${state.selectedDate.dayOfMonth}日 · ${state.selectedDate.dayOfWeek.chineseLabel()}", color = SkyInk, fontSize = 21.sp, lineHeight = 27.sp, fontWeight = FontWeight.SemiBold)
-            Text("这一天还没有日程", modifier = Modifier.padding(top = 6.dp), color = SkyInk, fontSize = 17.sp, fontWeight = FontWeight.Medium)
-            Text("把想做的事安排下来", modifier = Modifier.padding(top = 2.dp), color = SkyMutedText, fontSize = 14.sp)
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            Text("暂无安排", color = SkyMutedText, fontSize = 12.sp)
-            Text("新建", modifier = Modifier.padding(top = 22.dp).clickable(onClick = onCreate), color = SkyAccent, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Image(
+            painter = painterResource(R.drawable.schedule_date_status_icon),
+            contentDescription = null,
+            modifier = Modifier.size(42.dp),
+            contentScale = ContentScale.Fit
+        )
+        Text(
+            "暂无安排",
+            color = ScheduleInk,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            "${state.selectedDate.monthValue}月${state.selectedDate.dayOfMonth}日 · ${state.selectedDate.dayOfWeek.chineseLabel()}",
+            color = ScheduleInk,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium
+        )
+        Text("这一天还没有日程", color = ScheduleInk.copy(alpha = 0.72f), fontSize = 14.sp)
+        OutlinedButton(
+            onClick = onCreate,
+            modifier = Modifier.semantics { contentDescription = "新建日程" },
+            border = BorderStroke(1.dp, ScheduleGreen)
+        ) {
+            Text("新建", color = ScheduleInk)
         }
     }
 }
 
 @Composable
-private fun ScheduleEventsDayCard(state: ScheduleState, events: List<ScheduleEvent>, zone: ZoneId, onEdit: (ScheduleEvent) -> Unit, onDelete: (Long) -> Unit) {
+private fun ScheduleEventsDayCard(events: List<ScheduleEvent>, zone: ZoneId, onEdit: (ScheduleEvent) -> Unit, onDelete: (Long) -> Unit) {
     Column {
         events.forEach { event ->
             val time = event.eventAt.atZone(zone).toLocalTime().toString().take(5)
-            Row(modifier = Modifier.fillMaxWidth().padding(top = 10.dp).clickable { onEdit(event) }, verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.width(3.dp).height(32.dp).background(SkyAccent, RoundedCornerShape(3.dp)))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp)
+                    .clickable { onEdit(event) }
+                    .semantics { contentDescription = "编辑${event.title}" },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.width(3.dp).height(40.dp).background(ScheduleGreen, RoundedCornerShape(3.dp)))
                 Column(modifier = Modifier.padding(start = 10.dp).weight(1f)) {
-                    Text(event.title, color = SkyInk, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("$time · ${event.reminderMode.displayLabel()}", color = SkyMutedText, fontSize = 13.sp)
+                    Text(event.title, color = ScheduleInk, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(time, color = ScheduleInk.copy(alpha = 0.72f), fontSize = 13.sp)
+                    event.location?.takeIf(String::isNotBlank)?.let { location ->
+                        Text(location, color = ScheduleInk.copy(alpha = 0.72f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
-                Text("删除", color = SkyWarm, fontSize = 13.sp, modifier = Modifier.clickable { onDelete(event.id) })
+                Text(
+                    "删除",
+                    color = ScheduleOrange,
+                    fontSize = 13.sp,
+                    modifier = Modifier
+                        .clickable { onDelete(event.id) }
+                        .semantics { contentDescription = "删除${event.title}" }
+                )
             }
         }
     }
@@ -359,16 +403,22 @@ private fun ScheduleEventsDayCard(state: ScheduleState, events: List<ScheduleEve
 @Composable
 private fun ScheduleQuickCreate(onCreate: () -> Unit, onQuickCreate: (ScheduleQuickAction) -> Unit) {
     ScheduleReferenceCard(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 13.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Surface(modifier = Modifier.size(30.dp), shape = CircleShape, color = SkyPurpleSurface) {
-                Icon(Icons.Outlined.Bolt, contentDescription = null, tint = SkyAccent, modifier = Modifier.padding(5.dp))
-            }
-            Text("快捷创建", modifier = Modifier.padding(start = 8.dp), color = SkyInk, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onCreate)
+                .semantics { contentDescription = "新建日程" },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Image(
+                painter = painterResource(R.drawable.schedule_quick_lightning_icon),
+                contentDescription = null,
+                modifier = Modifier.size(30.dp),
+                contentScale = ContentScale.Fit
+            )
+            Text("新建日程", modifier = Modifier.padding(start = 8.dp), color = ScheduleInk, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.weight(1f))
-            Row(modifier = Modifier.clickable(onClick = onCreate), verticalAlignment = Alignment.CenterVertically) {
-                Text("新建日程", color = SkyAccent, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                Icon(Icons.Outlined.ChevronRight, contentDescription = "新建日程", tint = SkyAccent, modifier = Modifier.size(18.dp))
-            }
+            Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = ScheduleInk, modifier = Modifier.size(18.dp))
         }
         Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             ScheduleQuickAction.values().forEach { action -> ScheduleQuickActionChip(action) { onQuickCreate(action) } }
@@ -378,20 +428,25 @@ private fun ScheduleQuickCreate(onCreate: () -> Unit, onQuickCreate: (ScheduleQu
 
 @Composable
 private fun ScheduleQuickActionChip(action: ScheduleQuickAction, onClick: () -> Unit) {
-    val (icon, tint) = when (action) {
-        ScheduleQuickAction.EXAM -> Icons.Outlined.School to SkyAccent
-        ScheduleQuickAction.BIRTHDAY -> Icons.Outlined.Cake to Color(0xFFFF9D8D)
-        ScheduleQuickAction.SMALL_THING -> Icons.Outlined.StarBorder to SkyAccent
+    val (iconRes, tint) = when (action) {
+        ScheduleQuickAction.EXAM -> R.drawable.schedule_quick_exam_icon to SchedulePurple
+        ScheduleQuickAction.BIRTHDAY -> R.drawable.schedule_quick_birthday_icon to ScheduleOrange
+        ScheduleQuickAction.SMALL_THING -> R.drawable.schedule_quick_minor_task_icon to ScheduleInk
     }
     OutlinedButton(
         onClick = onClick,
-        modifier = Modifier.height(42.dp).wrapContentWidth(),
+        modifier = Modifier.height(42.dp).wrapContentWidth().semantics { contentDescription = "快速新建${action.title}日程" },
         shape = RoundedCornerShape(50),
-        border = BorderStroke(1.dp, SkyCoolBorder),
+        border = BorderStroke(1.dp, tint.copy(alpha = 0.65f)),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = tint)
     ) {
-        Icon(icon, contentDescription = action.title, tint = tint, modifier = Modifier.size(20.dp))
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            contentScale = ContentScale.Fit
+        )
         Text(action.title, modifier = Modifier.padding(start = 7.dp), fontSize = 15.sp, fontWeight = FontWeight.Medium)
     }
 }

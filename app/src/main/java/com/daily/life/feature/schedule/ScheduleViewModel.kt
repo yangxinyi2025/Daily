@@ -108,14 +108,11 @@ class ScheduleViewModel(
     }
 
     fun startCreate(action: ScheduleQuickAction? = null) {
-        val editor = ScheduleEditorState.create(clock.instant(), clock.zone).let {
-            when (action) {
-                ScheduleQuickAction.EXAM -> it.copy(title = "考试")
-                ScheduleQuickAction.BIRTHDAY -> it.copy(title = "生日", repeatYearly = true)
-                ScheduleQuickAction.SMALL_THING -> it.copy(title = "小事")
-                null -> it
-            }
-        }
+        val baseEditor = ScheduleEditorState.create(clock.instant(), clock.zone)
+        val editor = action?.let(::quickCreatePreset)?.copy(
+            date = baseEditor.date,
+            time = baseEditor.time
+        ) ?: baseEditor
         _state.update { it.copy(editor = editor, statusMessage = null) }
     }
 

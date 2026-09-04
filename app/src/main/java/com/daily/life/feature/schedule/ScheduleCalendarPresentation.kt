@@ -30,6 +30,22 @@ internal fun scheduleDashboardSectionOrder(showEditor: Boolean): List<ScheduleDa
     if (showEditor) add(ScheduleDashboardSection.Editor)
 }
 
+internal data class SelectedDayScheduleContent(
+    val events: List<ScheduleEvent>
+) {
+    val isEmpty: Boolean
+        get() = events.isEmpty()
+}
+
+internal fun selectedDayScheduleContent(selectedEvents: List<ScheduleEvent>): SelectedDayScheduleContent =
+    SelectedDayScheduleContent(events = selectedEvents)
+
+internal fun quickCreatePreset(action: ScheduleQuickAction): ScheduleEditorState = when (action) {
+    ScheduleQuickAction.EXAM -> ScheduleEditorState(title = "考试")
+    ScheduleQuickAction.BIRTHDAY -> ScheduleEditorState(title = "生日", repeatYearly = true)
+    ScheduleQuickAction.SMALL_THING -> ScheduleEditorState(title = "小事")
+}
+
 internal data class SystemCalendarDayEntry(
     val startAt: Instant,
     val endAt: Instant,
