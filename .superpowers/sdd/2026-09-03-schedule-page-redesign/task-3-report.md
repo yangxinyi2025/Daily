@@ -35,3 +35,9 @@
 
 - The callback propagation required two boundary files beyond the four files named in the Task 3 scope; it is the minimal integration needed to preserve Task 1's browse-month semantics. No route, database, reminder, or bottom-navigation behavior changed.
 - Visual/emulator QA remains Task 5 scope.
+
+## Fix round 1 — block date selection during a pending flip
+
+- RED: added `dateSelectionIsUnavailableUntilThePendingFlipCompletes`; the focused model compile failed as expected because `canSelectCalendarDate` did not yet exist.
+- GREEN: `ScheduleCalendarModelTest` (6 tests) and `ScheduleCalendarPresentationTest` (5 tests) completed with zero failures and zero errors. The Kotlin compiler was run with a command-line compiler-daemon override after the repository's configured in-process Compose compiler proved unusually slow; no repository configuration changed.
+- Added the pure `canSelectCalendarDate` controller guard and used it to set the `enabled` state of every date cell in every current/pending paper layer. A pending flip now cannot dispatch a date-selection callback that would reset the `rememberSaveable` state before `onMonthCommitted`.

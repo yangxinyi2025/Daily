@@ -96,6 +96,7 @@ internal fun FlipCalendar(
     val pendingMonth = flipState.pendingMonth
     val currentDays = if (currentMonth == month) days else monthCalendarDays(currentMonth.atDay(1))
     val pageProgress = progress.value
+    val dateSelectionEnabled = canSelectCalendarDate(flipState)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -111,7 +112,8 @@ internal fun FlipCalendar(
                     days = currentDays,
                     rules = rules,
                     eventDates = eventDates,
-                    onDateSelected = onDateSelected
+                    onDateSelected = onDateSelected,
+                    dateSelectionEnabled = dateSelectionEnabled
                 )
             } else if (flipState.direction == CalendarFlipDirection.NEXT) {
                 CalendarPaperStack(
@@ -120,7 +122,8 @@ internal fun FlipCalendar(
                     days = monthCalendarDays(pendingMonth.atDay(1)),
                     rules = emptyMap(),
                     eventDates = eventDates,
-                    onDateSelected = onDateSelected
+                    onDateSelected = onDateSelected,
+                    dateSelectionEnabled = dateSelectionEnabled
                 )
                 CalendarPaperStack(
                     month = currentMonth,
@@ -129,6 +132,7 @@ internal fun FlipCalendar(
                     rules = rules,
                     eventDates = eventDates,
                     onDateSelected = onDateSelected,
+                    dateSelectionEnabled = dateSelectionEnabled,
                     modifier = Modifier
                         .alpha(if (reducedMotion) 1f - pageProgress else 1f)
                         .graphicsLayer {
@@ -143,7 +147,8 @@ internal fun FlipCalendar(
                     days = currentDays,
                     rules = rules,
                     eventDates = eventDates,
-                    onDateSelected = onDateSelected
+                    onDateSelected = onDateSelected,
+                    dateSelectionEnabled = dateSelectionEnabled
                 )
                 CalendarPaperStack(
                     month = pendingMonth,
@@ -152,6 +157,7 @@ internal fun FlipCalendar(
                     rules = emptyMap(),
                     eventDates = eventDates,
                     onDateSelected = onDateSelected,
+                    dateSelectionEnabled = dateSelectionEnabled,
                     modifier = Modifier
                         .alpha(if (reducedMotion) pageProgress else 1f)
                         .graphicsLayer {
@@ -191,12 +197,13 @@ private fun CalendarPaperStack(
     rules: Map<LocalDate, ScheduleCalendarRuleUi>,
     eventDates: Set<LocalDate>,
     onDateSelected: (LocalDate) -> Unit,
+    dateSelectionEnabled: Boolean,
     modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier.fillMaxWidth()) {
         CalendarPaperBack(Modifier.offset(y = 8.dp).padding(horizontal = 8.dp), ScheduleGreen.copy(alpha = 0.42f))
         CalendarPaperBack(Modifier.offset(y = 4.dp).padding(horizontal = 4.dp), ScheduleSurfaceCream.copy(alpha = 0.88f))
-        CalendarPaperPage(month, selectedDate, days, rules, eventDates, onDateSelected)
+        CalendarPaperPage(month, selectedDate, days, rules, eventDates, onDateSelected, dateSelectionEnabled)
     }
 }
 
@@ -216,7 +223,8 @@ private fun CalendarPaperPage(
     days: List<LocalDate>,
     rules: Map<LocalDate, ScheduleCalendarRuleUi>,
     eventDates: Set<LocalDate>,
-    onDateSelected: (LocalDate) -> Unit
+    onDateSelected: (LocalDate) -> Unit,
+    dateSelectionEnabled: Boolean
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)),
@@ -266,6 +274,7 @@ private fun CalendarPaperPage(
                             rule = rules[date],
                             hasEvent = date in eventDates,
                             onClick = { onDateSelected(date) },
+                            enabled = dateSelectionEnabled,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -296,6 +305,7 @@ private fun CalendarPaperDay(
     rule: ScheduleCalendarRuleUi?,
     hasEvent: Boolean,
     onClick: () -> Unit,
+    enabled: Boolean,
     modifier: Modifier
 ) {
     val textColor = when {
@@ -306,7 +316,7 @@ private fun CalendarPaperDay(
     Box(
         modifier = modifier
             .aspectRatio(1.02f)
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.TopCenter
     ) {
         Surface(

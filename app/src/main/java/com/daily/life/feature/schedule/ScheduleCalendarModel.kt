@@ -28,6 +28,8 @@ internal fun requestCalendarFlip(
     )
 }
 
+internal fun canSelectCalendarDate(state: CalendarFlipUiState): Boolean = !state.isFlipping
+
 internal fun completeCalendarFlip(state: CalendarFlipUiState): CalendarFlipUiState =
     state.pendingMonth?.let { month ->
         CalendarFlipUiState(shownMonth = month)

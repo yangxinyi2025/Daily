@@ -9,6 +9,17 @@ import org.junit.Test
 
 class ScheduleCalendarModelTest {
     @Test
+    fun dateSelectionIsUnavailableUntilThePendingFlipCompletes() {
+        val flipping = requestCalendarFlip(
+            CalendarFlipUiState(shownMonth = YearMonth.of(2026, 12)),
+            CalendarFlipDirection.NEXT
+        )
+
+        assertFalse(canSelectCalendarDate(flipping))
+        assertTrue(canSelectCalendarDate(completeCalendarFlip(flipping)))
+    }
+
+    @Test
     fun nextFlipLocksAdditionalRequestsUntilTheCurrentPageCompletes() {
         val initial = CalendarFlipUiState(shownMonth = YearMonth.of(2026, 12))
 
