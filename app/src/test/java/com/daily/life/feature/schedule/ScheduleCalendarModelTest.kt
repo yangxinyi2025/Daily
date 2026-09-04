@@ -46,6 +46,21 @@ class ScheduleCalendarModelTest {
     }
 
     @Test
+    fun completingFlipCommitsThePendingMonthAndClearsFlipState() {
+        val completed = completeCalendarFlip(
+            requestCalendarFlip(
+                CalendarFlipUiState(shownMonth = YearMonth.of(2026, 12)),
+                CalendarFlipDirection.NEXT
+            )
+        )
+
+        assertEquals(YearMonth.of(2027, 1), completed.shownMonth)
+        assertEquals(null, completed.pendingMonth)
+        assertEquals(null, completed.direction)
+        assertFalse(completed.isFlipping)
+    }
+
+    @Test
     fun selectingAnOutsideGridDateUpdatesBothTheDateAndItsVisibleMonth() {
         val selection = selectCalendarDate(
             visibleMonth = YearMonth.of(2026, 9),
@@ -64,6 +79,16 @@ class ScheduleCalendarModelTest {
         assertEquals(LocalDate.of(2026, 7, 27), days.first())
         assertEquals(LocalDate.of(2026, 9, 6), days.last())
         assertTrue(days.contains(LocalDate.of(2026, 8, 22)))
+    }
+
+    @Test
+    fun leapDayMonthGridContainsLeapDayAndSixFullWeeks() {
+        val days = monthCalendarDays(LocalDate.of(2028, 2, 29))
+
+        assertEquals(42, days.size)
+        assertEquals(LocalDate.of(2028, 1, 31), days.first())
+        assertEquals(LocalDate.of(2028, 3, 12), days.last())
+        assertTrue(days.contains(LocalDate.of(2028, 2, 29)))
     }
 
     @Test
