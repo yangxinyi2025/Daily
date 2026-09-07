@@ -10,14 +10,22 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -50,6 +58,7 @@ private val PeriodBanner = Color(0xFFFFE2B1)
 private val CardBorder = Color(0xFFCEDDBD)
 private val TrendGrid = Color(0xFFD9E8C8)
 private val TrendDateFormatter = DateTimeFormatter.ofPattern("M/d")
+private val HistoryDateTimeFormatter = DateTimeFormatter.ofPattern("yyyy年M月d日 HH:mm")
 
 internal data class HealthOverviewDisplay(
     val currentWeight: String,
@@ -148,6 +157,181 @@ internal fun HealthHeader(onOpenHistory: () -> Unit) {
             )
         }
     }
+}
+
+@Composable
+internal fun HealthHistoryScreen(
+    weights: List<WeightRecord>,
+    periodHistory: List<PeriodHistoryPresentation>,
+    zoneId: java.time.ZoneId,
+    onBack: () -> Unit,
+    onEditPeriod: (PeriodRecord) -> Unit,
+    onDeletePeriod: (Long) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF6F8E7)),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(18.dp, 18.dp, 18.dp, 28.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.Filled.ArrowBack,
+                        contentDescription = "返回健康首页",
+                        tint = HealthOverviewInk
+                    )
+                }
+                Text(
+                    text = "历史记录",
+                    modifier = Modifier.padding(start = 6.dp),
+                    color = HealthOverviewInk,
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+        item {
+            HistoryCategoryCard(title = "体重记录") {
+                if (weights.isEmpty()) {
+                    HistoryEmptyState("尚未记录体重")
+                } else {
+                    weights.forEachIndexed { index, record ->
+                        WeightHistoryRow(record, zoneId)
+                        if (index != weights.lastIndex) HistoryDivider()
+                    }
+                }
+            }
+        }
+        item {
+            HistoryCategoryCard(title = "经期记录") {
+                if (periodHistory.isEmpty()) {
+                    HistoryEmptyState("尚未记录经期")
+                } else {
+                    periodHistory.forEachIndexed { index, item ->
+                        PeriodHistoryRow(
+                            item = item,
+                            onEdit = { onEditPeriod(item.record) },
+                            onDelete = { onDeletePeriod(item.record.id) }
+                        )
+                        if (index != periodHistory.lastIndex) HistoryDivider()
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HistoryCategoryCard(
+    title: String,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = HealthOverviewCard),
+        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            content = {
+                Text(
+                    text = title,
+                    color = HealthOverviewInk,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                content()
+            }
+        )
+    }
+}
+
+@Composable
+private fun HistoryEmptyState(text: String) {
+    Text(
+        text = text,
+        modifier = Modifier.padding(vertical = 8.dp),
+        color = HealthOverviewMuted,
+        fontSize = 16.sp,
+        fontWeight = FontWeight.Medium
+    )
+}
+
+@Composable
+private fun WeightHistoryRow(record: WeightRecord, zoneId: java.time.ZoneId) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = record.recordedAt.atZone(zoneId).format(HistoryDateTimeFormatter),
+            modifier = Modifier.weight(1f),
+            color = HealthOverviewInk,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium
+        )
+        Text(
+            text = "${String.format(java.util.Locale.US, \"%.1f\", record.weightJin)} 斤",
+            color = HealthOverviewInk,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun PeriodHistoryRow(
+    item: PeriodHistoryPresentation,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = item.dateRange,
+            modifier = Modifier.weight(1f),
+            color = HealthOverviewInk,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium
+        )
+        TextButton(onClick = onEdit, modifier = Modifier.size(40.dp)) {
+            Icon(
+                imageVector = Icons.Outlined.Edit,
+                contentDescription = "编辑经期记录",
+                tint = HealthOverviewMuted,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        TextButton(onClick = onDelete, modifier = Modifier.size(40.dp)) {
+            Icon(
+                imageVector = Icons.Outlined.DeleteOutline,
+                contentDescription = "删除经期记录",
+                tint = PeriodAccent,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun HistoryDivider() {
+    Spacer(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(CardBorder)
+    )
 }
 
 @Composable

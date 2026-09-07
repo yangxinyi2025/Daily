@@ -71,39 +71,54 @@ internal fun HealthDashboardScreen(
     var recordingDateTime by remember { mutableStateOf(LocalDateTime.now()) }
     var editedPeriod by remember { mutableStateOf<PeriodRecord?>(null) }
     var selectedRange by rememberSaveable { mutableStateOf(WeightTrendRange.Days30) }
+    var showingHistory by rememberSaveable { mutableStateOf(false) }
     val today = LocalDate.now(zoneId)
     val trendPoints = remember(state.weights, selectedRange, today, zoneId) {
         selectWeightTrendPoints(state.weights, selectedRange, today, zoneId)
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Color(0xFFF6F8E7)),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(18.dp, 18.dp, 18.dp, 28.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        item { HealthHeader(onOpenHistory = {}) }
-        item {
-            WeightOverviewCard(
-                currentWeight = overview.currentWeight,
-                targetWeight = overview.targetWeight,
-                trendPoints = trendPoints,
-                selectedRange = selectedRange,
-                onRangeSelected = { selectedRange = it },
-                onRecordWeight = { recordingDateTime = LocalDateTime.now(); activeSheet = HealthSheet.Weight },
-                onEditTarget = { activeSheet = HealthSheet.Target },
-                onEditWeight = { recordingDateTime = LocalDateTime.now(); activeSheet = HealthSheet.Weight }
-            )
+    if (showingHistory) {
+        HealthHistoryScreen(
+            weights = state.weights.sortedByDescending(WeightRecord::recordedAt),
+            periodHistory = presentation.history,
+            zoneId = zoneId,
+            onBack = { showingHistory = false },
+            onEditPeriod = { record ->
+                editedPeriod = record
+                activeSheet = HealthSheet.Period
+            },
+            onDeletePeriod = onDeletePeriod
+        )
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().background(Color(0xFFF6F8E7)),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(18.dp, 18.dp, 18.dp, 28.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item { HealthHeader(onOpenHistory = { showingHistory = true }) }
+            item {
+                WeightOverviewCard(
+                    currentWeight = overview.currentWeight,
+                    targetWeight = overview.targetWeight,
+                    trendPoints = trendPoints,
+                    selectedRange = selectedRange,
+                    onRangeSelected = { selectedRange = it },
+                    onRecordWeight = { recordingDateTime = LocalDateTime.now(); activeSheet = HealthSheet.Weight },
+                    onEditTarget = { activeSheet = HealthSheet.Target },
+                    onEditWeight = { recordingDateTime = LocalDateTime.now(); activeSheet = HealthSheet.Weight }
+                )
+            }
+            item {
+                PeriodOverviewCard(
+                    lastPeriod = overview.lastPeriod,
+                    nextPeriod = overview.nextPeriod,
+                    countdownDays = daysUntilPeriod(state.nextPeriodStart, today),
+                    onEditPeriod = { editedPeriod = null; activeSheet = HealthSheet.Period }
+                )
+            }
+            state.statusMessage?.let { message -> item { Text(message, color = SkySuccess, fontSize = 14.sp) } }
+            state.errorMessage?.let { message -> item { Text(message, color = SkyWarm, fontSize = 14.sp) } }
         }
-        item {
-            PeriodOverviewCard(
-                lastPeriod = overview.lastPeriod,
-                nextPeriod = overview.nextPeriod,
-                countdownDays = daysUntilPeriod(state.nextPeriodStart, today),
-                onEditPeriod = { editedPeriod = null; activeSheet = HealthSheet.Period }
-            )
-        }
-        state.statusMessage?.let { message -> item { Text(message, color = SkySuccess, fontSize = 14.sp) } }
-        state.errorMessage?.let { message -> item { Text(message, color = SkyWarm, fontSize = 14.sp) } }
     }
 
     activeSheet?.let { sheet ->
