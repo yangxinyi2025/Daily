@@ -20,6 +20,44 @@ class HealthOverviewPresentationTest {
     }
 
     @Test
+    fun sevenDayTrendIncludesTheFirstDayAndExcludesTheDayBeforeIt() {
+        val points = selectWeightTrendPoints(
+            weights = listOf(
+                weight("2026-08-24T00:00:00Z"),
+                weight("2026-08-25T00:00:00Z"),
+                weight("2026-08-31T00:00:00Z")
+            ),
+            range = WeightTrendRange.Days7,
+            today = LocalDate.of(2026, 8, 31),
+            zoneId = ZoneOffset.UTC
+        )
+
+        assertEquals(
+            listOf(LocalDate.of(2026, 8, 25), LocalDate.of(2026, 8, 31)),
+            points.map(WeightPoint::date)
+        )
+    }
+
+    @Test
+    fun ninetyDayTrendIncludesTheFirstDayAndExcludesTheDayBeforeIt() {
+        val points = selectWeightTrendPoints(
+            weights = listOf(
+                weight("2026-06-02T00:00:00Z"),
+                weight("2026-06-03T00:00:00Z"),
+                weight("2026-08-31T00:00:00Z")
+            ),
+            range = WeightTrendRange.Days90,
+            today = LocalDate.of(2026, 8, 31),
+            zoneId = ZoneOffset.UTC
+        )
+
+        assertEquals(
+            listOf(LocalDate.of(2026, 6, 3), LocalDate.of(2026, 8, 31)),
+            points.map(WeightPoint::date)
+        )
+    }
+
+    @Test
     fun countdownClampsOverduePredictionToZeroDays() {
         assertEquals(0, daysUntilPeriod(LocalDate.of(2026, 8, 20), LocalDate.of(2026, 8, 22)))
     }
