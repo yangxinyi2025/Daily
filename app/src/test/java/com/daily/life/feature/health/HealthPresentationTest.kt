@@ -39,6 +39,10 @@ class HealthPresentationTest {
         assertEquals("本月健康概览", presentation.overviewTitle)
         assertEquals("119.0", presentation.latestWeight)
         assertEquals("目标 110.0 斤", presentation.targetSummary)
+        assertEquals("119.0 斤", presentation.currentWeight)
+        assertEquals("110.0 斤", presentation.targetWeight)
+        assertEquals("8月22日", presentation.lastPeriod)
+        assertEquals("9月21日", presentation.predictedPeriod)
         assertEquals("本月记录 2 次", presentation.monthRecordSummary)
         assertEquals("下次预计 9月21日", presentation.nextPeriodSummary)
         assertEquals("当前按 30 天周期预测", presentation.cycleSummary)
@@ -66,6 +70,10 @@ class HealthPresentationTest {
 
         assertEquals("尚未记录", presentation.latestWeight)
         assertEquals("尚未设置", presentation.targetSummary)
+        assertEquals("尚未记录", presentation.currentWeight)
+        assertEquals("尚未设置", presentation.targetWeight)
+        assertEquals("尚未记录", presentation.lastPeriod)
+        assertEquals("尚未预测", presentation.predictedPeriod)
         assertEquals("尚未记录", presentation.monthRecordSummary)
     }
 }

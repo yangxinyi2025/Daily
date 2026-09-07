@@ -5,16 +5,12 @@ import org.junit.Test
 
 class HealthDashboardLayoutTest {
     @Test
-    fun inlineEditorsAreNeverInsertedIntoTheDashboard() {
+    fun redesignedDashboardContainsOnlyHeaderWeightAndPeriodOverviews() {
         assertEquals(
             listOf(
                 HealthDashboardSection.Header,
-                HealthDashboardSection.Overview,
-                HealthDashboardSection.QuickRecord,
-                HealthDashboardSection.Trend,
-                HealthDashboardSection.Goal,
-                HealthDashboardSection.Period,
-                HealthDashboardSection.History
+                HealthDashboardSection.WeightOverview,
+                HealthDashboardSection.PeriodOverview
             ),
             healthDashboardSectionOrder()
         )

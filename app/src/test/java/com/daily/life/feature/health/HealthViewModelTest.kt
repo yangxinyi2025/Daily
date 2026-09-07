@@ -97,4 +97,21 @@ class HealthViewModelTest {
         val record = viewModel.state.first { it.weights.size == 1 }.weights.single()
         assertEquals(Instant.parse("2026-08-17T09:45:00Z"), record.recordedAt)
     }
+
+    @Test
+    fun initialRepositoryEmissionsMarkEachHealthDataGroupLoaded() = runTest {
+        val viewModel = HealthViewModel(
+            repository = HealthRepository(database.healthDao(), preferences),
+            periodRepository = PeriodRepository(database.periodDao(), preferences),
+            preferences = preferences,
+            coroutineScope = backgroundScope
+        )
+
+        val state = viewModel.state.first {
+            it.weightRecordsLoaded && it.targetWeightLoaded &&
+                it.periodRecordsLoaded && it.periodPredictionLoaded
+        }
+
+        org.junit.Assert.assertNull(state.errorMessage)
+    }
 }
