@@ -11,10 +11,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -62,6 +62,9 @@ internal fun healthOverviewDisplay(
     state: HealthState,
     presentation: HealthDashboardPresentation
 ): HealthOverviewDisplay {
+    state.errorMessage?.let { message ->
+        return HealthOverviewDisplay(message, message, message, message)
+    }
     val weightValue = if (!state.weightRecordsLoaded || !state.targetWeightLoaded) {
         "正在读取体重记录…"
     } else {
@@ -182,7 +185,8 @@ internal fun WeightOverviewCard(
         WeightTrendPanel(
             points = trendPoints,
             selectedRange = selectedRange,
-            onRangeSelected = onRangeSelected
+            onRangeSelected = onRangeSelected,
+            onRecordWeight = onRecordWeight
         )
     }
 }
@@ -347,7 +351,7 @@ private fun SummaryTile(
 ) {
     Surface(
         modifier = modifier
-            .height(112.dp)
+            .heightIn(min = 128.dp)
             .clip(RoundedCornerShape(20.dp))
             .clickable(onClick = onClick),
         color = surfaceColor,
@@ -388,7 +392,8 @@ private fun SummaryTile(
 private fun WeightTrendPanel(
     points: List<WeightPoint>,
     selectedRange: WeightTrendRange,
-    onRangeSelected: (WeightTrendRange) -> Unit
+    onRangeSelected: (WeightTrendRange) -> Unit,
+    onRecordWeight: () -> Unit
 ) {
     Surface(color = Color(0xFFF4F8EA), shape = RoundedCornerShape(20.dp)) {
         Column(
@@ -430,7 +435,9 @@ private fun WeightTrendPanel(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(138.dp),
+                        .height(138.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable(onClick = onRecordWeight),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(

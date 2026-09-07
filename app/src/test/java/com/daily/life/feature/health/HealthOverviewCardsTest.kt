@@ -18,6 +18,26 @@ class HealthOverviewCardsTest {
         assertEquals("正在读取经期记录…", display.nextPeriod)
     }
 
+    @Test
+    fun overviewDisplayUsesErrorCopyInsteadOfEmptyValuesWhenLoadingFails() {
+        val display = healthOverviewDisplay(
+            state = HealthState(
+                selectedMonth = YearMonth.of(2026, 9),
+                weightRecordsLoaded = true,
+                targetWeightLoaded = true,
+                periodRecordsLoaded = true,
+                periodPredictionLoaded = true,
+                errorMessage = "健康数据读取失败"
+            ),
+            presentation = presentation()
+        )
+
+        assertEquals("健康数据读取失败", display.currentWeight)
+        assertEquals("健康数据读取失败", display.targetWeight)
+        assertEquals("健康数据读取失败", display.lastPeriod)
+        assertEquals("健康数据读取失败", display.nextPeriod)
+    }
+
     private fun presentation() = HealthDashboardPresentation(
         overviewTitle = "本月健康概览",
         latestWeight = "尚未记录",
