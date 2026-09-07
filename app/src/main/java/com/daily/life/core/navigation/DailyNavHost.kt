@@ -221,6 +221,7 @@ fun DailyNavHost(
                     onSaveCalendarDayOverride = scheduleViewModel::saveCalendarDayOverride,
                     onClearCalendarDayOverrides = scheduleViewModel::clearCalendarDayOverrides,
                     onRefreshCalendarRules = scheduleViewModel::refreshCalendarRules,
+                    onBrowseMonth = scheduleViewModel::browseMonth,
                     onCalendarEventEditorOpened = scheduleViewModel::consumeCalendarEventEditorRequest
                 )
             }

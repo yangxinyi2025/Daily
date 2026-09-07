@@ -118,4 +118,34 @@ class ScheduleCalendarPresentationTest {
         assertEquals(CalendarDayKind.MAKEUP_WORKDAY, manualCalendarWorkdayKind)
         assertEquals("恢复系统日历", restoreSystemCalendarLabel)
     }
+
+    @Test
+    fun selectedDayScheduleContentKeepsOnlyTheSelectedEvents() {
+        val selectedEvent = scheduleEvent(id = 2L, title = "选中日程", location = "图书馆")
+
+        val content = selectedDayScheduleContent(listOf(selectedEvent))
+
+        assertEquals(listOf(selectedEvent), content.events)
+        assertEquals(false, content.isEmpty)
+    }
+
+    @Test
+    fun quickCreatePresetsKeepTheirTitlesAndBirthdayRepeatsYearly() {
+        assertEquals("考试", quickCreatePreset(ScheduleQuickAction.EXAM).title)
+        assertEquals("生日", quickCreatePreset(ScheduleQuickAction.BIRTHDAY).title)
+        assertEquals(true, quickCreatePreset(ScheduleQuickAction.BIRTHDAY).repeatYearly)
+        assertEquals("小事", quickCreatePreset(ScheduleQuickAction.SMALL_THING).title)
+    }
+
+    private fun scheduleEvent(id: Long, title: String, location: String? = null) = ScheduleEvent(
+        id = id,
+        title = title,
+        eventAt = Instant.parse("2026-09-04T09:30:00Z"),
+        reminderOffsetMinutes = 0,
+        reminderMode = com.daily.life.core.database.ReminderMode.NOTIFICATION,
+        repeatYearly = false,
+        location = location,
+        createdAt = Instant.EPOCH,
+        updatedAt = Instant.EPOCH
+    )
 }
