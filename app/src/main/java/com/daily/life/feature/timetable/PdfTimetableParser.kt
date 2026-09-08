@@ -84,7 +84,8 @@ class PdfTimetableParser(
             } else {
                 (metadataIndex + 1 until nextMetadataIndex)
                     .lastOrNull {
-                        isCourseNameCandidate(lines[it].trim()) && !isTaggedValueContinuation(lines, it)
+                        isCourseNameCandidate(lines[it].trim()) &&
+                            !isTaggedValueContinuation(lines, it, nextMetadataIndex)
                     }
             }
             val fragmentEndExclusive = nextCourseNameIndex ?: nextMetadataIndex
@@ -143,13 +144,17 @@ class PdfTimetableParser(
         !METADATA_FIELD_LABEL.containsMatchIn(value) &&
         value !in setOf("上午", "下午", "晚上")
 
-    private fun isTaggedValueContinuation(lines: List<String>, index: Int): Boolean {
-        val startsAnotherCourse = (index + 1 until minOf(lines.size, index + 4))
-            .any { COURSE_METADATA.containsMatchIn(lines[it]) }
-        if (startsAnotherCourse) return false
+    private fun isTaggedValueContinuation(
+        lines: List<String>,
+        index: Int,
+        nextMetadataIndex: Int
+    ): Boolean {
         for (previousIndex in index - 1 downTo 0) {
             val previousLine = lines[previousIndex].trim()
-            if (TRAILING_TAGGED_VALUE.containsMatchIn(previousLine)) return true
+            if (TRAILING_TAGGED_VALUE.containsMatchIn(previousLine)) {
+                return (index + 1 until nextMetadataIndex)
+                    .any { METADATA_FIELD_LABEL.containsMatchIn(lines[it]) }
+            }
             if (METADATA_FIELD_LABEL.containsMatchIn(previousLine)) return false
         }
         return false

@@ -228,6 +228,25 @@ class PdfTimetableParserTest {
     }
 
     @Test
+    fun layoutCellDoesNotTreatDistantCourseAfterEmptyLocationLabelAsAFieldContinuation() {
+        val result = PdfTimetableParser().parseLayoutCell(
+            day = 1,
+            lines = listOf(
+                "前序课程",
+                "(1-2节) 1-8周 /校区:主校区",
+                "/场地:",
+                "后续课程",
+                "星期二",
+                "周次说明",
+                "(3-4节) 9-16周 /校区:主校区 /场地:理1-403 /教师:李四 /教学班:B /学分:2"
+            )
+        )
+
+        assertEquals(listOf("前序课程", "后续课程"), result.courses.map { it.courseName })
+        assertEquals(3, result.courses.last().startPeriod)
+    }
+
+    @Test
     fun layoutCellDoesNotTreatCourseAfterEmptyTeacherLabelAsAFieldContinuation() {
         val result = PdfTimetableParser().parseLayoutCell(
             day = 1,
