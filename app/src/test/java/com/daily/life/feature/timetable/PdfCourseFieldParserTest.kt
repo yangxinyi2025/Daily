@@ -52,6 +52,21 @@ class PdfCourseFieldParserTest {
     }
 
     @Test
+    fun doesNotTreatWeekOrTermNumbersAsStrongLocationEvidence() {
+        val week = PdfCourseFieldParser.parse("/场地:张三/教师:第1周/教学班")
+        val term = PdfCourseFieldParser.parse("/场地:张三/教师:2024春/教学班")
+
+        assertEquals("张三", week.location)
+        assertEquals("第1周", week.teacher)
+        assertTrue(week.warnings.containsKey(TimetablePreviewField.Location))
+        assertTrue(week.warnings.containsKey(TimetablePreviewField.Teacher))
+        assertEquals("张三", term.location)
+        assertEquals("2024春", term.teacher)
+        assertTrue(term.warnings.containsKey(TimetablePreviewField.Location))
+        assertTrue(term.warnings.containsKey(TimetablePreviewField.Teacher))
+    }
+
+    @Test
     fun preservesUnreliableOrBlankValuesAndFlagsTheirPreviewFields() {
         val unreliable = PdfCourseFieldParser.parse("/场地:未安排/教师:李四/教学班")
         val blank = PdfCourseFieldParser.parse("/场地:/教师:/教学班")

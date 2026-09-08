@@ -60,7 +60,9 @@ internal object PdfCourseFieldParser {
         !ROOM_NUMBER.containsMatchIn(value)
 
     private val WHITESPACE = Regex("\\s+")
-    private val ROOM_NUMBER = Regex("""[A-Za-z一-龥]?[0-9]+(?:-[0-9]+)?""")
+    private val ROOM_NUMBER = Regex(
+        """^(?:(?:教|理|文|工|商|法|艺|实|科|学|综|信|电|经|管|外|医|东|西|南|北)(?:[一二三四五六七八九十]+)?[0-9]{2,4}|(?:教|理|文|工|商|法|艺|实|科|学|综|信|电|经|管|外|医|东|西|南|北)[0-9]{1,2}-[0-9]{2,4}|[A-Za-z][0-9]{2,4}|[A-Za-z][0-9]{1,2}-[0-9]{2,4})$"""
+    )
     private val CHINESE_NAME = Regex("""[一-龥]{2,5}""")
     private val LOCATION_KEYWORDS = listOf(
         "线上", "在线", "网络", "腾讯", "会议", "平台", "教室", "教学楼", "校区", "中心",
