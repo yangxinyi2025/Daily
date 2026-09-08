@@ -113,6 +113,64 @@ class PdfTimetableParserTest {
         return method.invoke(parser, chunks) as TimetableParseResult
     }
 
+    @Test
+    fun layoutCellKeepsSameNamedFragmentsWithTheirOwnMultilineFields() {
+        val result = PdfTimetableParser().parseLayoutCell(
+            day = 1,
+            lines = listOf(
+                "数据结构",
+                "(1-2节) 1-8周 /校区:主校区 /场地:理1-",
+                "403 /教师:张",
+                "三 /教学班:CS101 /学分:3",
+                "数据结构",
+                "(3-4节) 9-16周 /校区:主校区 /场地:教三",
+                "508 /教师:李四 /教学班:CS102 /学分:3"
+            )
+        )
+
+        assertEquals(2, result.courses.size)
+        assertEquals(listOf("数据结构", "数据结构"), result.courses.map { it.courseName })
+        assertEquals(listOf(1, 3), result.courses.map { it.startPeriod })
+        assertEquals(listOf(setOf(1, 2, 3, 4, 5, 6, 7, 8), setOf(9, 10, 11, 12, 13, 14, 15, 16)), result.courses.map { it.weekRule.weeks })
+        assertEquals(listOf("理1-403", "教三508"), result.courses.map { it.location })
+        assertEquals(listOf("张三", "李四"), result.courses.map { it.teacher })
+        assertEquals(listOf("主校区", "主校区"), result.courses.map { it.campus })
+        assertEquals(listOf("CS101", "CS102"), result.courses.map { it.courseCode })
+        assertEquals(listOf(3.0, 3.0), result.courses.map { it.credits })
+        assertTrue(result.courses.none { it.needsReview })
+    }
+
+    @Test
+    fun layoutCellRequiresReviewWhenTaggedFieldsAreLowConfidence() {
+        val result = PdfTimetableParser().parseLayoutCell(
+            day = 1,
+            lines = listOf(
+                "课程",
+                "(1-2节) 1-8周 /场地:待定 /教师:未知 /教学班:A /学分:2"
+            )
+        )
+
+        assertEquals(1, result.courses.size)
+        assertTrue(result.courses.single().needsReview)
+    }
+
+    @Test
+    fun retainsFlatTextTableFallbackParsing() {
+        val result = PdfTimetableParser().parseExtractedText(
+            "Algorithms | Tuesday | 3-4 | 1-8 | Building B202 | Li"
+        )
+
+        val course = result.courses.single()
+        assertEquals("Algorithms", course.courseName)
+        assertEquals(2, course.dayOfWeek)
+        assertEquals(3, course.startPeriod)
+        assertEquals(4, course.endPeriod)
+        assertEquals(setOf(1, 2, 3, 4, 5, 6, 7, 8), course.weekRule.weeks)
+        assertEquals("Building B202", course.location)
+        assertEquals("Li", course.teacher)
+        assertFalse(course.needsReview)
+    }
+
     private class CloseTrackingInputStream(bytes: ByteArray) : java.io.ByteArrayInputStream(bytes) {
         var closed: Boolean = false
             private set

@@ -38,15 +38,26 @@ class PdfTimetableParser(
             }
         }
 
-        val courses = mutableListOf<TimetablePreviewCourse>()
-        val unsupportedRows = mutableListOf<UnsupportedTimetableRow>()
-        dayChunks.forEach { (day, chunksForDay) ->
+        val cellResults = dayChunks.map { (day, chunksForDay) ->
             val lines = chunksForDay
                 .sortedWith(compareBy<LayoutTextChunk> { it.page }.thenBy { it.y }.thenBy { it.x })
                 .map(LayoutTextChunk::text)
-            parseCell(day, lines, courses, unsupportedRows)
+            parseLayoutCell(day, lines)
         }
+        val courses = cellResults.flatMap { it.courses }
+        val unsupportedRows = cellResults.flatMap { it.unsupportedRows }
 
+        return TimetableParseResult(
+            courses = courses,
+            warnings = if (courses.isEmpty()) listOf("未识别到课程内容，请确认 PDF 是按周课表导出的格式") else emptyList(),
+            unsupportedRows = unsupportedRows
+        )
+    }
+
+    internal fun parseLayoutCell(day: Int, lines: List<String>): TimetableParseResult {
+        val courses = mutableListOf<TimetablePreviewCourse>()
+        val unsupportedRows = mutableListOf<UnsupportedTimetableRow>()
+        parseCell(day, lines, courses, unsupportedRows)
         return TimetableParseResult(
             courses = courses,
             warnings = if (courses.isEmpty()) listOf("未识别到课程内容，请确认 PDF 是按周课表导出的格式") else emptyList(),
@@ -61,19 +72,19 @@ class PdfTimetableParser(
         unsupportedRows: MutableList<UnsupportedTimetableRow>
     ) {
         val initialCourseCount = courses.size
-        var index = 0
-        while (index < lines.size) {
-            val courseName = lines[index].trim()
-            val metadataIndex = (index + 1 until minOf(lines.size, index + 4))
-                .firstOrNull { COURSE_METADATA.containsMatchIn(lines[it]) }
-            if (metadataIndex == null || !isCourseNameCandidate(courseName)) {
-                index += 1
-                continue
-            }
-
-            val endIndex = findCourseEnd(lines, metadataIndex)
-            val rawRow = lines.subList(index, endIndex + 1).joinToString(" ")
-            val metadata = lines.subList(metadataIndex, endIndex + 1).joinToString(" ")
+        val metadataIndices = lines.indices.filter { COURSE_METADATA.containsMatchIn(lines[it]) }
+        metadataIndices.forEachIndexed { fragmentIndex, metadataIndex ->
+            val previousMetadataIndex = metadataIndices.getOrNull(fragmentIndex - 1) ?: -1
+            val courseNameIndex = (metadataIndex - 1 downTo previousMetadataIndex + 1)
+                .firstOrNull { isCourseNameCandidate(lines[it].trim()) }
+                ?: return@forEachIndexed
+            val nextMetadataIndex = metadataIndices.getOrNull(fragmentIndex + 1) ?: lines.size
+            val nextCourseNameIndex = (metadataIndex + 1 until nextMetadataIndex)
+                .firstOrNull { isCourseNameCandidate(lines[it].trim()) }
+            val fragmentEndExclusive = nextCourseNameIndex ?: nextMetadataIndex
+            val courseName = lines[courseNameIndex].trim()
+            val rawRow = lines.subList(courseNameIndex, fragmentEndExclusive).joinToString(" ")
+            val metadata = lines.subList(metadataIndex, fragmentEndExclusive).joinToString(" ")
             val periods = COURSE_METADATA.find(metadata)?.let {
                 it.groupValues[1].toInt()..it.groupValues[2].toInt()
             }
@@ -87,6 +98,7 @@ class PdfTimetableParser(
                     .trim()
             }.orEmpty()
             val weekRule = WeekRuleParser.parse(weekText)
+            val taggedFields = PdfCourseFieldParser.parse(metadata)
             val missingFields = buildList {
                 if (courseName.isBlank()) add("课程名")
                 if (periods == null) add("节次")
@@ -99,34 +111,24 @@ class PdfTimetableParser(
                 startPeriod = periods?.first,
                 endPeriod = periods?.last,
                 weekRule = weekRule,
-                location = metadataValue(metadata, LOCATION_LABEL),
-                teacher = metadataValue(metadata, TEACHER_LABEL),
-                campus = metadataValue(metadata, CAMPUS_LABEL),
-                courseCode = metadataValue(metadata, TEACHING_CLASS_LABEL),
+                location = taggedFields.location.nullIfBlank(),
+                teacher = taggedFields.teacher.nullIfBlank(),
+                campus = metadataValue(metadata, "校区", "场地"),
+                courseCode = metadataValue(metadata, "教学班", "教学班组成", "学分"),
                 credits = CREDITS.find(metadata)?.groupValues?.get(1)?.toDoubleOrNull(),
                 notes = null,
                 rawRow = rawRow,
-                needsReview = missingFields.isNotEmpty() || weekRule.warnings.isNotEmpty()
+                needsReview = missingFields.isNotEmpty() ||
+                    weekRule.warnings.isNotEmpty() ||
+                    taggedFields.warnings.isNotEmpty()
             )
-            index = endIndex + 1
         }
 
-        if (lines.any { COURSE_METADATA.containsMatchIn(it) } && courses.size == initialCourseCount) {
+        if (metadataIndices.isNotEmpty() && courses.size == initialCourseCount) {
             unsupportedRows += UnsupportedTimetableRow(
                 rawText = lines.joinToString(" "),
                 reason = "无法识别课程详情；已保留原始内容供检查"
             )
-        }
-    }
-
-    private fun findCourseEnd(lines: List<String>, metadataIndex: Int): Int {
-        val creditIndex = (metadataIndex until lines.size).firstOrNull { CREDIT_LABEL.containsMatchIn(lines[it]) }
-            ?: (lines.size - 1)
-        val creditLine = lines[creditIndex]
-        return if (CREDITS.containsMatchIn(creditLine)) {
-            creditIndex
-        } else {
-            minOf(creditIndex + 1, lines.lastIndex)
         }
     }
 
@@ -144,17 +146,16 @@ class PdfTimetableParser(
         !value.contains("/教师") &&
         value !in setOf("上午", "下午", "晚上")
 
-    private fun metadataValue(text: String, fieldLabel: Regex): String? {
-        val start = fieldLabel.find(text) ?: return null
-        val remaining = text.substring(start.range.last + 1)
-        val end = METADATA_FIELD_LABEL.find(remaining)?.range?.first ?: remaining.length
-        return normalizeMetadataValue(remaining.substring(0, end))
+    private fun metadataValue(text: String, startLabel: String, vararg endLabels: String): String? {
+        val endPattern = endLabels.joinToString("|") { Regex.escape(it) }
+        val pattern = Regex(
+            "[／/]\\s*${Regex.escape(startLabel)}\\s*[:：]\\s*(.*?)(?=[／/]\\s*(?:$endPattern)(?:\\s*[:：]|$)|$)",
+            setOf(RegexOption.DOT_MATCHES_ALL)
+        )
+        return pattern.find(text)?.groupValues?.get(1)
+            ?.replace(Regex("\\s+"), "")
+            ?.takeIf(String::isNotBlank)
     }
-
-    private fun normalizeMetadataValue(value: String): String? = value
-        .trim()
-        .replace(WHITESPACE_BETWEEN_CJK_OR_DIGITS, "")
-        .takeIf(String::isNotBlank)
 
     private fun dayForX(x: Float): Int? {
         if (x < DAY_COLUMN_START - DAY_COLUMN_TOLERANCE || x > DAY_COLUMN_START + DAY_COLUMN_WIDTH * 7) {
