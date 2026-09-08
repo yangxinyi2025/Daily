@@ -79,10 +79,14 @@ class PdfTimetableParser(
                 .firstOrNull { isCourseNameCandidate(lines[it].trim()) }
                 ?: return@forEachIndexed
             val nextMetadataIndex = metadataIndices.getOrNull(fragmentIndex + 1) ?: lines.size
-            val nextCourseNameIndex = (metadataIndex + 1 until nextMetadataIndex)
-                .firstOrNull {
-                    isCourseNameCandidate(lines[it].trim()) && !isTaggedValueContinuation(lines, it)
-                }
+            val nextCourseNameIndex = if (nextMetadataIndex == lines.size) {
+                null
+            } else {
+                (metadataIndex + 1 until nextMetadataIndex)
+                    .lastOrNull {
+                        isCourseNameCandidate(lines[it].trim()) && !isTaggedValueContinuation(lines, it)
+                    }
+            }
             val fragmentEndExclusive = nextCourseNameIndex ?: nextMetadataIndex
             val courseName = lines[courseNameIndex].trim()
             val rawRow = lines.subList(courseNameIndex, fragmentEndExclusive).joinToString(" ")
@@ -140,34 +144,15 @@ class PdfTimetableParser(
         value !in setOf("上午", "下午", "晚上")
 
     private fun isTaggedValueContinuation(lines: List<String>, index: Int): Boolean {
-        val previousLine = lines.getOrNull(index - 1)?.trim().orEmpty()
-        val value = lines[index].trim()
         val startsAnotherCourse = (index + 1 until minOf(lines.size, index + 4))
             .any { COURSE_METADATA.containsMatchIn(lines[it]) }
         if (startsAnotherCourse) return false
-        return when {
-            LOCATION_LABEL_ONLY.matches(previousLine) ->
-                TimetablePreviewField.Location !in PdfCourseFieldParser
-                    .parse("/场地:$value/教师:")
-                    .warnings
-            TEACHER_LABEL_ONLY.matches(previousLine) ->
-                TimetablePreviewField.Teacher !in PdfCourseFieldParser
-                    .parse("/场地:/教师:$value/教学班:")
-                    .warnings
-            TRAILING_TAGGED_VALUE.find(previousLine)?.let { match ->
-                val taggedValue = match.groupValues[2] + value
-                when (match.groupValues[1]) {
-                    "场地" -> TimetablePreviewField.Location !in PdfCourseFieldParser
-                        .parse("/场地:$taggedValue/教师:")
-                        .warnings
-                    "教师" -> TimetablePreviewField.Teacher !in PdfCourseFieldParser
-                        .parse("/场地:/教师:$taggedValue/教学班:")
-                        .warnings
-                    else -> false
-                }
-            } == true -> true
-            else -> false
+        for (previousIndex in index - 1 downTo 0) {
+            val previousLine = lines[previousIndex].trim()
+            if (TRAILING_TAGGED_VALUE.containsMatchIn(previousLine)) return true
+            if (METADATA_FIELD_LABEL.containsMatchIn(previousLine)) return false
         }
+        return false
     }
 
     private fun extractWeekText(metadata: String): String {
@@ -318,8 +303,6 @@ class PdfTimetableParser(
         val COURSE_METADATA = Regex("""\((\d+)\s*-\s*(\d+)节\)""")
         val METADATA_FIELD_LABEL = Regex("""[／/]\s*(?:校区|场地|教师|教学班(?:组成)?|学分)\s*[:：]""")
         val METADATA_FIELD_LABEL_ONLY = Regex("""[／/]\s*(?:校区|场地|教师|教学班(?:组成)?|学分)\s*[:：]\s*""")
-        val LOCATION_LABEL_ONLY = Regex("""[／/]\s*场地\s*[:：]\s*""")
-        val TEACHER_LABEL_ONLY = Regex("""[／/]\s*教师\s*[:：]\s*""")
         val TRAILING_TAGGED_VALUE = Regex("""[／/]\s*(场地|教师)\s*[:：]\s*([^／/]*)$""")
         val CREDITS = Regex("""[／/]\s*学分\s*[:：]?\s*([0-9]+(?:\.[0-9]+)?)""")
         val PERIOD_TIME = Regex("""(?:第\s*)?(1[0-2]|[1-9])\s*节?\s*(\d{1,2}:\d{2})\s*(?:-|–|—|~|～|至)\s*(\d{1,2}:\d{2})""")
