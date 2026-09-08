@@ -280,7 +280,7 @@ private fun WeightHistoryRow(record: WeightRecord, zoneId: java.time.ZoneId) {
             fontWeight = FontWeight.Medium
         )
         Text(
-            text = "${String.format(java.util.Locale.US, \"%.1f\", record.weightJin)} 斤",
+            text = "${String.format(java.util.Locale.US, "%.1f", record.weightJin)} 斤",
             color = HealthOverviewInk,
             fontSize = 17.sp,
             fontWeight = FontWeight.SemiBold
