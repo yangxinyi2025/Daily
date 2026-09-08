@@ -141,6 +141,25 @@ class PdfTimetableParserTest {
     }
 
     @Test
+    fun layoutCellKeepsBareWrappedLocationAndTeacherValueLines() {
+        val result = PdfTimetableParser().parseLayoutCell(
+            day = 1,
+            lines = listOf(
+                "数据结构",
+                "(1-2节) 1-8周 /校区:主校区 /场地:理1-",
+                "403",
+                "/教师:张",
+                "三 /教学班:CS101 /学分:3"
+            )
+        )
+
+        val course = result.courses.single()
+        assertEquals("理1-403", course.location)
+        assertEquals("张三", course.teacher)
+        assertFalse(course.needsReview)
+    }
+
+    @Test
     fun layoutCellRequiresReviewWhenTaggedFieldsAreLowConfidence() {
         val result = PdfTimetableParser().parseLayoutCell(
             day = 1,
