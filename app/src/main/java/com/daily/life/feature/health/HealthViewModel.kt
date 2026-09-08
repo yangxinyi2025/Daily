@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -29,6 +30,10 @@ data class HealthState(
     val nextPeriodStart: LocalDate? = null,
     val menstrualCycleDays: Int = DailyPreferences.DEFAULT_MENSTRUAL_CYCLE_DAYS,
     val targetWeightJin: Double? = null,
+    val weightRecordsLoaded: Boolean = false,
+    val targetWeightLoaded: Boolean = false,
+    val periodRecordsLoaded: Boolean = false,
+    val periodPredictionLoaded: Boolean = false,
     val errorMessage: String? = null,
     val statusMessage: String? = null
 )
@@ -47,29 +52,69 @@ class HealthViewModel(
 
     init {
         scope.launch {
-            repository.observeWeightRecords().collect { weights ->
-                _state.update { it.copy(weights = weights) }
-            }
+            repository.observeWeightRecords()
+                .catch { error ->
+                    _state.update {
+                        it.copy(
+                            weightRecordsLoaded = true,
+                            errorMessage = error.message ?: "健康数据读取失败"
+                        )
+                    }
+                }
+                .collect { weights ->
+                    _state.update { it.copy(weights = weights, weightRecordsLoaded = true) }
+                }
         }
         scope.launch {
-            preferences.targetWeightJin.collect { target ->
-                _state.update { it.copy(targetWeightJin = target) }
-            }
+            preferences.targetWeightJin
+                .catch { error ->
+                    _state.update {
+                        it.copy(
+                            targetWeightLoaded = true,
+                            errorMessage = error.message ?: "健康数据读取失败"
+                        )
+                    }
+                }
+                .collect { target ->
+                    _state.update { it.copy(targetWeightJin = target, targetWeightLoaded = true) }
+                }
         }
         scope.launch {
-            periodRepository.observeRecords().collect { records ->
-                _state.update { it.copy(periodRecords = records) }
-            }
+            periodRepository.observeRecords()
+                .catch { error ->
+                    _state.update {
+                        it.copy(
+                            periodRecordsLoaded = true,
+                            errorMessage = error.message ?: "健康数据读取失败"
+                        )
+                    }
+                }
+                .collect { records ->
+                    _state.update { it.copy(periodRecords = records, periodRecordsLoaded = true) }
+                }
         }
         scope.launch {
-            periodRepository.observeNextStartDate().collect { nextStartDate ->
-                _state.update { it.copy(nextPeriodStart = nextStartDate) }
-            }
+            periodRepository.observeNextStartDate()
+                .catch { error ->
+                    _state.update {
+                        it.copy(
+                            periodPredictionLoaded = true,
+                            errorMessage = error.message ?: "健康数据读取失败"
+                        )
+                    }
+                }
+                .collect { nextStartDate ->
+                    _state.update { it.copy(nextPeriodStart = nextStartDate, periodPredictionLoaded = true) }
+                }
         }
         scope.launch {
-            preferences.menstrualCycleDays.collect { cycleDays ->
-                _state.update { it.copy(menstrualCycleDays = cycleDays) }
-            }
+            preferences.menstrualCycleDays
+                .catch { error ->
+                    _state.update { it.copy(errorMessage = error.message ?: "健康数据读取失败") }
+                }
+                .collect { cycleDays ->
+                    _state.update { it.copy(menstrualCycleDays = cycleDays) }
+                }
         }
     }
 
