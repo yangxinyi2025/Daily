@@ -427,6 +427,9 @@ class TimetableViewModel(
         val existing = previewCourses.getOrNull(row.index) ?: return
         val periods = parsePeriodRange(row.periodRange)
         val weekRule = WeekRuleParser.parse(row.weekRuleText)
+        val fieldWarnings = PdfCourseFieldParser
+            .parse("/场地:${row.location}/教师:${row.teacher}/教学班")
+            .warnings
         val updated = existing.copy(
             courseName = row.courseName.trim(),
             dayOfWeek = parseDayOfWeek(row.dayOfWeek),
@@ -435,9 +438,12 @@ class TimetableViewModel(
             weekRule = weekRule,
             location = row.location.trim().ifBlank { null },
             teacher = row.teacher.trim().ifBlank { null },
-            needsReview = false
+            needsReview = false,
+            fieldWarnings = fieldWarnings
         ).let { course ->
-            course.copy(needsReview = validationWarnings(course).isNotEmpty())
+            course.copy(
+                needsReview = validationWarnings(course).isNotEmpty() || course.fieldWarnings.isNotEmpty()
+            )
         }
         previewCourses = previewCourses.toMutableList().also { it[row.index] = updated }
         updateImportState(
@@ -689,9 +695,10 @@ class TimetableViewModel(
             weekRuleText = course.weekRule.rawText,
             location = course.location.orEmpty(),
             teacher = course.teacher.orEmpty(),
-            needsReview = warnings.isNotEmpty(),
+            needsReview = warnings.isNotEmpty() || course.fieldWarnings.isNotEmpty(),
             warnings = warnings,
-            rawRow = course.rawRow
+            rawRow = course.rawRow,
+            fieldWarnings = course.fieldWarnings
         )
     }
 

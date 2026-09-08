@@ -39,7 +39,9 @@ data class TimetablePreviewCourse(
     val credits: Double? = null,
     val notes: String? = null,
     val rawRow: String,
-    val needsReview: Boolean
+    val needsReview: Boolean,
+    @Suppress("EXPOSED_PARAMETER_TYPE")
+    val fieldWarnings: Map<TimetablePreviewField, String> = emptyMap()
 )
 
 data class UnsupportedTimetableRow(
@@ -123,7 +125,9 @@ data class TimetableImportRowState(
     val teacher: String,
     val needsReview: Boolean,
     val warnings: List<String>,
-    val rawRow: String
+    val rawRow: String,
+    @Suppress("EXPOSED_PARAMETER_TYPE")
+    val fieldWarnings: Map<TimetablePreviewField, String> = emptyMap()
 )
 
 data class TimetablePeriodTimeRowState(

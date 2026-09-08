@@ -163,6 +163,84 @@ class TimetableViewModelTest {
     }
 
     @Test
+    fun previewRowsPreserveParserFieldWarningsAndRequireReview() = runTest {
+        val viewModel = TimetableViewModel(
+            repository = FakeTimetableRepository(),
+            parser = PdfTimetableParser(),
+            clock = fixedClock(),
+            coroutineScope = backgroundScope
+        )
+        viewModel.showImportPreview(
+            "synthetic.pdf",
+            PdfTimetableParser().parseLayoutCell(
+                day = 1,
+                lines = listOf(
+                    "高等数学",
+                    "(1-2节) 1-4周 /场地:张三 /教师:第1周 /教学班:A /学分:2"
+                )
+            )
+        )
+        runCurrent()
+
+        val row = viewModel.state.value.importState.previewRows.single()
+        assertEquals(
+            mapOf(
+                TimetablePreviewField.Location to "无法可靠识别场地，请检查原始内容",
+                TimetablePreviewField.Teacher to "无法可靠识别教师，请检查原始内容"
+            ),
+            row.fieldWarnings
+        )
+        assertTrue(row.needsReview)
+    }
+
+    @Test
+    fun editingCorrectedLocationClearsOnlyItsFieldWarningAndKeepsOtherWarnings() = runTest {
+        val viewModel = TimetableViewModel(
+            repository = FakeTimetableRepository(),
+            parser = PdfTimetableParser(),
+            clock = fixedClock(),
+            coroutineScope = backgroundScope
+        )
+        viewModel.showImportPreview(
+            "synthetic.pdf",
+            TimetableParseResult(
+                courses = listOf(
+                    TimetablePreviewCourse(
+                        courseName = "高等数学",
+                        dayOfWeek = 1,
+                        startPeriod = 1,
+                        endPeriod = 2,
+                        weekRule = WeekRuleResult("1-4周", setOf(1, 2, 3, 4)),
+                        location = "张三",
+                        teacher = "第1周",
+                        rawRow = "高等数学",
+                        needsReview = true,
+                        fieldWarnings = mapOf(
+                            TimetablePreviewField.Location to "无法可靠识别场地，请检查原始内容",
+                            TimetablePreviewField.Teacher to "无法可靠识别教师，请检查原始内容"
+                        )
+                    )
+                ),
+                warnings = emptyList(),
+                unsupportedRows = emptyList()
+            )
+        )
+        runCurrent()
+
+        viewModel.updateImportRow(
+            viewModel.state.value.importState.previewRows.single().copy(location = "教三508")
+        )
+        runCurrent()
+
+        val row = viewModel.state.value.importState.previewRows.single()
+        assertEquals(
+            mapOf(TimetablePreviewField.Teacher to "无法可靠识别教师，请检查原始内容"),
+            row.fieldWarnings
+        )
+        assertTrue(row.needsReview)
+    }
+
+    @Test
     fun courseEditorPrefillsNewCellAndSavesTheDraft() = runTest {
         val repository = FakeTimetableRepository(
             semester = SemesterEntity(5L, "2026 秋季", LocalDate.of(2026, 9, 1), isCurrent = true, createdAt = 0L)

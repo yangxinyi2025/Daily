@@ -18,6 +18,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -350,6 +351,8 @@ private fun ImportPreviewRow(
     row: TimetableImportRowState,
     onRowChange: (TimetableImportRowState) -> Unit
 ) {
+    val locationWarning = row.fieldWarnings[TimetablePreviewField.Location]
+    val teacherWarning = row.fieldWarnings[TimetablePreviewField.Teacher]
     DailyCard {
         Text(
             text = "预览课程 ${row.index + 1}${if (row.needsReview) " · 需检查" else ""}",
@@ -396,14 +399,20 @@ private fun ImportPreviewRow(
                 onValueChange = { onRowChange(row.copy(location = it)) },
                 modifier = Modifier.weight(1f),
                 label = { Text("地点") },
-                singleLine = true
+                singleLine = true,
+                isError = locationWarning != null,
+                supportingText = locationWarning?.let { warning -> { Text(warning, color = FieldWarningAmber) } },
+                colors = OutlinedTextFieldDefaults.colors(errorBorderColor = FieldWarningAmber)
             )
             OutlinedTextField(
                 value = row.teacher,
                 onValueChange = { onRowChange(row.copy(teacher = it)) },
                 modifier = Modifier.weight(1f),
                 label = { Text("教师") },
-                singleLine = true
+                singleLine = true,
+                isError = teacherWarning != null,
+                supportingText = teacherWarning?.let { warning -> { Text(warning, color = FieldWarningAmber) } },
+                colors = OutlinedTextFieldDefaults.colors(errorBorderColor = FieldWarningAmber)
             )
         }
         row.warnings.forEach { warning ->
@@ -416,3 +425,5 @@ private fun ImportPreviewRow(
         )
     }
 }
+
+private val FieldWarningAmber = Color(0xFFFFB300)

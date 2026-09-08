@@ -114,7 +114,8 @@ class PdfTimetableParser(
                 rawRow = rawRow,
                 needsReview = missingFields.isNotEmpty() ||
                     weekRule.warnings.isNotEmpty() ||
-                    taggedFields.warnings.isNotEmpty()
+                    taggedFields.warnings.isNotEmpty(),
+                fieldWarnings = taggedFields.warnings
             )
         }
 
