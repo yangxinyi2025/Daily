@@ -80,7 +80,9 @@ class PdfTimetableParser(
                 ?: return@forEachIndexed
             val nextMetadataIndex = metadataIndices.getOrNull(fragmentIndex + 1) ?: lines.size
             val nextCourseNameIndex = (metadataIndex + 1 until nextMetadataIndex)
-                .firstOrNull { isCourseNameCandidate(lines[it].trim()) }
+                .firstOrNull {
+                    isCourseNameCandidate(lines[it].trim()) && !isTaggedValueContinuation(lines, it)
+                }
             val fragmentEndExclusive = nextCourseNameIndex ?: nextMetadataIndex
             val courseName = lines[courseNameIndex].trim()
             val rawRow = lines.subList(courseNameIndex, fragmentEndExclusive).joinToString(" ")
@@ -88,15 +90,7 @@ class PdfTimetableParser(
             val periods = COURSE_METADATA.find(metadata)?.let {
                 it.groupValues[1].toInt()..it.groupValues[2].toInt()
             }
-            val weekText = COURSE_METADATA.find(metadata)?.let { match ->
-                metadata.substring(match.range.last + 1)
-                    .substringBefore("/校区")
-                    .replace("(单)", "单周")
-                    .replace("（单）", "单周")
-                    .replace("(双)", "双周")
-                    .replace("（双）", "双周")
-                    .trim()
-            }.orEmpty()
+            val weekText = extractWeekText(metadata)
             val weekRule = WeekRuleParser.parse(weekText)
             val taggedFields = PdfCourseFieldParser.parse(metadata)
             val missingFields = buildList {
@@ -141,10 +135,23 @@ class PdfTimetableParser(
         !value.startsWith("星期") &&
         !value.startsWith("周") &&
         !value.contains(":") &&
-        !value.contains("/校区") &&
-        !value.contains("/场地") &&
-        !value.contains("/教师") &&
+        !METADATA_FIELD_LABEL.containsMatchIn(value) &&
         value !in setOf("上午", "下午", "晚上")
+
+    private fun isTaggedValueContinuation(lines: List<String>, index: Int): Boolean =
+        METADATA_FIELD_LABEL_ONLY.matches(lines.getOrNull(index - 1)?.trim().orEmpty())
+
+    private fun extractWeekText(metadata: String): String {
+        val metadataMatch = COURSE_METADATA.find(metadata) ?: return ""
+        val metadataTail = metadata.substring(metadataMatch.range.last + 1)
+        val weekEnd = METADATA_FIELD_LABEL.find(metadataTail)?.range?.first ?: metadataTail.length
+        return metadataTail.substring(0, weekEnd)
+            .replace("(单)", "单周")
+            .replace("（单）", "单周")
+            .replace("(双)", "双周")
+            .replace("（双）", "双周")
+            .trim()
+    }
 
     private fun metadataValue(text: String, startLabel: String, vararg endLabels: String): String? {
         val endPattern = endLabels.joinToString("|") { Regex.escape(it) }
@@ -280,18 +287,9 @@ class PdfTimetableParser(
         const val DAY_COLUMN_TOLERANCE = 12f
         val PERIOD_NUMBER = Regex("""\d+""")
         val COURSE_METADATA = Regex("""\((\d+)\s*-\s*(\d+)节\)""")
-        val CREDITS = Regex("""/学\s*分\s*:?\s*([0-9]+(?:\.[0-9]+)?)""")
-        val CAMPUS_LABEL = Regex("""/\s*校\s*区\s*:""")
-        val LOCATION_LABEL = Regex("""/\s*场\s*地\s*:""")
-        val TEACHER_LABEL = Regex("""/\s*教\s*师\s*:""")
-        val TEACHING_CLASS_LABEL = Regex("""/\s*教\s*学\s*班\s*:""")
-        val CREDIT_LABEL = Regex("""/\s*学\s*分\s*:?""")
-        val METADATA_FIELD_LABEL = Regex(
-            """/\s*(?:校\s*区|场\s*地|教\s*师|教\s*学\s*班(?:\s*组\s*成)?|学\s*分)\s*:"""
-        )
-        val WHITESPACE_BETWEEN_CJK_OR_DIGITS = Regex(
-            """(?<=[\p{IsHan}\d])\s+(?=[\p{IsHan}\d])"""
-        )
+        val METADATA_FIELD_LABEL = Regex("""[／/]\s*(?:校区|场地|教师|教学班(?:组成)?|学分)\s*[:：]""")
+        val METADATA_FIELD_LABEL_ONLY = Regex("""[／/]\s*(?:校区|场地|教师|教学班(?:组成)?|学分)\s*[:：]\s*""")
+        val CREDITS = Regex("""[／/]\s*学分\s*[:：]?\s*([0-9]+(?:\.[0-9]+)?)""")
         val PERIOD_TIME = Regex("""(?:第\s*)?(1[0-2]|[1-9])\s*节?\s*(\d{1,2}:\d{2})\s*(?:-|–|—|~|～|至)\s*(\d{1,2}:\d{2})""")
     }
 

@@ -155,6 +155,62 @@ class PdfTimetableParserTest {
     }
 
     @Test
+    fun layoutCellKeepsLocationValueOnItsOwnLineInsideTheFragment() {
+        val result = PdfTimetableParser().parseLayoutCell(
+            day = 1,
+            lines = listOf(
+                "课程",
+                "(1-2节) 1-8周 /校区:主校区",
+                "/场地:",
+                "理1-403",
+                "/教师:张三 /教学班:A /学分:2"
+            )
+        )
+
+        assertEquals("理1-403", result.courses.single().location)
+        assertEquals("张三", result.courses.single().teacher)
+    }
+
+    @Test
+    fun layoutCellKeepsTeacherValueOnItsOwnLineInsideTheFragment() {
+        val result = PdfTimetableParser().parseLayoutCell(
+            day = 1,
+            lines = listOf(
+                "课程",
+                "(1-2节) 1-8周 /校区:主校区 /场地:理1-403",
+                "/教师:",
+                "张三",
+                "/教学班:A /学分:2"
+            )
+        )
+
+        assertEquals("理1-403", result.courses.single().location)
+        assertEquals("张三", result.courses.single().teacher)
+    }
+
+    @Test
+    fun layoutCellUsesFullWidthCampusBoundaryBeforeParsingWeeks() {
+        val result = PdfTimetableParser().parseLayoutCell(
+            day = 1,
+            lines = listOf(
+                "线性代数",
+                "(5-6节) 2-6周 ／校区：主校区",
+                "／场地：理1-403",
+                "／教师：王五",
+                "／教学班：M01 ／学分：2"
+            )
+        )
+
+        val course = result.courses.single()
+        assertEquals(setOf(2, 3, 4, 5, 6), course.weekRule.weeks)
+        assertEquals("主校区", course.campus)
+        assertEquals("理1-403", course.location)
+        assertEquals("王五", course.teacher)
+        assertEquals("M01", course.courseCode)
+        assertEquals(2.0, course.credits)
+    }
+
+    @Test
     fun retainsFlatTextTableFallbackParsing() {
         val result = PdfTimetableParser().parseExtractedText(
             "Algorithms | Tuesday | 3-4 | 1-8 | Building B202 | Li"
