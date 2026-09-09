@@ -79,6 +79,40 @@ class PdfTimetableParserTest {
         assertFalse(result.parsedPeriodTimes.containsKey(4))
     }
 
+    @Test
+    fun layoutParserKeepsTeacherAndLocationWhenChineseMetadataLabelsWrapAcrossLines() {
+        val result = parseLayout(
+            "生理学(甲)",
+            "(1-2节)1-5周/校区:浙大城市",
+            "学院/场地:教三",
+            "508/教",
+            "师:俞",
+            "彬/教学班:(2026-2027-1)-B04009",
+            "/教学班组成:临床医学2503",
+            "/学分:4.0"
+        )
+
+        val course = result.courses.single()
+        assertEquals("教三508", course.location)
+        assertEquals("俞彬", course.teacher)
+    }
+
+    private fun parseLayout(vararg lines: String): TimetableParseResult {
+        val parser = PdfTimetableParser()
+        val chunkClass = Class.forName(
+            "com.daily.life.feature.timetable.PdfTimetableParser\$LayoutTextChunk"
+        )
+        val constructor = chunkClass.getDeclaredConstructor(
+            Float::class.javaPrimitiveType,
+            String::class.java
+        ).apply { isAccessible = true }
+        val chunks = lines.map { line -> constructor.newInstance(104f, line) }
+        val method = PdfTimetableParser::class.java.getDeclaredMethod("parseLayout", List::class.java)
+            .apply { isAccessible = true }
+
+        return method.invoke(parser, chunks) as TimetableParseResult
+    }
+
     private class CloseTrackingInputStream(bytes: ByteArray) : java.io.ByteArrayInputStream(bytes) {
         var closed: Boolean = false
             private set

@@ -29,18 +29,21 @@ class PdfTimetableParser(
     }
 
     private fun parseLayout(chunks: List<LayoutTextChunk>): TimetableParseResult {
-        val dayChunks = linkedMapOf<Int, MutableList<String>>()
+        val dayChunks = linkedMapOf<Int, MutableList<LayoutTextChunk>>()
 
         chunks.forEach { chunk ->
             val day = dayForX(chunk.x) ?: return@forEach
             if (chunk.text.isNotBlank()) {
-                dayChunks.getOrPut(day) { mutableListOf() } += chunk.text.trim()
+                dayChunks.getOrPut(day) { mutableListOf() } += chunk.copy(text = chunk.text.trim())
             }
         }
 
         val courses = mutableListOf<TimetablePreviewCourse>()
         val unsupportedRows = mutableListOf<UnsupportedTimetableRow>()
-        dayChunks.forEach { (day, lines) ->
+        dayChunks.forEach { (day, chunksForDay) ->
+            val lines = chunksForDay
+                .sortedWith(compareBy<LayoutTextChunk> { it.page }.thenBy { it.y }.thenBy { it.x })
+                .map(LayoutTextChunk::text)
             parseCell(day, lines, courses, unsupportedRows)
         }
 
@@ -96,10 +99,10 @@ class PdfTimetableParser(
                 startPeriod = periods?.first,
                 endPeriod = periods?.last,
                 weekRule = weekRule,
-                location = valueBetween(metadata, "/场地:", "/教师:"),
-                teacher = valueBetween(metadata, "/教师:", "/教学班:"),
-                campus = valueBetween(metadata, "/校区:", "/场地:"),
-                courseCode = valueBetween(metadata, "/教学班:", "/教学班组成"),
+                location = metadataValue(metadata, LOCATION_LABEL),
+                teacher = metadataValue(metadata, TEACHER_LABEL),
+                campus = metadataValue(metadata, CAMPUS_LABEL),
+                courseCode = metadataValue(metadata, TEACHING_CLASS_LABEL),
                 credits = CREDITS.find(metadata)?.groupValues?.get(1)?.toDoubleOrNull(),
                 notes = null,
                 rawRow = rawRow,
@@ -117,7 +120,7 @@ class PdfTimetableParser(
     }
 
     private fun findCourseEnd(lines: List<String>, metadataIndex: Int): Int {
-        val creditIndex = (metadataIndex until lines.size).firstOrNull { "学分" in lines[it] }
+        val creditIndex = (metadataIndex until lines.size).firstOrNull { CREDIT_LABEL.containsMatchIn(lines[it]) }
             ?: (lines.size - 1)
         val creditLine = lines[creditIndex]
         return if (CREDITS.containsMatchIn(creditLine)) {
@@ -141,11 +144,17 @@ class PdfTimetableParser(
         !value.contains("/教师") &&
         value !in setOf("上午", "下午", "晚上")
 
-    private fun valueBetween(text: String, start: String, end: String): String? =
-        text.substringAfter(start, "")
-            .substringBefore(end)
-            .trim()
-            .takeIf(String::isNotBlank)
+    private fun metadataValue(text: String, fieldLabel: Regex): String? {
+        val start = fieldLabel.find(text) ?: return null
+        val remaining = text.substring(start.range.last + 1)
+        val end = METADATA_FIELD_LABEL.find(remaining)?.range?.first ?: remaining.length
+        return normalizeMetadataValue(remaining.substring(0, end))
+    }
+
+    private fun normalizeMetadataValue(value: String): String? = value
+        .trim()
+        .replace(WHITESPACE_BETWEEN_CJK_OR_DIGITS, "")
+        .takeIf(String::isNotBlank)
 
     private fun dayForX(x: Float): Int? {
         if (x < DAY_COLUMN_START - DAY_COLUMN_TOLERANCE || x > DAY_COLUMN_START + DAY_COLUMN_WIDTH * 7) {
@@ -270,14 +279,29 @@ class PdfTimetableParser(
         const val DAY_COLUMN_TOLERANCE = 12f
         val PERIOD_NUMBER = Regex("""\d+""")
         val COURSE_METADATA = Regex("""\((\d+)\s*-\s*(\d+)节\)""")
-        val CREDITS = Regex("""/学分\s*:?\s*([0-9]+(?:\.[0-9]+)?)""")
+        val CREDITS = Regex("""/学\s*分\s*:?\s*([0-9]+(?:\.[0-9]+)?)""")
+        val CAMPUS_LABEL = Regex("""/\s*校\s*区\s*:""")
+        val LOCATION_LABEL = Regex("""/\s*场\s*地\s*:""")
+        val TEACHER_LABEL = Regex("""/\s*教\s*师\s*:""")
+        val TEACHING_CLASS_LABEL = Regex("""/\s*教\s*学\s*班\s*:""")
+        val CREDIT_LABEL = Regex("""/\s*学\s*分\s*:?""")
+        val METADATA_FIELD_LABEL = Regex(
+            """/\s*(?:校\s*区|场\s*地|教\s*师|教\s*学\s*班(?:\s*组\s*成)?|学\s*分)\s*:"""
+        )
+        val WHITESPACE_BETWEEN_CJK_OR_DIGITS = Regex(
+            """(?<=[\p{IsHan}\d])\s+(?=[\p{IsHan}\d])"""
+        )
         val PERIOD_TIME = Regex("""(?:第\s*)?(1[0-2]|[1-9])\s*节?\s*(\d{1,2}:\d{2})\s*(?:-|–|—|~|～|至)\s*(\d{1,2}:\d{2})""")
     }
 
     private data class LayoutTextChunk(
         val x: Float,
+        val y: Float,
+        val page: Int,
         val text: String
-    )
+    ) {
+        constructor(x: Float, text: String) : this(x = x, y = 0f, page = 0, text = text)
+    }
 
     private class LayoutTextStripper : PDFTextStripper() {
         val chunks = mutableListOf<LayoutTextChunk>()
@@ -288,7 +312,12 @@ class PdfTimetableParser(
             if (text.contains("星期一")) hasWeekdayHeader = true
             val first = textPositions.firstOrNull()
             if (first != null) {
-                chunks += LayoutTextChunk(first.xDirAdj, text)
+                chunks += LayoutTextChunk(
+                    x = first.xDirAdj,
+                    y = first.yDirAdj,
+                    page = currentPageNo,
+                    text = text
+                )
             }
             super.writeString(text, textPositions)
         }
