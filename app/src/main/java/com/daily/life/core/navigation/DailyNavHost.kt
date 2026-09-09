@@ -25,7 +25,6 @@ import com.daily.life.core.designsystem.DailyBottomBar
 import com.daily.life.core.designsystem.DailyPlaceholderPage
 import com.daily.life.core.NoOpReminderScheduler
 import com.daily.life.DailyApplication
-import com.daily.life.feature.home.DaoBillSummaryRepository
 import com.daily.life.feature.home.DaoHealthSummaryRepository
 import com.daily.life.feature.home.DaoScheduleSummaryRepository
 import com.daily.life.feature.home.DaoTimetableSummaryRepository
@@ -35,9 +34,6 @@ import com.daily.life.feature.health.HealthRepository
 import com.daily.life.feature.health.HealthScreen
 import com.daily.life.feature.health.HealthViewModel
 import com.daily.life.feature.health.PeriodRepository
-import com.daily.life.feature.bill.BillRepository
-import com.daily.life.feature.bill.BillScreen
-import com.daily.life.feature.bill.BillViewModel
 import com.daily.life.feature.settings.DaoSemesterSettingsRepository
 import com.daily.life.feature.settings.SettingsScreen
 import com.daily.life.feature.settings.SettingsViewModel
@@ -113,11 +109,6 @@ fun DailyNavHost(
                         healthRepository = DaoHealthSummaryRepository(
                             healthDao = database.healthDao(),
                             periodDao = database.periodDao(),
-                            preferences = container.preferences
-                        ),
-                        billRepository = DaoBillSummaryRepository(
-                            transactionDao = database.transactionDao(),
-                            budgetDao = database.budgetDao(),
                             preferences = container.preferences
                         )
                     )
@@ -255,38 +246,6 @@ fun DailyNavHost(
                     onDeletePeriod = healthViewModel::deletePeriod
                 )
             }
-            composable(DailyDestination.Bill.route) {
-                val container = application.container
-                val billRepository = container.repositories.billRepositoryFactory.create()
-                    ?: BillRepository(
-                        database = container.database,
-                        preferences = container.preferences
-                    )
-                val billViewModel: BillViewModel = viewModel {
-                    BillViewModel(repository = billRepository)
-                }
-                val billState by billViewModel.state.collectAsState()
-                BillScreen(
-                    state = billState,
-                    onPreviousPeriod = billViewModel::selectPreviousPeriod,
-                    onNextPeriod = billViewModel::selectNextPeriod,
-                    onCurrentPeriod = billViewModel::selectCurrentPeriod,
-                    onSelectMonth = billViewModel::selectMonth,
-                    onPeriodChange = billViewModel::setPeriod,
-                    onDirectionChange = billViewModel::setDirectionFilter,
-                    onSearchChange = billViewModel::setSearchText,
-                    onOpenImport = billViewModel::openImport,
-                    onOpenNewEditor = billViewModel::openNewEditor,
-                    onFileSelected = billViewModel::selectFile,
-                    onTogglePreviewRow = billViewModel::togglePreviewRow,
-                    onCancelImport = billViewModel::cancelImport,
-                    onConfirmImport = billViewModel::confirmImport,
-                    onOpenEditor = billViewModel::openEditor,
-                    onEditorChange = billViewModel::updateEditor,
-                    onCancelEditor = billViewModel::dismissEditor,
-                    onSaveEditor = billViewModel::saveEditor
-                )
-            }
             composable(DailyDestination.Settings.route) {
                 val container = application.container
                 val settingsViewModel: SettingsViewModel = viewModel {
@@ -304,7 +263,6 @@ fun DailyNavHost(
                     state = settingsState,
                     onSemesterStartDateChange = settingsViewModel::updateSemesterStartDate,
                     onTargetWeightChange = settingsViewModel::updateTargetWeightJin,
-                    onMonthlyBudgetChange = settingsViewModel::updateMonthlyBudgetCents,
                     onAddHolidaySource = settingsViewModel::addHolidaySource,
                     onToggleHolidaySource = settingsViewModel::toggleHolidaySource,
                     onDeleteHolidaySource = settingsViewModel::deleteHolidaySource,

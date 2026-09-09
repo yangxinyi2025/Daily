@@ -20,24 +20,22 @@ class HomeViewModelTest {
             timetableRepository = FakeTimetableSummaryRepository(),
             scheduleRepository = FakeScheduleSummaryRepository(),
             healthRepository = FakeHealthSummaryRepository(),
-            billRepository = FakeBillSummaryRepository(),
             clock = fixedClock(),
             coroutineScope = backgroundScope
         )
 
-        val state = viewModel.state.first { it.cards.size == 4 }
+        val state = viewModel.state.first { it.cards.size == 3 }
 
         assertEquals("你好", state.greeting)
         assertEquals("8月20日 星期四", state.dateLabel)
         assertEquals(0, state.todayCourseCount)
         assertEquals(0, state.upcomingEventCount)
-        assertEquals(0L, state.monthlySpendingCents)
         assertEquals(null, state.nextCourseLabel)
         assertEquals(null, state.nextEventLabel)
         assertEquals(null, state.latestWeightJin)
-        assertEquals(null, state.monthlyBudgetCents)
-        assertEquals(4, state.cards.size)
+        assertEquals(3, state.cards.size)
         assertTrue(state.cards.none { it.title == "今日活动" })
+        assertTrue(state.cards.none { it.title == "本月账单" })
         assertTrue(state.cards.any { it.actionLabel == "导入第一份课表" && it.destination == DailyDestination.Timetable })
         assertTrue(state.cards.any { it.actionLabel == "记录今天体重" && it.destination == DailyDestination.Health })
     }
@@ -71,21 +69,12 @@ class HomeViewModelTest {
                     )
                 )
             ),
-            billRepository = FakeBillSummaryRepository(
-                MutableStateFlow(
-                    BillHomeSummary(
-                        monthlyExpenseCents = 23_450L,
-                        monthlyBudgetCents = 100_000L,
-                        isEmpty = false
-                    )
-                )
-            ),
             clock = fixedClock(),
             coroutineScope = backgroundScope
         )
 
         val state = viewModel.state.first { homeState ->
-            homeState.cards.any { it.title == "本月账单" && it.value.contains("¥234.50") }
+            homeState.cards.any { it.title == "健康记录" && it.value.contains("120.5 斤") }
         }
         val cards = state.cards
 
@@ -94,12 +83,10 @@ class HomeViewModelTest {
         assertEquals(1, state.upcomingEventCount)
         assertEquals("晚上体测 19:00", state.nextEventLabel)
         assertEquals(120.5, state.latestWeightJin ?: Double.NaN, 0.0)
-        assertEquals(23_450L, state.monthlySpendingCents)
-        assertEquals(100_000L, state.monthlyBudgetCents)
         assertTrue(cards.any { it.title == "今日课表" && it.value.contains("2 节课") })
         assertTrue(cards.any { it.title == "最近日程" && it.value.contains("晚上体测") })
         assertTrue(cards.any { it.title == "健康记录" && it.value.contains("120.5 斤") })
-        assertTrue(cards.any { it.title == "本月账单" && it.value.contains("¥234.50 / ¥1,000.00") })
+        assertTrue(cards.none { it.title == "本月账单" })
     }
 
     @Test
@@ -126,7 +113,6 @@ class HomeViewModelTest {
                 MutableStateFlow(ScheduleHomeSummary(todaySchedules = scheduleRows))
             ),
             healthRepository = FakeHealthSummaryRepository(),
-            billRepository = FakeBillSummaryRepository(),
             clock = fixedClock(),
             coroutineScope = backgroundScope
         )
@@ -158,7 +144,6 @@ class HomeViewModelTest {
                     )
                 )
             ),
-            billRepository = FakeBillSummaryRepository(),
             clock = fixedClock(),
             coroutineScope = backgroundScope
         )
@@ -176,7 +161,6 @@ class HomeViewModelTest {
             timetableRepository = FakeTimetableSummaryRepository(timetable),
             scheduleRepository = FakeScheduleSummaryRepository(),
             healthRepository = FakeHealthSummaryRepository(),
-            billRepository = FakeBillSummaryRepository(),
             clock = fixedClock(),
             coroutineScope = backgroundScope
         )

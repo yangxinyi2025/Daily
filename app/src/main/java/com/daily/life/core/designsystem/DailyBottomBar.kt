@@ -112,6 +112,5 @@ private fun DailyDestination.cuteIconResource(): Int = when (this) {
     DailyDestination.Timetable -> R.drawable.nav_cute_timetable
     DailyDestination.Schedule -> R.drawable.nav_cute_schedule
     DailyDestination.Health -> R.drawable.nav_cute_health
-    DailyDestination.Bill -> R.drawable.nav_cute_bill
     DailyDestination.Settings -> R.drawable.nav_cute_home
 }

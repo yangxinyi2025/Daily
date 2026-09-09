@@ -5,12 +5,11 @@ import org.junit.Test
 
 class DailyDestinationTest {
     @Test
-    fun primaryDestinationsHaveStableRoutes() {
-        assertEquals("home", DailyDestination.Home.route)
-        assertEquals("timetable", DailyDestination.Timetable.route)
-        assertEquals("schedule", DailyDestination.Schedule.route)
-        assertEquals("health", DailyDestination.Health.route)
-        assertEquals("bill", DailyDestination.Bill.route)
+    fun primaryDestinationsContainOnlyFourCoreRoutes() {
+        assertEquals(
+            listOf("home", "timetable", "schedule", "health"),
+            DailyDestination.primaryDestinations.map { it.route }
+        )
     }
 
     @Test

@@ -1,6 +1,5 @@
 package com.daily.life.feature.home
 
-import com.daily.life.core.database.BudgetDao
 import com.daily.life.core.database.CourseDao
 import com.daily.life.core.database.CourseEntity
 import com.daily.life.core.database.HealthDao
@@ -8,8 +7,6 @@ import com.daily.life.core.database.PeriodDao
 import com.daily.life.core.database.ScheduleEventDao
 import com.daily.life.core.database.SemesterDao
 import com.daily.life.core.database.SemesterPeriodDao
-import com.daily.life.core.database.TransactionDao
-import com.daily.life.core.database.TransactionDirection
 import com.daily.life.core.datastore.DailyPreferences
 import com.daily.life.feature.health.PeriodPredictionCalculator
 import com.daily.life.feature.health.PeriodRecord
@@ -18,8 +15,6 @@ import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
-import java.time.YearMonth
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
@@ -234,35 +229,6 @@ class DaoHealthSummaryRepository(
                     cycleDays
                 ),
                 isEmpty = weights.isEmpty() && periods.isEmpty()
-            )
-        }
-}
-
-class DaoBillSummaryRepository(
-    transactionDao: TransactionDao,
-    budgetDao: BudgetDao,
-    preferences: DailyPreferences,
-    private val clock: Clock = Clock.systemDefaultZone()
-) : BillSummaryRepository {
-    override val summary: Flow<BillHomeSummary> =
-        combine(
-            transactionDao.observeAll(),
-            budgetDao.observeAll(),
-            preferences.defaultBudgetCents
-        ) { transactions, budgets, defaultBudget ->
-            val zone: ZoneId = clock.zone
-            val month = YearMonth.now(clock)
-            val monthlyExpenses = transactions.filter { transaction ->
-                transaction.direction == TransactionDirection.EXPENSE &&
-                    YearMonth.from(
-                        Instant.ofEpochMilli(transaction.occurredAt).atZone(zone)
-                    ) == month
-            }
-            BillHomeSummary(
-                monthlyExpenseCents = monthlyExpenses.sumOf { it.amountCents },
-                monthlyBudgetCents = budgets.firstOrNull { it.month == month.toString() }?.budgetCents
-                    ?: defaultBudget,
-                isEmpty = monthlyExpenses.isEmpty()
             )
         }
 }
