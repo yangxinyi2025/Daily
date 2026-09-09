@@ -8,7 +8,6 @@ import com.daily.life.core.calendar.IcsCalendarClient
 import com.daily.life.core.calendar.SystemCalendarScheduleReader
 import com.daily.life.core.security.AndroidSecretStore
 import com.daily.life.core.security.SecretStore
-import com.daily.life.feature.bill.BillRepository
 
 interface AppContainer {
     val database: DailyDatabase
@@ -47,12 +46,6 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
                 healthDao = database.healthDao(),
                 preferences = preferences
             )
-        },
-        billRepositoryFactory = DeferredFactory {
-            BillRepository(
-                database = database,
-                preferences = preferences
-            )
         }
     )
     override val adapters: AdapterFactories = AdapterFactories()
@@ -61,8 +54,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 data class RepositoryFactories(
     val timetableRepositoryFactory: ComponentFactory<TimetableRepository> = DeferredFactory(),
     val scheduleRepositoryFactory: ComponentFactory<ScheduleRepository> = DeferredFactory(),
-    val healthRepositoryFactory: ComponentFactory<com.daily.life.feature.health.HealthRepository> = DeferredFactory(),
-    val billRepositoryFactory: ComponentFactory<BillRepository> = DeferredFactory()
+    val healthRepositoryFactory: ComponentFactory<com.daily.life.feature.health.HealthRepository> = DeferredFactory()
 )
 
 data class AdapterFactories(

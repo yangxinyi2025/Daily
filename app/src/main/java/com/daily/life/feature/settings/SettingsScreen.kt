@@ -41,15 +41,12 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.Locale
-import kotlin.math.roundToLong
 
 @Composable
 fun SettingsScreen(
     state: SettingsState,
     onSemesterStartDateChange: (LocalDate) -> Unit,
     onTargetWeightChange: (Double?) -> Unit,
-    onMonthlyBudgetChange: (Long?) -> Unit,
     onAddHolidaySource: (String, String) -> Unit,
     onToggleHolidaySource: (String, Boolean) -> Unit,
     onDeleteHolidaySource: (String) -> Unit,
@@ -57,7 +54,6 @@ fun SettingsScreen(
 ) {
     var semesterStartDateText by rememberSaveable { mutableStateOf(state.semesterStartDate?.toString().orEmpty()) }
     var targetWeightText by rememberSaveable { mutableStateOf(state.targetWeightJin?.toString().orEmpty()) }
-    var monthlyBudgetText by rememberSaveable { mutableStateOf(state.monthlyBudgetCents?.let(::formatBudgetInput).orEmpty()) }
     var holidaySourceName by rememberSaveable { mutableStateOf("") }
     var holidaySourceUrl by rememberSaveable { mutableStateOf("") }
 
@@ -67,10 +63,6 @@ fun SettingsScreen(
     LaunchedEffect(state.targetWeightJin) {
         targetWeightText = state.targetWeightJin?.toString().orEmpty()
     }
-    LaunchedEffect(state.monthlyBudgetCents) {
-        monthlyBudgetText = state.monthlyBudgetCents?.let(::formatBudgetInput).orEmpty()
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -119,25 +111,6 @@ fun SettingsScreen(
             )
             Text(
                 text = state.targetWeightJin?.let { "当前目标：$it 斤" } ?: "还没有设置目标体重",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        DailyCard {
-            Text(text = "预算", style = MaterialTheme.typography.titleLarge)
-            OutlinedTextField(
-                value = monthlyBudgetText,
-                onValueChange = { value ->
-                    monthlyBudgetText = value
-                    onMonthlyBudgetChange(parseBudgetInput(value))
-                },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("月预算（元）") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-            )
-            Text(
-                text = state.monthlyBudgetCents?.let { "当前预算：${formatCurrency(it)}" } ?: "还没有设置默认预算",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -287,14 +260,6 @@ private fun Context.isIgnoringBatteryOptimizations(): Boolean {
 private fun Context.openBackgroundRuntimeSettings() {
     openAppDetailsSettings()
 }
-
-private fun parseBudgetInput(value: String): Long? =
-    value.toDoubleOrNull()?.let { amount -> (amount * 100).roundToLong() }
-
-private fun formatBudgetInput(value: Long): String = (value / 100.0).toString()
-
-private fun formatCurrency(cents: Long): String =
-    String.format(Locale.US, "¥%,.2f", cents / 100.0)
 
 private fun formatInstant(value: Instant): String =
     value.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))

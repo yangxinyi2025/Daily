@@ -24,12 +24,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PeriodRecordEntity::class,
         ActivityRecordEntity::class,
         MonthlyReportEntity::class,
-        TransactionEntity::class,
-        BudgetEntity::class,
         ImportLogEntity::class,
         CalendarSyncLinkEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 @TypeConverters(DailyConverters::class)
@@ -42,8 +40,6 @@ abstract class DailyDatabase : RoomDatabase() {
     abstract fun scheduleEventDao(): ScheduleEventDao
     abstract fun healthDao(): HealthDao
     abstract fun periodDao(): PeriodDao
-    abstract fun transactionDao(): TransactionDao
-    abstract fun budgetDao(): BudgetDao
     abstract fun importLogDao(): ImportLogDao
     abstract fun calendarSyncLinkDao(): CalendarSyncLinkDao
     abstract fun holidayCalendarDao(): HolidayCalendarDao
@@ -267,6 +263,13 @@ abstract class DailyDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("DROP TABLE IF EXISTS transactions")
+                database.execSQL("DROP TABLE IF EXISTS budgets")
+            }
+        }
+
         fun build(context: Context): DailyDatabase =
             Room.databaseBuilder(
                 context.applicationContext,
@@ -283,7 +286,8 @@ abstract class DailyDatabase : RoomDatabase() {
                 MIGRATION_8_9,
                 MIGRATION_9_10,
                 MIGRATION_10_11,
-                MIGRATION_11_12
+                MIGRATION_11_12,
+                MIGRATION_12_13
             ).build()
 
         fun buildInMemory(context: Context): DailyDatabase =

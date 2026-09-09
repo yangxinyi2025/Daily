@@ -16,7 +16,6 @@ class HomeViewModel(
     timetableRepository: TimetableSummaryRepository,
     scheduleRepository: ScheduleSummaryRepository,
     healthRepository: HealthSummaryRepository,
-    billRepository: BillSummaryRepository,
     private val clock: Clock = Clock.systemDefaultZone(),
     coroutineScope: CoroutineScope? = null
 ) : ViewModel() {
@@ -26,26 +25,23 @@ class HomeViewModel(
         combine(
             timetableRepository.summary,
             scheduleRepository.summary,
-            healthRepository.summary,
-            billRepository.summary
-        ) { timetable, schedule, health, bill ->
-            createHomeState(timetable, schedule, health, bill)
+            healthRepository.summary
+        ) { timetable, schedule, health ->
+            createHomeState(timetable, schedule, health)
         }.stateIn(
             scope = scope,
             started = SharingStarted.Eagerly,
             initialValue = createHomeState(
                 timetable = TimetableHomeSummary(),
                 schedule = ScheduleHomeSummary(),
-                health = HealthHomeSummary(),
-                bill = BillHomeSummary()
+                health = HealthHomeSummary()
             )
         )
 
     private fun createHomeState(
         timetable: TimetableHomeSummary,
         schedule: ScheduleHomeSummary,
-        health: HealthHomeSummary,
-        bill: BillHomeSummary
+        health: HealthHomeSummary
     ): HomeState = HomeState(
         greeting = "你好",
         dateLabel = DATE_FORMATTER.format(LocalDate.now(clock)),
@@ -58,10 +54,7 @@ class HomeViewModel(
         todaySchedules = schedule.todaySchedules,
         latestWeightJin = health.latestWeightJin,
         latestPeriod = health.latestPeriod,
-        nextPeriodStart = health.nextPeriodStart,
-        monthlySpendingCents = bill.monthlyExpenseCents,
-        monthlyBudgetCents = bill.monthlyBudgetCents,
-        hasBillData = !bill.isEmpty
+        nextPeriodStart = health.nextPeriodStart
     )
 
     private companion object {

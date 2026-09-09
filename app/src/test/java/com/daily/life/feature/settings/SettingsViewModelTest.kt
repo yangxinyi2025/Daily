@@ -48,24 +48,6 @@ class SettingsViewModelTest {
         )
     }
 
-    @Test
-    fun savingMonthlyBudgetUpdatesPreferences() = runTest {
-        val preferences = createTestPreferences()
-        val viewModel = SettingsViewModel(
-            semesterRepository = EmptySemesterSettingsRepository,
-            preferences = preferences,
-            coroutineScope = backgroundScope
-        )
-
-        viewModel.updateMonthlyBudgetCents(250_000L)
-
-        assertEquals(250_000L, preferences.defaultBudgetCents.first())
-        assertEquals(
-            250_000L,
-            viewModel.state.first { it.monthlyBudgetCents == 250_000L }.monthlyBudgetCents
-        )
-    }
-
     private fun createTestPreferences(): DailyPreferences {
         val directory = createTempDir(prefix = "daily-settings-prefs")
         return DailyPreferences.create(

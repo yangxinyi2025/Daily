@@ -8,11 +8,10 @@ sealed class DailyDestination(
     data object Timetable : DailyDestination(route = "timetable", label = "课表")
     data object Schedule : DailyDestination(route = "schedule", label = "日程")
     data object Health : DailyDestination(route = "health", label = "健康")
-    data object Bill : DailyDestination(route = "bill", label = "账单")
     data object Settings : DailyDestination(route = "settings", label = "设置")
 
     companion object {
-        val primaryDestinations = listOf(Home, Timetable, Schedule, Health, Bill)
+        val primaryDestinations = listOf(Home, Timetable, Schedule, Health)
         val allDestinations = primaryDestinations + Settings
 
         fun fromRoute(route: String?): DailyDestination {

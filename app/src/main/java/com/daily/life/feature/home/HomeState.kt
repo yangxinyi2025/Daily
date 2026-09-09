@@ -19,10 +19,7 @@ data class HomeState(
     val todaySchedules: List<HomeScheduleRow> = emptyList(),
     val latestWeightJin: Double? = null,
     val latestPeriod: HomePeriodSummary? = null,
-    val nextPeriodStart: LocalDate? = null,
-    val monthlySpendingCents: Long = 0L,
-    val monthlyBudgetCents: Long? = null,
-    val hasBillData: Boolean = false
+    val nextPeriodStart: LocalDate? = null
 )
 
 {
@@ -53,16 +50,6 @@ data class HomeState(
                 value = latestWeightJin?.let { "${formatWeight(it)} 斤" } ?: "还没有体重记录",
                 actionLabel = if (latestWeightJin == null) "记录今天体重" else "查看体重趋势",
                 destination = DailyDestination.Health
-            ),
-            HomeCardState(
-                title = "本月账单",
-                value = when {
-                    !hasBillData -> "本月还没有账单"
-                    monthlyBudgetCents == null -> formatCurrency(monthlySpendingCents)
-                    else -> "${formatCurrency(monthlySpendingCents)} / ${formatCurrency(monthlyBudgetCents)}"
-                },
-                actionLabel = if (hasBillData) "查看账单" else "导入第一份账单",
-                destination = DailyDestination.Bill
             )
         )
 }
@@ -186,12 +173,6 @@ internal fun healthHomePresentation(state: HomeState): HomeHealthPresentation {
     )
 }
 
-data class BillHomeSummary(
-    val monthlyExpenseCents: Long = 0L,
-    val monthlyBudgetCents: Long? = null,
-    val isEmpty: Boolean = true
-)
-
 interface TimetableSummaryRepository {
     val summary: Flow<TimetableHomeSummary>
 }
@@ -202,10 +183,6 @@ interface ScheduleSummaryRepository {
 
 interface HealthSummaryRepository {
     val summary: Flow<HealthHomeSummary>
-}
-
-interface BillSummaryRepository {
-    val summary: Flow<BillHomeSummary>
 }
 
 class FakeTimetableSummaryRepository(
@@ -220,11 +197,4 @@ class FakeHealthSummaryRepository(
     override val summary: Flow<HealthHomeSummary> = MutableStateFlow(HealthHomeSummary())
 ) : HealthSummaryRepository
 
-class FakeBillSummaryRepository(
-    override val summary: Flow<BillHomeSummary> = MutableStateFlow(BillHomeSummary())
-) : BillSummaryRepository
-
 private fun formatWeight(value: Double): String = String.format(java.util.Locale.US, "%.1f", value)
-
-private fun formatCurrency(cents: Long): String =
-    String.format(java.util.Locale.US, "¥%,.2f", cents / 100.0)

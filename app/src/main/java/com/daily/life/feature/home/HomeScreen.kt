@@ -74,7 +74,6 @@ fun HomeScreen(
         }
     }
 }
-
 @Composable
 private fun HomeSectionTabs(section: HomeSection, onSelect: (HomeSection) -> Unit) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -112,7 +111,6 @@ private fun HomeSectionTabs(section: HomeSection, onSelect: (HomeSection) -> Uni
         }
     }
 }
-
 @Composable
 private fun HomeCoursePanel(state: HomeState) = HomeTimelinePanel(
     title = "今日课程",
@@ -197,7 +195,6 @@ private fun HomeTimelinePanel(
         }
     }
 }
-
 @Composable
 private fun HomeTimelineRow(
     index: Int,
@@ -242,7 +239,6 @@ private fun HomeTimelineRow(
         }
     }
 }
-
 @Composable
 private fun HomeTimelineDetail(icon: Int, text: String, description: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -376,7 +372,6 @@ private fun HomeOverviewCard(state: HomeState) {
                 ) {
                     OverviewMetric(label = "课程", value = state.todayCourseCount.toString())
                     OverviewMetric(label = "日程", value = state.upcomingEventCount.toString())
-                    OverviewMetric(label = "预算", value = state.budgetUsageLabel())
                 }
             }
         }
@@ -392,7 +387,7 @@ private fun OverviewMetric(label: String, value: String) {
         Text(
             text = value,
             color = HomePurple,
-            fontSize = if (label == "预算" && value.length > 3) 21.sp else 23.sp,
+            fontSize = 23.sp,
             lineHeight = 28.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
@@ -491,12 +486,4 @@ private fun HomeContentCard(
             }
         }
     }
-}
-
-private fun HomeState.budgetUsageLabel(): String {
-    val budget = monthlyBudgetCents?.takeIf { it > 0L } ?: return "未设置"
-    val percentage = java.math.BigInteger.valueOf(monthlySpendingCents)
-        .multiply(java.math.BigInteger.valueOf(100L))
-        .divide(java.math.BigInteger.valueOf(budget))
-    return "$percentage%"
 }

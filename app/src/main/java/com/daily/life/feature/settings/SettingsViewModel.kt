@@ -32,14 +32,12 @@ class SettingsViewModel(
         combine(
             semesterRepository.currentSemester,
             preferences.semesterStartDate,
-            preferences.targetWeightJin,
-            preferences.defaultBudgetCents
-        ) { semester, preferredStartDate, targetWeight, monthlyBudget ->
+            preferences.targetWeightJin
+        ) { semester, preferredStartDate, targetWeight ->
             LocalSettingsState(
                 currentSemesterName = semester.name,
                 semesterStartDate = preferredStartDate ?: semester.startDate,
-                targetWeightJin = targetWeight,
-                monthlyBudgetCents = monthlyBudget
+                targetWeightJin = targetWeight
             )
         }
 
@@ -88,7 +86,6 @@ class SettingsViewModel(
                 currentSemesterName = local.currentSemesterName,
                 semesterStartDate = local.semesterStartDate,
                 targetWeightJin = local.targetWeightJin,
-                monthlyBudgetCents = local.monthlyBudgetCents,
                 saveStatus = latestSaveStatus,
                 holidaySources = holiday.holidaySources,
                 holidaySyncStatus = holiday.holidaySyncStatus,
@@ -112,13 +109,6 @@ class SettingsViewModel(
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             preferences.setTargetWeightJin(value)
             saveStatus.value = if (value == null) "已清除目标体重" else "目标体重已保存"
-        }
-    }
-
-    fun updateMonthlyBudgetCents(value: Long?) {
-        scope.launch(start = CoroutineStart.UNDISPATCHED) {
-            preferences.setDefaultBudgetCents(value)
-            saveStatus.value = if (value == null) "已清除月预算" else "月预算已保存"
         }
     }
 
@@ -187,8 +177,7 @@ class SettingsViewModel(
     private data class LocalSettingsState(
         val currentSemesterName: String?,
         val semesterStartDate: LocalDate?,
-        val targetWeightJin: Double?,
-        val monthlyBudgetCents: Long?
+        val targetWeightJin: Double?
     )
 
     private data class HolidaySettingsState(
