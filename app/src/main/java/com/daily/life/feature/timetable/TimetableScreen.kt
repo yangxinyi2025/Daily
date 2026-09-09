@@ -60,12 +60,16 @@ import androidx.core.content.ContextCompat
 import com.daily.life.core.calendar.requiresCalendarPermission
 import com.daily.life.core.designsystem.DailyCard
 import com.daily.life.core.designsystem.DailyEmptyState
-import com.daily.life.core.designsystem.SkyCoolBorder
-import com.daily.life.core.designsystem.SkyInk
-import com.daily.life.core.designsystem.SkyPrimary
-import com.daily.life.core.designsystem.SkySurface
 import java.io.InputStream
 import java.time.format.DateTimeFormatter
+
+internal val TimetablePageBackground = Color.White
+internal val TimetableSurface = Color(0xFFF8F8F0)
+internal val TimetableInk = Color(0xFF244C12)
+internal val TimetableMuted = Color(0xFF74906C)
+internal val TimetableGreen = Color(0xFFC7E99F)
+internal val TimetablePurple = Color(0xFFC7AFEE)
+internal val TimetableOrange = Color(0xFFFFCA79)
 
 @Composable
 fun TimetableScreen(
@@ -236,7 +240,8 @@ fun TimetableScreen(
 
     Column(
         modifier = Modifier
-            .fillMaxSize(),
+            .fillMaxSize()
+            .background(TimetablePageBackground),
         verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         Row(
@@ -246,14 +251,19 @@ fun TimetableScreen(
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = "课表", style = MaterialTheme.typography.titleLarge)
+            Text(
+                text = "课表",
+                style = MaterialTheme.typography.titleLarge,
+                color = TimetableInk,
+                fontWeight = FontWeight.Bold
+            )
             Text(
                 text = state.weekLabel,
                 modifier = Modifier
                     .padding(start = 6.dp)
                     .clickable(onClick = onCurrentWeek),
                 style = MaterialTheme.typography.titleLarge,
-                color = SkyPrimary
+                color = TimetablePurple
             )
             Spacer(Modifier.weight(1f))
             IconButton(onClick = onPreviousWeek, modifier = Modifier.size(36.dp)) {
@@ -280,7 +290,7 @@ fun TimetableScreen(
             text = state.currentSemesterName ?: "导入课表后，在这里查看完整周课表",
             modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 8.dp),
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = TimetableMuted
         )
         state.calendarAdjustmentWarning?.let { warning ->
             Text(
@@ -431,14 +441,14 @@ private fun WeeklyTimetableGrid(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(SkySurface)
+            .background(TimetableSurface)
             .testTag("timetable_grid")
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(HEADER_HEIGHT)
-                .border(0.5.dp, SkyCoolBorder.copy(alpha = 0.78f))
+                .border(0.5.dp, TimetableGreen.copy(alpha = 0.78f))
         ) {
             Box(
                 modifier = Modifier.width(TIME_COLUMN_WIDTH),
@@ -456,7 +466,7 @@ private fun WeeklyTimetableGrid(
                             text = day.label,
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = SkyInk
+                            color = TimetableInk
                         )
                         day.date?.let { date ->
                             Text(
@@ -594,13 +604,13 @@ internal fun timetableCourseColorSlot(dayOfWeek: Int): Int = ((dayOfWeek - 1) % 
 private data class TimetableCoursePalette(val background: Color, val accent: Color)
 
 private val TIMETABLE_COURSE_COLORS = listOf(
-    TimetableCoursePalette(Color(0xFFEDE9FF), Color(0xFF7464D9)),
-    TimetableCoursePalette(Color(0xFFE6F5EE), Color(0xFF579B78)),
-    TimetableCoursePalette(Color(0xFFFCE8EF), Color(0xFFD96B91)),
-    TimetableCoursePalette(Color(0xFFE5F3F6), Color(0xFF5C9CA8))
+    TimetableCoursePalette(Color(0xFFF0EAFE), Color(0xFF8970BD)),
+    TimetableCoursePalette(Color(0xFFEAF6DE), Color(0xFF56833C)),
+    TimetableCoursePalette(Color(0xFFFFF0DE), Color(0xFFC47B3D)),
+    TimetableCoursePalette(Color(0xFFE7F4F0), Color(0xFF4B8B81))
 )
 
-private val SkyMutedLabel = SkyInk.copy(alpha = 0.54f)
+private val SkyMutedLabel = TimetableMuted.copy(alpha = 0.78f)
 private val TIME_COLUMN_WIDTH = 56.dp
 private val HEADER_HEIGHT = 52.dp
 private val PERIOD_HEIGHT = 76.dp

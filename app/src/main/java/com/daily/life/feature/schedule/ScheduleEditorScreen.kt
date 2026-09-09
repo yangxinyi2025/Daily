@@ -21,9 +21,11 @@ import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -39,13 +41,6 @@ import androidx.compose.ui.unit.sp
 import com.daily.life.R
 import com.daily.life.core.designsystem.DailyDatePickerField
 import com.daily.life.core.designsystem.DailyTimePickerField
-import com.daily.life.core.designsystem.SkyAccent
-import com.daily.life.core.designsystem.SkyCoolBorder
-import com.daily.life.core.designsystem.SkyInk
-import com.daily.life.core.designsystem.SkyMutedText
-import com.daily.life.core.designsystem.SkyPrimary
-import com.daily.life.core.designsystem.SkySurface
-import com.daily.life.core.designsystem.SkyWarm
 
 @Composable
 fun ScheduleEditorScreen(
@@ -58,11 +53,11 @@ fun ScheduleEditorScreen(
     ScheduleReferenceCard {
         Box(modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.EventNote, contentDescription = null, tint = SkyAccent, modifier = Modifier.size(25.dp))
+                Icon(Icons.Outlined.EventNote, contentDescription = null, tint = SchedulePurple, modifier = Modifier.size(25.dp))
                 Text(
                     if (state.id == null) "新建日程" else "编辑日程",
                     modifier = Modifier.padding(start = 9.dp),
-                    color = SkyInk,
+                    color = ScheduleInk,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -98,9 +93,9 @@ fun ScheduleEditorScreen(
             value = state.reminderOffsetMinutes,
             onValueChange = { onChange(state.copy(reminderOffsetMinutes = it)) },
             label = "提前提醒（分钟）",
-            leadingIcon = { Icon(Icons.Outlined.NotificationsNone, contentDescription = null, tint = SkyAccent, modifier = Modifier.size(20.dp)) }
+            leadingIcon = { Icon(Icons.Outlined.NotificationsNone, contentDescription = null, tint = SchedulePurple, modifier = Modifier.size(20.dp)) }
         )
-        Text("提醒方式", color = SkyInk, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text("提醒方式", color = ScheduleInk, fontSize = 14.sp, fontWeight = FontWeight.Medium)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(18.dp),
@@ -109,58 +104,61 @@ fun ScheduleEditorScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 RadioButton(
                     selected = state.reminderMode == com.daily.life.core.database.ReminderMode.NOTIFICATION,
-                    onClick = { onChange(state.copy(reminderMode = com.daily.life.core.database.ReminderMode.NOTIFICATION)) }
+                    onClick = { onChange(state.copy(reminderMode = com.daily.life.core.database.ReminderMode.NOTIFICATION)) },
+                    colors = RadioButtonDefaults.colors(selectedColor = SchedulePurple, unselectedColor = ScheduleInk.copy(alpha = 0.48f))
                 )
-                Text("消息提醒", color = SkyInk, fontSize = 15.sp)
+                Text("消息提醒", color = ScheduleInk, fontSize = 15.sp)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 RadioButton(
                     selected = state.reminderMode == com.daily.life.core.database.ReminderMode.ALARM,
-                    onClick = { onChange(state.copy(reminderMode = com.daily.life.core.database.ReminderMode.ALARM)) }
+                    onClick = { onChange(state.copy(reminderMode = com.daily.life.core.database.ReminderMode.ALARM)) },
+                    colors = RadioButtonDefaults.colors(selectedColor = SchedulePurple, unselectedColor = ScheduleInk.copy(alpha = 0.48f))
                 )
-                Text("闹钟提醒", color = SkyInk, fontSize = 15.sp)
+                Text("闹钟提醒", color = ScheduleInk, fontSize = 15.sp)
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(
                 checked = state.repeatYearly,
-                onCheckedChange = { onChange(state.copy(repeatYearly = it)) }
+                onCheckedChange = { onChange(state.copy(repeatYearly = it)) },
+                colors = CheckboxDefaults.colors(checkedColor = SchedulePurple, uncheckedColor = ScheduleInk.copy(alpha = 0.48f))
             )
-            Text("每年重复", color = SkyInk, fontSize = 15.sp)
+            Text("每年重复", color = ScheduleInk, fontSize = 15.sp)
         }
         ScheduleOutlinedField(
             value = state.location,
             onValueChange = { onChange(state.copy(location = it)) },
             label = "地点（可选）",
-            leadingIcon = { Icon(Icons.Outlined.EventNote, contentDescription = null, tint = SkyAccent, modifier = Modifier.size(20.dp)) }
+            leadingIcon = { Icon(Icons.Outlined.EventNote, contentDescription = null, tint = SchedulePurple, modifier = Modifier.size(20.dp)) }
         )
         ScheduleOutlinedField(
             value = state.notes,
             onValueChange = { onChange(state.copy(notes = it)) },
             label = "消息/备注",
-            leadingIcon = { Icon(Icons.Outlined.Description, contentDescription = null, tint = SkyAccent, modifier = Modifier.size(20.dp)) }
+            leadingIcon = { Icon(Icons.Outlined.Description, contentDescription = null, tint = SchedulePurple, modifier = Modifier.size(20.dp)) }
         )
-        state.errorMessage?.let { Text(it, color = SkyWarm, fontSize = 13.sp) }
+        state.errorMessage?.let { Text(it, color = ScheduleOrange, fontSize = 13.sp) }
         Button(
             onClick = onSave,
             modifier = Modifier.fillMaxWidth().height(48.dp),
             shape = RoundedCornerShape(50),
-            colors = ButtonDefaults.buttonColors(containerColor = SkyPrimary, contentColor = Color.White)
+            colors = ButtonDefaults.buttonColors(containerColor = SchedulePurple, contentColor = Color.White)
         ) { Text("保存", fontSize = 16.sp, fontWeight = FontWeight.Medium) }
         OutlinedButton(
             onClick = onDismiss,
             modifier = Modifier.fillMaxWidth().height(44.dp),
             shape = RoundedCornerShape(50),
-            border = BorderStroke(1.dp, SkyPrimary.copy(alpha = 0.42f)),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = SkyAccent)
+            border = BorderStroke(1.dp, SchedulePurple.copy(alpha = 0.55f)),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = SchedulePurple)
         ) { Text("取消", fontSize = 16.sp, fontWeight = FontWeight.Medium) }
         if (onDelete != null) {
             OutlinedButton(
                 onClick = onDelete,
                 modifier = Modifier.fillMaxWidth().height(42.dp),
                 shape = RoundedCornerShape(50),
-                border = BorderStroke(1.dp, SkyWarm.copy(alpha = 0.6f)),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = SkyWarm)
+                border = BorderStroke(1.dp, ScheduleOrange.copy(alpha = 0.7f)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = ScheduleOrange)
             ) { Text("删除此日程", fontSize = 14.sp) }
         }
     }
@@ -177,17 +175,17 @@ private fun ScheduleOutlinedField(
         value = value,
         onValueChange = onValueChange,
         modifier = Modifier.fillMaxWidth(),
-        label = { Text(label, color = SkyMutedText, fontSize = 14.sp) },
+        label = { Text(label, color = ScheduleInk.copy(alpha = 0.58f), fontSize = 14.sp) },
         leadingIcon = leadingIcon,
         singleLine = true,
         shape = RoundedCornerShape(14.dp),
-        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = SkyInk),
+        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = ScheduleInk),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = SkyPrimary,
-            unfocusedBorderColor = SkyCoolBorder,
-            cursorColor = SkyPrimary,
-            focusedContainerColor = SkySurface,
-            unfocusedContainerColor = SkySurface
+            focusedBorderColor = SchedulePurple,
+            unfocusedBorderColor = ScheduleGreen.copy(alpha = 0.72f),
+            cursorColor = SchedulePurple,
+            focusedContainerColor = ScheduleSurfaceCream,
+            unfocusedContainerColor = ScheduleSurfaceCream
         )
     )
 }

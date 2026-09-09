@@ -1,5 +1,6 @@
 package com.daily.life.feature.timetable
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.daily.life.core.designsystem.DailyCard
@@ -47,22 +49,29 @@ fun TimetableImportScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(TimetablePageBackground)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(text = "导入课表", style = MaterialTheme.typography.headlineLarge)
+        Text(
+            text = "导入课表",
+            style = MaterialTheme.typography.headlineLarge,
+            color = TimetableInk,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+        )
         Text(
             text = "选择 PDF 后先检查并编辑预览；确认前不会修改现有课表。",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = TimetableMuted
         )
 
         DailyCard {
             Button(
                 onClick = onChooseFile,
                 enabled = !state.isLoading,
-                modifier = Modifier.testTag("timetable_import_choose")
+                modifier = Modifier.testTag("timetable_import_choose"),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = TimetablePurple, contentColor = Color.White)
             ) {
                 Text(if (state.fileName == null) "选择 PDF 文件" else "重新选择 PDF")
             }
@@ -83,11 +92,11 @@ fun TimetableImportScreen(
 
         if (state.calendarSpecialDays.isNotEmpty() || state.calendarReadWarning != null || state.holidayCalendarWarning != null) {
             DailyCard {
-                Text(text = "节假日与调休校准", style = MaterialTheme.typography.titleLarge)
+                Text(text = "节假日与调休校准", style = MaterialTheme.typography.titleLarge, color = TimetableInk)
                 Text(
                     text = "节假日按系统日历隐藏课程；每个补班日请选择实际执行的课程日。",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = TimetableMuted
                 )
                 state.calendarSpecialDays
                     .filter { it.kind == com.daily.life.core.calendar.SystemCalendarSpecialDayKind.Holiday }
@@ -144,7 +153,7 @@ fun TimetableImportScreen(
         }
 
         DailyCard {
-            Text(text = "学期信息", style = MaterialTheme.typography.titleLarge)
+            Text(text = "学期信息", style = MaterialTheme.typography.titleLarge, color = TimetableInk)
             OutlinedTextField(
                 value = state.semesterName,
                 onValueChange = { onSemesterInputChange(it, state.semesterStartDate) },
@@ -171,7 +180,7 @@ fun TimetableImportScreen(
 
         if (state.warnings.isNotEmpty() || state.unsupportedRows.isNotEmpty()) {
             DailyCard {
-                Text(text = "解析提示", style = MaterialTheme.typography.titleLarge)
+                Text(text = "解析提示", style = MaterialTheme.typography.titleLarge, color = TimetableInk)
                 state.warnings.forEach { Text("• $it", color = MaterialTheme.colorScheme.error) }
                 state.unsupportedRows.forEach { row ->
                     Text(
@@ -184,11 +193,11 @@ fun TimetableImportScreen(
 
         if (state.previewRows.isNotEmpty()) {
             DailyCard {
-                Text(text = "节次时间核对", style = MaterialTheme.typography.titleLarge)
+                Text(text = "节次时间核对", style = MaterialTheme.typography.titleLarge, color = TimetableInk)
                 Text(
                     text = if (state.periodTimesDetectedFromPdf) "已从 PDF 识别部分时间，请确认后导入" else "未在 PDF 中识别到节次时间，请核对后导入",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = TimetableMuted
                 )
                 state.periodTimes.forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -233,7 +242,8 @@ fun TimetableImportScreen(
                 enabled = state.canConfirm && !state.isLoading,
                 modifier = Modifier
                     .weight(1f)
-                    .testTag("timetable_import_confirm")
+                    .testTag("timetable_import_confirm"),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = TimetablePurple, contentColor = Color.White)
             ) {
                 Text("确认导入")
             }

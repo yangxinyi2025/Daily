@@ -57,27 +57,19 @@ import androidx.compose.ui.unit.sp
 import com.daily.life.R
 import com.daily.life.core.calendar.CalendarDayKind
 import com.daily.life.core.designsystem.DailyDatePickerField
-import com.daily.life.core.designsystem.SkyAccent
-import com.daily.life.core.designsystem.SkyBackground
-import com.daily.life.core.designsystem.SkyCoolBorder
-import com.daily.life.core.designsystem.SkyInk
-import com.daily.life.core.designsystem.SkyMutedText
-import com.daily.life.core.designsystem.SkyPrimary
-import com.daily.life.core.designsystem.SkySecondary
-import com.daily.life.core.designsystem.SkySurface
-import com.daily.life.core.designsystem.SkyWarm
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-internal val SchedulePageBackground = Color(0xFFF6F8E7)
-internal val ScheduleSurfaceCream = Color(0xFFF9F7EE)
-internal val ScheduleInk = Color(0xFF204A0A)
-internal val ScheduleGreen = Color(0xFFB1D685)
-internal val ScheduleOrange = Color(0xFFFFB246)
-internal val SchedulePurple = Color(0xFFB69DDB)
+// Keep the schedule's visual language aligned with the home screen.
+internal val SchedulePageBackground = Color.White
+internal val ScheduleSurfaceCream = Color(0xFFF8F8F0)
+internal val ScheduleInk = Color(0xFF244C12)
+internal val ScheduleGreen = Color(0xFFC7E99F)
+internal val ScheduleOrange = Color(0xFFFFCA79)
+internal val SchedulePurple = Color(0xFFC7AFEE)
 
 @Composable
 internal fun ScheduleMonthScreen(
@@ -108,7 +100,7 @@ internal fun ScheduleMonthScreen(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(SkyBackground),
+        modifier = Modifier.fillMaxSize().background(SchedulePageBackground),
         contentPadding = PaddingValues(start = 18.dp, top = 16.dp, end = 18.dp, bottom = 104.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
@@ -151,7 +143,7 @@ internal fun ScheduleMonthScreen(
                 }
             }
         }
-        state.statusMessage?.let { message -> item { Text(message, color = SkySecondary, fontSize = 14.sp) } }
+        state.statusMessage?.let { message -> item { Text(message, color = ScheduleInk.copy(alpha = 0.72f), fontSize = 14.sp) } }
     }
 }
 
@@ -162,11 +154,11 @@ private fun SchedulePageHeader(onCreate: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("日程", color = SkyInk, fontSize = 32.sp, lineHeight = 39.sp, fontWeight = FontWeight.Bold)
-            Text("把重要的事，留在恰好的时间。", modifier = Modifier.padding(top = 2.dp), color = SkyMutedText, fontSize = 14.sp, lineHeight = 20.sp)
+            Text("日程", color = ScheduleInk, fontSize = 32.sp, lineHeight = 39.sp, fontWeight = FontWeight.Bold)
+            Text("把重要的事，留在恰好的时间。", modifier = Modifier.padding(top = 2.dp), color = ScheduleInk.copy(alpha = 0.62f), fontSize = 14.sp, lineHeight = 20.sp)
         }
         IconButton(onClick = onCreate, modifier = Modifier.size(46.dp)) {
-            Icon(Icons.Outlined.Add, contentDescription = "新建日程", tint = SkyAccent, modifier = Modifier.size(32.dp))
+            Icon(Icons.Outlined.Add, contentDescription = "新建日程", tint = SchedulePurple, modifier = Modifier.size(32.dp))
         }
     }
 }
@@ -460,8 +452,8 @@ internal fun ScheduleReferenceCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = SkySurface),
-        border = BorderStroke(1.dp, SkyCoolBorder.copy(alpha = 0.7f)),
+        colors = CardDefaults.cardColors(containerColor = ScheduleSurfaceCream),
+        border = BorderStroke(1.dp, ScheduleGreen.copy(alpha = 0.7f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 7.dp)
     ) {
         Column(modifier = Modifier.padding(contentPadding), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)

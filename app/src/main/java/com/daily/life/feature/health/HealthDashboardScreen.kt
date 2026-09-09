@@ -91,7 +91,7 @@ internal fun HealthDashboardScreen(
         )
     } else {
         LazyColumn(
-            modifier = Modifier.fillMaxSize().background(Color(0xFFF6F8E7)),
+            modifier = Modifier.fillMaxSize().background(Color.White),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(18.dp, 18.dp, 18.dp, 28.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
