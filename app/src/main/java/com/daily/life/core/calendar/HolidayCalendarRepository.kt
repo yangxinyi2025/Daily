@@ -93,7 +93,9 @@ object CalendarDayRuleMerger {
     ): CalendarDayRule? {
         val candidates = primary.ifEmpty { secondary }
         if (candidates.isEmpty()) return null
-        return candidates.first().copy(
+        val selected = candidates.firstOrNull { it.kind == CalendarDayKind.MAKEUP_WORKDAY }
+            ?: candidates.first()
+        return selected.copy(
             label = candidates.mapNotNull { it.label?.takeIf(String::isNotBlank) }
                 .distinct()
                 .joinToString(" / ")
