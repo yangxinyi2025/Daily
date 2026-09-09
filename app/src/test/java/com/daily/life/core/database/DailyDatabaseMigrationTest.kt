@@ -17,12 +17,19 @@ import org.robolectric.RobolectricTestRunner
 class DailyDatabaseMigrationTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val databaseName = "daily-period-migration-test.db"
+    private val roomMigrationDatabaseName = "daily.db"
 
     @Before
-    fun setUp() = deleteDatabaseFiles()
+    fun setUp() {
+        deleteDatabaseFiles(databaseName)
+        deleteDatabaseFiles(roomMigrationDatabaseName)
+    }
 
     @After
-    fun tearDown() = deleteDatabaseFiles()
+    fun tearDown() {
+        deleteDatabaseFiles(databaseName)
+        deleteDatabaseFiles(roomMigrationDatabaseName)
+    }
 
     @Test
     fun migrationFrom3To4AddsPeriodRecordsWithoutTouchingExistingData() {
@@ -105,20 +112,81 @@ class DailyDatabaseMigrationTest {
     }
 
     @Test
-    fun migrationFrom12To13DropsBillTablesAndPreservesCourses() {
-        val database = createVersion12Database().writableDatabase
-        database.execSQL("CREATE TABLE courses (id INTEGER PRIMARY KEY NOT NULL, courseName TEXT NOT NULL)")
-        database.execSQL("INSERT INTO courses (id, courseName) VALUES (1, '数据库')")
-        database.execSQL("CREATE TABLE transactions (id INTEGER PRIMARY KEY NOT NULL)")
-        database.execSQL("CREATE TABLE budgets (month TEXT PRIMARY KEY NOT NULL)")
+    fun dailyDatabaseOpeningVersion12DatabaseUsesRegisteredMigrationToDropBillTables() {
+        val legacyDatabase = DailyDatabase.build(context)
+        legacyDatabase.openHelper.writableDatabase.apply {
+            execSQL(
+                """
+                INSERT INTO semesters (id, name, startDate, endDate, isCurrent, createdAt)
+                VALUES (1, '2026 秋季', '2026-09-01', NULL, 1, 0)
+                """.trimIndent()
+            )
+            execSQL(
+                """
+                INSERT INTO courses (
+                    id, semesterId, courseName, dayOfWeek, startPeriod, endPeriod,
+                    weekRuleText, parsedWeeks, campus, location, teacher, courseCode,
+                    credits, notes, courseReminderMode, courseReminderMinutes
+                ) VALUES (
+                    1, 1, '数据库', 2, 1, 2,
+                    '第 1 周', '1', NULL, NULL, NULL, NULL,
+                    NULL, NULL, 'FOLLOW_GLOBAL', NULL
+                )
+                """.trimIndent()
+            )
+            execSQL(
+                """
+                CREATE TABLE transactions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    occurredAt INTEGER NOT NULL,
+                    amountCents INTEGER NOT NULL,
+                    direction TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    counterparty TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    paymentMethod TEXT,
+                    transactionType TEXT,
+                    status TEXT,
+                    merchantOrderId TEXT,
+                    orderId TEXT,
+                    rawText TEXT,
+                    notes TEXT,
+                    importBatchId TEXT,
+                    createdAt INTEGER NOT NULL,
+                    updatedAt INTEGER NOT NULL
+                )
+                """.trimIndent()
+            )
+            execSQL("CREATE INDEX index_transactions_occurredAt ON transactions (occurredAt)")
+            execSQL("CREATE INDEX index_transactions_category ON transactions (category)")
+            execSQL("CREATE INDEX index_transactions_direction ON transactions (direction)")
+            execSQL(
+                """
+                CREATE TABLE budgets (
+                    month TEXT NOT NULL,
+                    budgetCents INTEGER NOT NULL,
+                    triggeredPercentages TEXT NOT NULL,
+                    updatedAt INTEGER NOT NULL,
+                    PRIMARY KEY(month)
+                )
+                """.trimIndent()
+            )
+            execSQL("PRAGMA user_version = 12")
+        }
+        legacyDatabase.close()
 
-        DailyDatabase.MIGRATION_12_13.migrate(database)
+        val migratedDatabase = DailyDatabase.build(context)
+        val database = migratedDatabase.openHelper.writableDatabase
 
+        assertEquals(13, database.query("PRAGMA user_version").use { cursor ->
+            cursor.moveToFirst()
+            cursor.getInt(0)
+        })
         assertFalse(database.hasTable("transactions"))
         assertFalse(database.hasTable("budgets"))
         assertTrue(database.hasTable("courses"))
         assertTrue(database.hasRow("SELECT courseName FROM courses WHERE courseName = '数据库'"))
-        database.close()
+        migratedDatabase.close()
     }
 
     private fun createVersion3Database() = FrameworkSQLiteOpenHelperFactory().create(
@@ -181,21 +249,6 @@ class DailyDatabaseMigrationTest {
             .build()
     )
 
-    private fun createVersion12Database() = FrameworkSQLiteOpenHelperFactory().create(
-        androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
-            .name(databaseName)
-            .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(12) {
-                override fun onCreate(db: SupportSQLiteDatabase) = Unit
-
-                override fun onUpgrade(
-                    db: SupportSQLiteDatabase,
-                    oldVersion: Int,
-                    newVersion: Int
-                ) = Unit
-            })
-            .build()
-    )
-
     private fun SupportSQLiteDatabase.hasTable(name: String): Boolean =
         hasRow("SELECT name FROM sqlite_master WHERE type = 'table' AND name = '$name'")
 
@@ -211,10 +264,10 @@ class DailyDatabaseMigrationTest {
 
     private fun SupportSQLiteDatabase.hasRow(sql: String): Boolean = query(sql).use { it.moveToFirst() }
 
-    private fun deleteDatabaseFiles() {
-        context.deleteDatabase(databaseName)
-        context.getDatabasePath("$databaseName-wal").delete()
-        context.getDatabasePath("$databaseName-shm").delete()
-        context.getDatabasePath("$databaseName-journal").delete()
+    private fun deleteDatabaseFiles(name: String) {
+        context.deleteDatabase(name)
+        context.getDatabasePath("$name-wal").delete()
+        context.getDatabasePath("$name-shm").delete()
+        context.getDatabasePath("$name-journal").delete()
     }
 }

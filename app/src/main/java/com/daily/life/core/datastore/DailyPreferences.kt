@@ -2,6 +2,7 @@ package com.daily.life.core.datastore
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.DataMigration
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -10,6 +11,7 @@ import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.toMutablePreferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -175,6 +177,7 @@ class DailyPreferences private constructor(
         private val TARGET_WEIGHT_JIN = doublePreferencesKey("target_weight_jin")
         private val MENSTRUAL_CYCLE_DAYS = intPreferencesKey("menstrual_cycle_days")
         private val COURSE_REMINDER_MINUTES = intPreferencesKey("course_reminder_minutes")
+        private val LEGACY_DEFAULT_BUDGET_CENTS = longPreferencesKey("default_budget_cents")
         private val WEB_DAV_ENDPOINT = stringPreferencesKey("web_dav_endpoint")
         private val AUTO_SYNC_ENABLED = booleanPreferencesKey("auto_sync_enabled")
         private val LAST_SYNC_AT = longPreferencesKey("last_sync_at")
@@ -184,6 +187,18 @@ class DailyPreferences private constructor(
         private val HOLIDAY_SYNC_ERROR = stringPreferencesKey("holiday_sync_error")
         private val BACKGROUND_RUNTIME_GUIDE_ACKNOWLEDGED =
             booleanPreferencesKey("background_runtime_guide_acknowledged")
+
+        private object RemoveLegacyDefaultBudgetCents : DataMigration<Preferences> {
+            override suspend fun shouldMigrate(currentData: Preferences): Boolean =
+                currentData[LEGACY_DEFAULT_BUDGET_CENTS] != null
+
+            override suspend fun migrate(currentData: Preferences): Preferences =
+                currentData.toMutablePreferences().apply {
+                    remove(LEGACY_DEFAULT_BUDGET_CENTS)
+                }
+
+            override suspend fun cleanUp() = Unit
+        }
 
         const val DEFAULT_MENSTRUAL_CYCLE_DAYS = 30
         const val MIN_MENSTRUAL_CYCLE_DAYS = 15
@@ -199,6 +214,7 @@ class DailyPreferences private constructor(
             DailyPreferences(
                 PreferenceDataStoreFactory.create(
                     scope = scope,
+                    migrations = listOf(RemoveLegacyDefaultBudgetCents),
                     produceFile = produceFile
                 )
             )
