@@ -7,8 +7,6 @@ import com.daily.life.core.database.SemesterEntity
 import com.daily.life.core.database.ReportGenerationStatus
 import com.daily.life.core.database.ReminderMode
 import com.daily.life.core.database.ScheduleEventEntity
-import com.daily.life.core.database.TransactionDirection
-import com.daily.life.core.database.TransactionEntity
 import java.io.File
 import java.time.Instant
 import java.time.LocalDate
@@ -19,16 +17,18 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.json.JSONArray
+import org.json.JSONObject
 
 class SnapshotSerializerTest {
     private val serializer = SnapshotSerializer()
 
     @Test
-    fun snapshotRoundTripPreservesCentsAndSchemaVersion() {
+    fun snapshotRoundTripPreservesRetainedDataAndSchemaVersion() {
         val decoded = serializer.decode(serializer.encode(sampleSnapshot()))
 
         assertEquals(sampleSnapshot().schemaVersion, decoded.schemaVersion)
-        assertEquals(12_345L, decoded.transactions.single().amountCents)
+        assertEquals("stable", decoded.monthlyReports.single().weightTrendSummary)
         assertEquals(sampleSnapshot().settings.webDavEndpoint, decoded.settings.webDavEndpoint)
     }
 
@@ -57,6 +57,40 @@ class SnapshotSerializerTest {
             .replace(",\"location\":\"教学楼 A201\"", "")
             .toByteArray()
         assertEquals(null, serializer.decode(legacyEncoded).scheduleEvents.single().location)
+    }
+
+    @Test
+    fun legacyBillFieldsAreDiscardedWhileRetainedSnapshotDataRoundTrips() {
+        val legacyTransactions = JSONArray().put(JSONObject()
+            .put("id", 1L)
+            .put("occurredAt", 1_700_000_000_000L)
+            .put("amountCents", 12_345L)
+            .put("direction", "EXPENSE")
+            .put("category", "餐饮")
+            .put("counterparty", "测试商户")
+            .put("source", "TEST")
+            .put("createdAt", 1_700_000_000_000L)
+            .put("updatedAt", 1_700_000_000_000L))
+        val legacyBudgets = JSONArray().put(JSONObject()
+            .put("month", "2026-08")
+            .put("budgetCents", 300_000L)
+            .put("triggeredPercentages", JSONArray())
+            .put("updatedAt", 1_700_000_000_000L))
+        val legacyJson = JSONObject(serializer.encode(sampleSnapshot()).toString(Charsets.UTF_8)).apply {
+            getJSONObject("settings").put("defaultBudgetCents", 300_000L)
+            put("transactions", legacyTransactions)
+            put("budgets", legacyBudgets)
+        }
+
+        val decoded = serializer.decode(legacyJson.toString().toByteArray())
+        val reencoded = JSONObject(serializer.encode(decoded).toString(Charsets.UTF_8))
+
+        assertEquals("test-device", decoded.deviceId)
+        assertEquals("https://dav.example.com/daily", decoded.settings.webDavEndpoint)
+        assertEquals(1, decoded.monthlyReports.size)
+        assertFalse(reencoded.has("transactions"))
+        assertFalse(reencoded.has("budgets"))
+        assertFalse(reencoded.getJSONObject("settings").has("defaultBudgetCents"))
     }
 
     @Test
@@ -98,39 +132,9 @@ class SnapshotSerializerTest {
     }
 
     @Test
-    fun invalidRecordTimestampsAreRejected() {
-        val malformed = sampleSnapshot().copy(
-            transactions = listOf(
-                TransactionEntity(
-                    id = 1L,
-                    occurredAt = 1_700_000_000_000L,
-                    amountCents = 12_345L,
-                    direction = TransactionDirection.EXPENSE,
-                    category = "餐饮",
-                    counterparty = "测试商户",
-                    source = "TEST",
-                    createdAt = 2_000L,
-                    updatedAt = 1_000L
-                )
-            )
-        )
-
-        assertMalformed(malformed)
-    }
-
-    @Test
     fun danglingCourseWeekReferencesAreRejected() {
         val malformed = sampleSnapshot().copy(
             courseWeeks = listOf(CourseWeekEntity(courseId = 99L, week = 1))
-        )
-
-        assertMalformed(malformed)
-    }
-
-    @Test
-    fun invalidSnapshotSettingsAreRejected() {
-        val malformed = sampleSnapshot().copy(
-            settings = sampleSnapshot().settings.copy(defaultBudgetCents = -1L)
         )
 
         assertMalformed(malformed)
@@ -199,7 +203,6 @@ class SnapshotSerializerTest {
             semesterStartDate = LocalDate.of(2026, 9, 1),
             currentSemesterId = 1L,
             targetWeightJin = 130.0,
-            defaultBudgetCents = 300_000L,
             webDavEndpoint = "https://dav.example.com/daily",
             autoSyncEnabled = false
         ),
@@ -221,19 +224,6 @@ class SnapshotSerializerTest {
                 generationStatus = ReportGenerationStatus.COMPLETE
             )
         ),
-        transactions = listOf(
-            com.daily.life.core.database.TransactionEntity(
-                id = 1L,
-                occurredAt = 1_700_000_000_000L,
-                amountCents = 12_345L,
-                direction = TransactionDirection.EXPENSE,
-                category = "餐饮",
-                counterparty = "测试商户",
-                source = "TEST",
-                notes = "local only"
-            )
-        ),
-        budgets = emptyList(),
         importLogs = emptyList()
     )
 

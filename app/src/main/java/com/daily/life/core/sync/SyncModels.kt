@@ -1,14 +1,12 @@
 package com.daily.life.core.sync
 
 import com.daily.life.core.database.ActivityRecordEntity
-import com.daily.life.core.database.BudgetEntity
 import com.daily.life.core.database.CourseEntity
 import com.daily.life.core.database.CourseWeekEntity
 import com.daily.life.core.database.ImportLogEntity
 import com.daily.life.core.database.MonthlyReportEntity
 import com.daily.life.core.database.ScheduleEventEntity
 import com.daily.life.core.database.SemesterEntity
-import com.daily.life.core.database.TransactionEntity
 import com.daily.life.core.database.WeightRecordEntity
 import java.io.File
 import java.time.Instant
@@ -18,7 +16,6 @@ data class SnapshotSettings(
     val semesterStartDate: LocalDate?,
     val currentSemesterId: Long?,
     val targetWeightJin: Double?,
-    val defaultBudgetCents: Long?,
     val webDavEndpoint: String?,
     val autoSyncEnabled: Boolean
 )
@@ -36,8 +33,6 @@ data class DailySnapshot(
     val weights: List<WeightRecordEntity>,
     val activities: List<ActivityRecordEntity>,
     val monthlyReports: List<MonthlyReportEntity>,
-    val transactions: List<TransactionEntity>,
-    val budgets: List<BudgetEntity>,
     val importLogs: List<ImportLogEntity>
 ) {
     companion object {
@@ -46,7 +41,7 @@ data class DailySnapshot(
             deviceId = deviceId,
             createdAt = createdAt,
             updatedAt = updatedAt,
-            settings = SnapshotSettings(null, null, null, null, null, false),
+            settings = SnapshotSettings(null, null, null, null, false),
             semesters = emptyList(),
             courses = emptyList(),
             courseWeeks = emptyList(),
@@ -54,8 +49,6 @@ data class DailySnapshot(
             weights = emptyList(),
             activities = emptyList(),
             monthlyReports = emptyList(),
-            transactions = emptyList(),
-            budgets = emptyList(),
             importLogs = emptyList()
         )
     }

@@ -2,7 +2,6 @@ package com.daily.life.core.sync
 
 import androidx.room.withTransaction
 import com.daily.life.core.database.ActivityRecordEntity
-import com.daily.life.core.database.BudgetEntity
 import com.daily.life.core.database.CourseEntity
 import com.daily.life.core.database.CourseWeekEntity
 import com.daily.life.core.database.DailyDatabase
@@ -10,7 +9,6 @@ import com.daily.life.core.database.ImportLogEntity
 import com.daily.life.core.database.MonthlyReportEntity
 import com.daily.life.core.database.ScheduleEventEntity
 import com.daily.life.core.database.SemesterEntity
-import com.daily.life.core.database.TransactionEntity
 import com.daily.life.core.database.WeightRecordEntity
 import com.daily.life.core.datastore.DailyPreferences
 import java.io.File
@@ -76,7 +74,6 @@ class RoomSnapshotStore(
             semesterStartDate = preferences.semesterStartDate.first(),
             currentSemesterId = preferences.currentSemesterId.first(),
             targetWeightJin = preferences.targetWeightJin.first(),
-            defaultBudgetCents = preferences.defaultBudgetCents.first(),
             webDavEndpoint = preferences.webDavEndpoint.first(),
             autoSyncEnabled = preferences.autoSyncEnabled.first()
         )
@@ -93,8 +90,6 @@ class RoomSnapshotStore(
             weights = database.healthDao().findAllWeights(),
             activities = database.healthDao().findAllActivities(),
             monthlyReports = database.healthDao().findAllMonthlyReports(),
-            transactions = database.transactionDao().findAll(),
-            budgets = database.budgetDao().findAll(),
             importLogs = database.importLogDao().findAll()
         )
     }
@@ -107,8 +102,6 @@ class RoomSnapshotStore(
             database.healthDao().deleteAllMonthlyReports()
             database.healthDao().deleteAllActivities()
             database.healthDao().deleteAllWeights()
-            database.transactionDao().deleteAll()
-            database.budgetDao().deleteAll()
             database.importLogDao().deleteAll()
             database.semesterDao().deleteAll()
 
@@ -119,14 +112,11 @@ class RoomSnapshotStore(
             snapshot.weights.forEach { database.healthDao().insertWeight(it) }
             snapshot.activities.forEach { database.healthDao().insertActivity(it) }
             snapshot.monthlyReports.forEach { database.healthDao().insertMonthlyReport(it) }
-            snapshot.transactions.forEach { database.transactionDao().insert(it) }
-            snapshot.budgets.forEach { database.budgetDao().upsert(it) }
             snapshot.importLogs.forEach { database.importLogDao().insert(it) }
         }
         preferences.setSemesterStartDate(snapshot.settings.semesterStartDate)
         preferences.setCurrentSemesterId(snapshot.settings.currentSemesterId)
         preferences.setTargetWeightJin(snapshot.settings.targetWeightJin)
-        preferences.setDefaultBudgetCents(snapshot.settings.defaultBudgetCents)
         preferences.setWebDavEndpoint(snapshot.settings.webDavEndpoint)
         preferences.setAutoSyncEnabled(snapshot.settings.autoSyncEnabled)
     }
