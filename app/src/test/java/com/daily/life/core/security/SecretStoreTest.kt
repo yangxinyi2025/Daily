@@ -21,7 +21,6 @@ class SecretStoreTest {
         assertEquals("test-key", store.read(SecretId.DeepSeekApiKey))
         assertNull(preferences.currentSemesterId.first())
         assertNull(preferences.targetWeightJin.first())
-        assertNull(preferences.defaultBudgetCents.first())
     }
 
     @Test

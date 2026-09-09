@@ -82,9 +82,6 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.okhttp)
     implementation(libs.pdfbox.android)
-    implementation(libs.opencsv)
-    implementation(libs.poi)
-    implementation(libs.poi.ooxml)
     ksp(libs.androidx.room.compiler)
 
     testImplementation(libs.junit)
