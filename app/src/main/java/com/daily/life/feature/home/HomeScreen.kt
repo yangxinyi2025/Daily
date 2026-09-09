@@ -387,7 +387,7 @@ private fun OverviewMetric(label: String, value: String) {
         Text(
             text = value,
             color = HomePurple,
-            fontSize = if (label == "预算" && value.length > 3) 21.sp else 23.sp,
+            fontSize = 23.sp,
             lineHeight = 28.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
