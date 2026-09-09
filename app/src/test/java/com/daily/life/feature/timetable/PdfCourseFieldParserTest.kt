@@ -16,6 +16,17 @@ class PdfCourseFieldParserTest {
     }
 
     @Test
+    fun extractsFieldsWhenPdfSplitsCharactersInsideMetadataLabels() {
+        val fields = PdfCourseFieldParser.parse(
+            "/场 地:教三 508/教 师:俞 彬/教 学 班:A01"
+        )
+
+        assertEquals("教三508", fields.location)
+        assertEquals("俞彬", fields.teacher)
+        assertTrue(fields.warnings.isEmpty())
+    }
+
+    @Test
     fun normalizesFullWidthLabelsAndCharactersWithoutLosingHyphens() {
         val fields = PdfCourseFieldParser.parse("／场地：理１－\n４０３／教师：俞\n彬／教学班")
 

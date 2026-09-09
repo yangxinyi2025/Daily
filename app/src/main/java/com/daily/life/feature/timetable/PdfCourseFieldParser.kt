@@ -37,14 +37,18 @@ internal object PdfCourseFieldParser {
     }
 
     private fun extractValue(text: String, startLabel: String, endLabel: String): String {
-        val start = Regex.escape(startLabel)
-        val end = Regex.escape(endLabel)
+        val start = flexibleLabelPattern(startLabel)
+        val end = flexibleLabelPattern(endLabel)
         val pattern = Regex(
             "[／/]\\s*$start\\s*[:：]\\s*(.*?)(?=[／/]\\s*$end(?:\\s*[:：]|$))",
             setOf(RegexOption.DOT_MATCHES_ALL)
         )
         return pattern.find(text)?.groupValues?.get(1).orEmpty()
     }
+
+    private fun flexibleLabelPattern(label: String): String = label
+        .map { character -> Regex.escape(character.toString()) }
+        .joinToString("\\s*")
 
     private fun normalize(value: String): String =
         Normalizer.normalize(value, Normalizer.Form.NFKC).replace(WHITESPACE, "")
