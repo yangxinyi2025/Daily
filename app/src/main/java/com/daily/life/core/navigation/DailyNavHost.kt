@@ -8,6 +8,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -63,9 +64,11 @@ fun DailyNavHost(
     val application = context.applicationContext as DailyApplication
     val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
-    val backgroundRuntimeGuideAcknowledged by application.container.preferences
-        .backgroundRuntimeGuideAcknowledged
-        .map { value -> value as Boolean? }
+    val backgroundRuntimeGuideAcknowledgedFlow = remember(application) {
+        application.container.preferences.backgroundRuntimeGuideAcknowledged
+            .map { value -> value as Boolean? }
+    }
+    val backgroundRuntimeGuideAcknowledged by backgroundRuntimeGuideAcknowledgedFlow
         .collectAsState(initial = null)
     var backgroundRuntimeGuideDismissed by rememberSaveable { mutableStateOf(false) }
     DisposableEffect(lifecycleOwner) {
