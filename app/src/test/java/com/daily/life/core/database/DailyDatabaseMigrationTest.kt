@@ -6,6 +6,7 @@ import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -103,6 +104,23 @@ class DailyDatabaseMigrationTest {
         database.close()
     }
 
+    @Test
+    fun migrationFrom12To13DropsBillTablesAndPreservesCourses() {
+        val database = createVersion12Database().writableDatabase
+        database.execSQL("CREATE TABLE courses (id INTEGER PRIMARY KEY NOT NULL, courseName TEXT NOT NULL)")
+        database.execSQL("INSERT INTO courses (id, courseName) VALUES (1, '数据库')")
+        database.execSQL("CREATE TABLE transactions (id INTEGER PRIMARY KEY NOT NULL)")
+        database.execSQL("CREATE TABLE budgets (month TEXT PRIMARY KEY NOT NULL)")
+
+        DailyDatabase.MIGRATION_12_13.migrate(database)
+
+        assertFalse(database.hasTable("transactions"))
+        assertFalse(database.hasTable("budgets"))
+        assertTrue(database.hasTable("courses"))
+        assertTrue(database.hasRow("SELECT courseName FROM courses WHERE courseName = '数据库'"))
+        database.close()
+    }
+
     private fun createVersion3Database() = FrameworkSQLiteOpenHelperFactory().create(
         androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
             .name(databaseName)
@@ -152,6 +170,21 @@ class DailyDatabaseMigrationTest {
         androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
             .name(databaseName)
             .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(11) {
+                override fun onCreate(db: SupportSQLiteDatabase) = Unit
+
+                override fun onUpgrade(
+                    db: SupportSQLiteDatabase,
+                    oldVersion: Int,
+                    newVersion: Int
+                ) = Unit
+            })
+            .build()
+    )
+
+    private fun createVersion12Database() = FrameworkSQLiteOpenHelperFactory().create(
+        androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
+            .name(databaseName)
+            .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(12) {
                 override fun onCreate(db: SupportSQLiteDatabase) = Unit
 
                 override fun onUpgrade(

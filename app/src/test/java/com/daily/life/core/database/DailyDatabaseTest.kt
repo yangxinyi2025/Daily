@@ -8,7 +8,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -19,12 +18,10 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class DailyDatabaseTest {
     private lateinit var database: DailyDatabase
-    private lateinit var transactionDao: TransactionDao
 
     @Before
     fun setUp() {
         database = DailyDatabase.buildInMemory(ApplicationProvider.getApplicationContext())
-        transactionDao = database.transactionDao()
     }
 
     @After
@@ -33,32 +30,7 @@ class DailyDatabaseTest {
     }
 
     @Test
-    fun transactionAmountIsStoredAsCents() = runTest {
-        val record = TransactionEntity(
-            id = 1L,
-            occurredAt = 1_700_000_000_000L,
-            amountCents = 12_345L,
-            direction = TransactionDirection.EXPENSE,
-            category = "餐饮",
-            counterparty = "测试商户",
-            source = "TEST"
-        )
-
-        transactionDao.insert(record)
-
-        assertEquals(12_345L, transactionDao.findById(1L)?.amountCents)
-    }
-
-    @Test
-    fun importLogAndBudgetTablesAreAvailable() = runTest {
-        database.budgetDao().upsert(
-            BudgetEntity(
-                month = "2026-08",
-                budgetCents = 300_000L,
-                triggeredPercentages = setOf(50, 70),
-                updatedAt = 1_700_000_100_000L
-            )
-        )
+    fun importLogTableIsAvailable() = runTest {
         database.importLogDao().insert(
             ImportLogEntity(
                 batchId = "batch-1",
@@ -72,7 +44,6 @@ class DailyDatabaseTest {
             )
         )
 
-        assertNotNull(database.budgetDao().findByMonth("2026-08"))
         assertEquals(1, database.importLogDao().observeAll().first().size)
     }
 
@@ -121,7 +92,7 @@ class DailyDatabaseTest {
     }
 
     @Test
-    fun healthBudgetAndImportDaosSupportUpdateAndDelete() = runTest {
+    fun healthAndImportDaosSupportUpdateAndDelete() = runTest {
         val healthDao = database.healthDao()
         healthDao.insertWeight(
             WeightRecordEntity(id = 1L, recordedAt = 1L, weightJin = 120.0, source = "TEST")
@@ -168,13 +139,6 @@ class DailyDatabaseTest {
         assertEquals("down", healthDao.findMonthlyReportById(3L)?.weightTrendSummary)
         healthDao.deleteMonthlyReportById(3L)
         assertNull(healthDao.findMonthlyReportById(3L))
-
-        val budgetDao = database.budgetDao()
-        budgetDao.insert(BudgetEntity(month = "2026-08", budgetCents = 300L, triggeredPercentages = emptySet(), updatedAt = 1L))
-        budgetDao.update(BudgetEntity(month = "2026-08", budgetCents = 500L, triggeredPercentages = setOf(50), updatedAt = 2L))
-        assertEquals(500L, budgetDao.findByMonth("2026-08")?.budgetCents)
-        budgetDao.deleteByMonth("2026-08")
-        assertNull(budgetDao.findByMonth("2026-08"))
 
         val importLogDao = database.importLogDao()
         importLogDao.insert(ImportLogEntity("batch-2", "test.csv", "TEST", 1L, 1, 1, 0))

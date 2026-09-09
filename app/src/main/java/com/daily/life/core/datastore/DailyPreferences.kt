@@ -43,9 +43,6 @@ class DailyPreferences private constructor(
     val courseReminderMinutes: Flow<Int?> =
         dataStore.data.map { preferences -> preferences[COURSE_REMINDER_MINUTES] }
 
-    val defaultBudgetCents: Flow<Long?> =
-        dataStore.data.map { preferences -> preferences[DEFAULT_BUDGET_CENTS] }
-
     val webDavEndpoint: Flow<String?> =
         dataStore.data.map { preferences -> preferences[WEB_DAV_ENDPOINT] }
 
@@ -120,16 +117,6 @@ class DailyPreferences private constructor(
         }
     }
 
-    suspend fun setDefaultBudgetCents(value: Long?) {
-        dataStore.edit { preferences ->
-            if (value == null) {
-                preferences.remove(DEFAULT_BUDGET_CENTS)
-            } else {
-                preferences[DEFAULT_BUDGET_CENTS] = value
-            }
-        }
-    }
-
     suspend fun setWebDavEndpoint(value: String?) {
         dataStore.edit { preferences ->
             if (value.isNullOrBlank()) {
@@ -188,7 +175,6 @@ class DailyPreferences private constructor(
         private val TARGET_WEIGHT_JIN = doublePreferencesKey("target_weight_jin")
         private val MENSTRUAL_CYCLE_DAYS = intPreferencesKey("menstrual_cycle_days")
         private val COURSE_REMINDER_MINUTES = intPreferencesKey("course_reminder_minutes")
-        private val DEFAULT_BUDGET_CENTS = longPreferencesKey("default_budget_cents")
         private val WEB_DAV_ENDPOINT = stringPreferencesKey("web_dav_endpoint")
         private val AUTO_SYNC_ENABLED = booleanPreferencesKey("auto_sync_enabled")
         private val LAST_SYNC_AT = longPreferencesKey("last_sync_at")

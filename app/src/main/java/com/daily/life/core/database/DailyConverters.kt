@@ -69,13 +69,6 @@ class DailyConverters {
         value?.let(ReportGenerationStatus::valueOf)
 
     @TypeConverter
-    fun fromTransactionDirection(value: TransactionDirection?): String? = value?.name
-
-    @TypeConverter
-    fun toTransactionDirection(value: String?): TransactionDirection? =
-        value?.let(TransactionDirection::valueOf)
-
-    @TypeConverter
     fun fromCalendarDayKind(value: CalendarDayKind?): String? = value?.name
 
     @TypeConverter

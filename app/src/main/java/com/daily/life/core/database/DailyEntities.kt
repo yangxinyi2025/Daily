@@ -307,47 +307,6 @@ data class MonthlyReportEntity(
     val generationStatus: ReportGenerationStatus
 )
 
-enum class TransactionDirection {
-    INCOME,
-    EXPENSE
-}
-
-@Entity(
-    tableName = "transactions",
-    indices = [
-        Index(value = ["occurredAt"]),
-        Index(value = ["category"]),
-        Index(value = ["direction"])
-    ]
-)
-data class TransactionEntity(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
-    val occurredAt: Long,
-    val amountCents: Long,
-    val direction: TransactionDirection,
-    val category: String,
-    val counterparty: String,
-    val source: String,
-    val paymentMethod: String? = null,
-    val transactionType: String? = null,
-    val status: String? = null,
-    val merchantOrderId: String? = null,
-    val orderId: String? = null,
-    val rawText: String? = null,
-    val notes: String? = null,
-    val importBatchId: String? = null,
-    val createdAt: Long = occurredAt,
-    val updatedAt: Long = occurredAt
-)
-
-@Entity(tableName = "budgets")
-data class BudgetEntity(
-    @PrimaryKey val month: String,
-    val budgetCents: Long,
-    val triggeredPercentages: Set<Int>,
-    val updatedAt: Long
-)
-
 @Entity(tableName = "import_logs")
 data class ImportLogEntity(
     @PrimaryKey val batchId: String,

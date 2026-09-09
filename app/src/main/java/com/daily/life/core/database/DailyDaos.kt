@@ -401,60 +401,6 @@ interface PeriodDao {
 }
 
 @Dao
-interface TransactionDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(entity: TransactionEntity): Long
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(entities: List<TransactionEntity>)
-
-    @Update
-    suspend fun update(entity: TransactionEntity)
-
-    @Query("DELETE FROM transactions WHERE id = :id")
-    suspend fun deleteById(id: Long)
-
-    @Query("SELECT * FROM transactions WHERE id = :id")
-    suspend fun findById(id: Long): TransactionEntity?
-
-    @Query("SELECT * FROM transactions ORDER BY occurredAt DESC")
-    fun observeAll(): Flow<List<TransactionEntity>>
-
-    @Query("SELECT * FROM transactions ORDER BY id")
-    suspend fun findAll(): List<TransactionEntity>
-
-    @Query("DELETE FROM transactions")
-    suspend fun deleteAll()
-}
-
-@Dao
-interface BudgetDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(entity: BudgetEntity)
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsert(entity: BudgetEntity)
-
-    @Update
-    suspend fun update(entity: BudgetEntity)
-
-    @Query("DELETE FROM budgets WHERE month = :month")
-    suspend fun deleteByMonth(month: String)
-
-    @Query("SELECT * FROM budgets WHERE month = :month LIMIT 1")
-    suspend fun findByMonth(month: String): BudgetEntity?
-
-    @Query("SELECT * FROM budgets ORDER BY month DESC")
-    fun observeAll(): Flow<List<BudgetEntity>>
-
-    @Query("SELECT * FROM budgets ORDER BY month")
-    suspend fun findAll(): List<BudgetEntity>
-
-    @Query("DELETE FROM budgets")
-    suspend fun deleteAll()
-}
-
-@Dao
 interface ImportLogDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entity: ImportLogEntity)
