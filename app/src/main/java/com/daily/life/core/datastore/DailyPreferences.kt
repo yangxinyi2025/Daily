@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.DataMigration
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.PreferencesFactory
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -193,9 +192,9 @@ class DailyPreferences private constructor(
                 currentData[LEGACY_DEFAULT_BUDGET_CENTS] != null
 
             override suspend fun migrate(currentData: Preferences): Preferences =
-                PreferencesFactory.create(
-                    currentData.asMap().filterKeys { it != LEGACY_DEFAULT_BUDGET_CENTS }
-                )
+                currentData.toMutablePreferences().apply {
+                    remove(LEGACY_DEFAULT_BUDGET_CENTS)
+                }.toPreferences()
 
             override suspend fun cleanUp() = Unit
         }

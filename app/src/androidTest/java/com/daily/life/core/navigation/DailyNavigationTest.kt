@@ -15,10 +15,10 @@ class DailyNavigationTest {
     val composeRule = createAndroidComposeRule<MainActivity>()
 
     @Test
-    fun bottomNavigationShowsFivePrimaryDestinationsAndNavigatesWithoutRecreatingActivity() {
+    fun bottomNavigationShowsFourPrimaryDestinationsAndNavigatesWithoutRecreatingActivity() {
         val firstActivity = currentActivity()
 
-        listOf("首页", "课表", "日程", "健康", "账单").forEach { label ->
+        listOf("首页", "课表", "日程", "健康").forEach { label ->
             composeRule.onNodeWithText(label).assertIsDisplayed()
         }
 
