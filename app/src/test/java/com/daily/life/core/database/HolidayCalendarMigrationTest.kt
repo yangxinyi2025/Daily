@@ -3,6 +3,7 @@ package com.daily.life.core.database
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
@@ -31,7 +32,11 @@ class HolidayCalendarMigrationTest {
         seedVersion8DatabaseWithCurrentRoomSchema()
 
         val migrated = Room.databaseBuilder(context, DailyDatabase::class.java, databaseName)
-            .addMigrations(DailyDatabase.MIGRATION_8_9, DailyDatabase.MIGRATION_9_10)
+            .addMigrations(
+                DailyDatabase.MIGRATION_8_9,
+                DailyDatabase.MIGRATION_9_10,
+                CURRENT_SCHEMA_10_13
+            )
             .allowMainThreadQueries()
             .build()
 
@@ -113,5 +118,11 @@ class HolidayCalendarMigrationTest {
         context.getDatabasePath("$databaseName-wal").delete()
         context.getDatabasePath("$databaseName-shm").delete()
         context.getDatabasePath("$databaseName-journal").delete()
+    }
+
+    private companion object {
+        val CURRENT_SCHEMA_10_13 = object : Migration(10, 13) {
+            override fun migrate(database: SupportSQLiteDatabase) = Unit
+        }
     }
 }
